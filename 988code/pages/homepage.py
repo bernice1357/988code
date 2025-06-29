@@ -14,27 +14,8 @@ if response.status_code == 200:
 else:
     print(f"API 錯誤，狀態碼：{response.status_code}")
 
-# orders = [
-#     {
-#         "customer_line_id": "Customer line id",
-#         "purchase_record": "客戶訂單對話\n根據歷史抓回的貨品"
-#     },
-#     {
-#         "customer_line_id": "AAA",
-#         "purchase_record": "白帶魚 1箱\n白帶魚切塊280/320-A 1箱"
-#     },
-#     {
-#         "customer_line_id": "BBB",
-#         "purchase_record": "薄鹽鯖魚 1箱\n沒有訂購薄鹽鯖魚的記錄"
-#     },
-#     {
-#         "customer_line_id": "CCC",
-#         "purchase_record": "白口魚 1箱 花見花開"
-#     }
-# ]#customer_line_id, conversation_record, purchase_record, is_new_product
-
 def make_card_item(order):
-    # 卡片標題：左邊顯示標題
+    # 卡片標題：左邊顯示客戶ID
     title = html.Div([
         html.Span(order["customer_line_id"], style={"fontWeight": "bold"})
     ])
@@ -42,16 +23,23 @@ def make_card_item(order):
     return dbc.Card([
         dbc.CardHeader(title),
         dbc.CardBody([
+            # 對話紀錄區塊
             html.Div([
+                html.Small("對話紀錄", className="text-muted mb-1 d-block text-primary"),
                 html.Pre(order["conversation_record"], style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
             ], className="mb-3"),
+
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
+
+            # 購買紀錄區塊
             html.Div([
+                html.Small("購買解析", className="text-muted mb-1 d-block text-primary"),
                 html.Pre(order["purchase_record"], style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
             ], className="mb-3"),
+
             html.Div([
-                dbc.Button("確定", size="sm", color="secondary", className="me-2"),
-                dbc.Button("刪除", size="sm", color="dark")
+                dbc.Button("確定", size="sm", color="dark", outline=True),
+                dbc.Button("刪除", size="sm", color="danger", outline=True)
             ], className="d-flex justify-content-end mt-2")
         ]),
         html.Div([

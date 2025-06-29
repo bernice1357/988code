@@ -1,0 +1,13 @@
+.my-tabs .nav-tabs .nav-link {
+    background-color: #6c757d;  /* 深灰 */
+    color: white;
+}
+
+.my-tabs .nav-tabs .nav-link.active {
+    background-color: #343a40;  /* 更深灰 */
+    color: white;
+}
+
+.my-tabs .nav-tabs {
+    border-bottom: 1px solid #dee2e6;
+}
