@@ -1,0 +1,51 @@
+.card-body .card-title, .card-body .card-text {
+    color: black !important;
+}
+
+div.card .card-header {
+    color: black !important;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.accordion .accordion-item {
+    background-color: #fff3cd;  /* 整個 item 背景色 */
+}
+
+.accordion .accordion-header {
+    background-color: #ffeeba !important;  /* header 背景色 */
+}
+
+.accordion .accordion-body {
+    background-color: #fff3cd !important;  /* body 背景色 */
+}
+
+.dropdown-menu.show {
+    min-width: 224px !important;
+}
+
+.nav-link {
+    width: 224px !important;
+}
+
+.dash-table .dash-cell {
+    font-size: 100px;
+}
+
+#button-container {
+    text-align: center;
+    padding-top: 10px;
+    background-color: #f9f9f9;
+    border-top: 1px solid #ccc;
+    margin-top: -10px; /* 可視情況調整讓它視覺上靠近表格 */
+}
+
+.shadow-box {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    background-color: #fff;
+}
+
+

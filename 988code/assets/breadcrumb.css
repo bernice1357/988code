@@ -1,0 +1,69 @@
+/* 讓 breadcrumb 內的文字永遠是白色 */
+#breadcrumb {
+    margin: 0;
+    padding: 0.75rem 2rem;
+    background-color: #29648A;
+    color: #FFFFFF;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    position: fixed;
+    left: 16rem;
+    right: 0;
+    top: 0;
+    z-index: 1000;
+    width: calc(100% - 16rem);
+}
+
+
+.breadcrumb a,
+.breadcrumb-item a,
+.breadcrumb-item.active {
+    color: #ffffff !important;
+}
+
+/* 讓 breadcrumb 裡的項目垂直置中 */
+.breadcrumb,
+.breadcrumb-item,
+.breadcrumb a {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+/* optional：防止點擊時出現 underline 或藍色變化 */
+.breadcrumb a {
+    text-decoration: none;
+}
+
+/* optional：hover 時的樣式也保持白色（視覺一致） */
+.breadcrumb a:hover {
+    color: #ffffff !important;
+}
+
+.breadcrumb {
+    display: flex;
+    justify-content: center;  /* 水平置中 */
+    align-items: center;      /* 垂直置中 */
+    height: 64px;             /* 設置固定高度，根據需要調整 */
+    margin: 0;
+    padding: 0;
+}
+
+.breadcrumb .breadcrumb-item {
+    text-align: center;      /* 每個項目的文字水平置中 */
+    margin: 0;
+    padding: 0;
+    line-height: 64px;       /* 確保每個項目的行高與容器高度一致，垂直置中 */
+}
+
+.breadcrumb .breadcrumb-item.active {
+    font-weight: bold;       /* 可選：讓 active 項目的字型加粗 */
+    text-decoration: underline; /* 可選：加底線，顯示為選中狀態 */
+}
+
+.breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    content: "›";            /* 自定義分隔符（如果需要） */
+    margin: 0 5px;            /* 分隔符間距 */
+}
+
