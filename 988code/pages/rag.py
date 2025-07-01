@@ -36,27 +36,38 @@ layout = dbc.Container([
         ], width=3),
 
         dbc.Col([
-            html.Div(
-                id="content-area",
-                children=[
-                    html.Div([
-                        html.H4("請選擇左側的知識庫條目", style={
-                            "textAlign": "center",
-                            "color": "#6c757d",
-                            "marginTop": "50px"
-                        })
-                    ])
-                ],
-                style={
-                    "border": "2px solid #6c757d",
-                    "borderRadius": "6px",
-                    "padding": "20px",
-                    "height": "85vh",
-                    "backgroundColor": "#adb5bd",
-                    "boxShadow": "0 0 10px rgba(0, 0, 0, 0.1)",
-                    "overflow": "auto"
-                }
-            )
+            html.Div([
+                html.Div(
+                    id="content-area",
+                    children=[
+                        html.Div([
+                            html.H4("請選擇左側的知識庫條目", style={
+                                "textAlign": "center",
+                                "color": "#6c757d",
+                                "marginTop": "50px"
+                            })
+                        ])
+                    ],
+                    style={
+                        "border": "2px solid #6c757d",
+                        "borderRadius": "6px",
+                        "padding": "20px",
+                        "height": "75vh",
+                        "backgroundColor": "#adb5bd",
+                        "boxShadow": "0 0 10px rgba(0, 0, 0, 0.1)",
+                        "overflow": "auto",
+                        "marginBottom": "10px"
+                    }
+                ),
+                html.Div([
+                    dbc.Button("儲存", id="save-btn", color="success", className="me-2"),
+                    dbc.Button("取消", id="cancel-btn", color="secondary")
+                ], style={
+                    "display": "flex",
+                    "justifyContent": "flex-end",
+                    "padding": "10px"
+                })
+            ])
         ], width=9)
     ]),
 

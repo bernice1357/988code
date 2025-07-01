@@ -23,7 +23,7 @@ sidebar = html.Div(
                     children=[
                         dbc.DropdownMenuItem("補貨提醒", href="/restock_reminder"),
                         dbc.DropdownMenuItem("新品購買", href="/buy_new_item"),
-                        dbc.DropdownMenuItem("回購提醒", href="/repurchase_reminder"),
+                        dbc.DropdownMenuItem("新品回購提醒", href="/repurchase_reminder"),
                         dbc.DropdownMenuItem("商品潛在客戶列表", href="/potential_customers"),
                     ],
                     style={"margin-top": "1rem", "width": "224px"},  # 設定寬度

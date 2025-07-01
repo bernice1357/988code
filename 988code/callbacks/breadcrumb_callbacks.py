@@ -38,7 +38,7 @@ def update_breadcrumb(pathname):
     elif pathname == "/repurchase_reminder":
         return [
             {"label": "首頁", "href": "/", "active": False}, 
-            {"label": "回購提醒", "href": "/repurchase_reminder", "active": True}
+            {"label": "新品回購提醒", "href": "/repurchase_reminder", "active": True}
         ]
     elif pathname == "/potential_customers":
         return [
