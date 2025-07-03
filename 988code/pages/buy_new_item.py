@@ -28,6 +28,7 @@ df = pd.DataFrame([
     {"客戶ID": "AAA", "客戶名稱": "大王便當", "購買日期": "2025/4/10", "新品品項": "裹漿紐澳良腿排(50片/箱)-羅德", "規格": "2025/4/16", "購買數量": "1"},
 ])
 
+# offcanvas
 product_input_fields = [
     {
         "id": "customer-id", 
@@ -40,7 +41,6 @@ product_input_fields = [
         "type": "dropdown"
     },
 ]
-
 product_components = create_search_offcanvas(
     page_name="buy_new_item",
     input_fields=product_input_fields
@@ -51,7 +51,6 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
     # 篩選條件區
     html.Div([
         product_components["trigger_button"],
-        # dbc.Button("搜尋條件", id="open-search-offcanvas", color="primary", className="mb-3"),
         dbc.Button("匯出", id="export-button", n_clicks=0, color="success")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
 
@@ -60,14 +59,6 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
     html.Div([
         normal_table(df)
     ],style={"marginTop": "20px"}),
-    dbc.Modal(
-        id="detail-modal",
-        size="xl",
-        is_open=False,
-        children=[
-            dbc.ModalBody(id="modal-body"),
-        ]
-    )
 ])
 
 register_offcanvas_callback(app, "buy_new_item")

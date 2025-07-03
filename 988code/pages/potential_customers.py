@@ -1,27 +1,36 @@
 from .common import *
 from callbacks import potential_customers_callback
+from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 
 df=pd.DataFrame([])
+
+# offcanvas
+product_input_fields = [
+    {
+        "id": "potential_product_id", 
+        "label": "商品名稱",
+        "type": "dropdown"
+    },
+    {
+        "id": "potential_spec_id", 
+        "label": "規格",
+        "type": "dropdown"
+    }
+]
+potential_components = create_search_offcanvas(
+    page_name="potential_customers",
+    input_fields=product_input_fields,
+    show_date_picker=False
+)
 
 layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
 
     # 篩選條件區
     html.Div([
-        dbc.InputGroup(
-            [dbc.InputGroupText("商品名稱"), dbc.Input(id="product_name")],
-            className="mb-3 w-25",                            
-            size="sm",
-            style={"marginRight": "10px"},
-        ),
-        dbc.InputGroup(
-            [dbc.InputGroupText("規格 (選填)"), dbc.Input(id="spec")],
-            className="mb-3 w-25",                            
-            size="sm",
-            style={"marginRight": "10px"},
-        ),
-        dbc.Button("搜尋", id="search-button", n_clicks=0, style={"marginRight": "10px"}, className="btn btn-secondary"),
-        dbc.Button("匯出列表客戶資料", id="export-button", n_clicks=0, style={"marginRight": "10px"}, className="btn btn-success"),
-    ], style={"display": "flex", "alignItems": "center"}),
+        potential_components["trigger_button"],
+        dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="success")
+    ], className="mb-3 d-flex justify-content-between align-items-center"),
+    potential_components["offcanvas"],
     html.Div([
         dash_table.DataTable(
             columns=[{"name": i, "id": i} for i in df.columns],
@@ -59,12 +68,6 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
             ]
         )   
     ],style={"marginTop": "20px"}),
-    dbc.Modal(
-        id="detail-modal",
-        size="xl",
-        is_open=False,
-        children=[
-            dbc.ModalBody(id="modal-body"),
-        ]
-    )
 ])
+
+register_offcanvas_callback(app, "potential_customers")

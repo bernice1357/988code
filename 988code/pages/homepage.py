@@ -22,7 +22,7 @@ def make_card_item(order):
     # 卡片標題：左邊顯示客戶ID
     title = html.Div([
         html.Span(
-            order["customer_id"] + order["customer_name"] if order.get("customer_id") else order["line_id"], 
+            order["customer_id"] + ' ' + order["customer_name"] if order.get("customer_id") else order["line_id"], 
             style={"fontWeight": "bold", "fontSize": "0.9rem"}
         )
     ])
@@ -44,9 +44,9 @@ def make_card_item(order):
             html.Div([
                 html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"}),
                 html.Div([
-                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True),
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True)
-                ])
+                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True) if order.get("status") == "0" else None,
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
+                ]) if order.get("status") == "0" else None
             ], className="d-flex justify-content-between align-items-center mt-2")
         ]),
         html.Div([
@@ -87,15 +87,8 @@ def get_modal_fields(customer_id, customer_name, purchase_record):
     ]
 
 layout = dbc.Container([
-    dbc.Toast(
-        "訂單已刪除",
-        id="success-toast",
-        header="系統通知",
-        is_open=False,
-        dismissable=True,
-        duration=5000,
-        style={"position": "fixed", "top": 20, "right": 20, "width": 350, "zIndex": 9999}
-    ),
+    create_success_toast(message=""),
+    create_error_toast(message=""),
     dbc.Row([
         dbc.Col(
             dbc.Card([
@@ -126,21 +119,21 @@ layout = dbc.Container([
             dbc.Button("已確認", id="filter-confirmed", color="primary", outline=True),
             dbc.Button("已刪除", id="filter-deleted", color="primary", outline=True)
         ])
-    ], className="d-flex justify-content-between align-items-center"),
+    ], className="d-flex justify-content-between align-items-center mb-4"),
     dbc.Row(id="orders-container", className="g-3", children=[dbc.Col(make_card_item(order), width=4) for order in orders], style={
-        "maxHeight": "550px", 
+        "maxHeight": "55vh", 
         "overflowY": "auto"
     } if len(orders) > 6 else {}),
     dbc.Modal([
-        dbc.ModalHeader(id="modal-header", children="確認訂單"),
+        dbc.ModalHeader("確認訂單", id="modal-header", style={"fontWeight": "bold", "fontSize": "24px"}),
         dbc.ModalBody(id="modal-body-content"),
         dbc.ModalFooter([
             dbc.Button("取消", id="cancel-modal", color="secondary", outline=True),
             dbc.Button("確認", id="submit-confirm", color="primary")
         ])
-    ], id="confirm-modal", is_open=False),
+    ], id="confirm-modal", is_open=False, centered=True),
     dbc.Modal([
-        dbc.ModalHeader("確認刪除"),
+        dbc.ModalHeader("確認刪除", style={"fontWeight": "bold", "fontSize": "24px"}),
         dbc.ModalBody(id="delete-modal-body", children="確定要刪除這筆訂單嗎？"),
         dbc.ModalFooter([
             dbc.Button("取消", id="cancel-delete", color="secondary", outline=True),
@@ -235,7 +228,8 @@ def close_delete_modal(n_clicks):
 # 確認刪除
 @app.callback(
     [Output("delete-modal", "is_open", allow_duplicate=True),
-     Output("success-toast", "children", allow_duplicate=True)],
+     Output("success-toast", "is_open", allow_duplicate=True),
+     Output("error-toast", "is_open", allow_duplicate=True)],
     [Input("submit-delete", "n_clicks")],
     [State("delete-modal-body", "children")],
     prevent_initial_call=True
@@ -262,17 +256,20 @@ def confirm_delete(n_clicks, modal_body):
             
             # 呼叫API更新資料
             try:
-                response = requests.put(f"http://127.0.0.1:8000/customer/{order_id}", json=update_data)
+                response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單刪除成功")
-                    return False, "訂單已刪除"  # 關閉 modal，設定 toast 內容
+                    return False, True, False  # 關閉 modal，開啟成功 toast
                 else:
                     print(f"API 錯誤，狀態碼：{response.status_code}")
+                    return False, False, True  # 關閉 modal，開啟錯誤 toast
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
+                return False, False, True  # 關閉 modal，開啟錯誤 toast
         
-        return False, dash.no_update  # 關閉 modal
-    return dash.no_update, dash.no_update
+        return False, False, True  # 關閉 modal，開啟錯誤 toast
+    return dash.no_update, dash.no_update, dash.no_update
+
 @app.callback(
     [Output("confirm-modal", "is_open"),
      Output("modal-body-content", "children"),
@@ -333,7 +330,8 @@ def close_modal(n_clicks):
 # modal確認送出
 @app.callback(
     [Output("confirm-modal", "is_open", allow_duplicate=True),
-     Output("success-toast", "children", allow_duplicate=True)],
+     Output("success-toast", "is_open", allow_duplicate=True),
+     Output("error-toast", "is_open", allow_duplicate=True)],
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
@@ -369,15 +367,17 @@ def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_
             
             # 呼叫API更新資料
             try:
-                response = requests.put(f"http://127.0.0.1:8000/customer/{order_id}", json=update_data)
+                response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單確認成功")
-                    return False, "訂單已確認"  # 關閉 modal，設定 toast 內容
+                    return False, True, False  # 關閉 modal，開啟成功 toast
                 else:
                     print(f"API 錯誤，狀態碼：{response.status_code}")
+                    return False, False, True  # 關閉 modal，開啟錯誤 toast
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
+                return False, False, True  # 關閉 modal，開啟錯誤 toast
         
-        return False, dash.no_update  # 關閉 modal
+        return False, False, True  # 關閉 modal，開啟錯誤 toast
     
-    return dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update

@@ -6,6 +6,7 @@ import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output, State, MATCH, ALL
+from dash import ALL
 from dash import dash_table
 from dash.exceptions import PreventUpdate
 

@@ -60,14 +60,6 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
         html.Button("匯出列表資料", id="export-button", n_clicks=0, style={"marginRight": "10px"}, className="btn btn-outline-danger"),
         html.Button("確定更改狀態", id="change-status-button", n_clicks=0, style={"marginRight": "10px"}),
     ],style={"marginTop": "20px"}),
-    dbc.Modal(
-        id="detail-modal",
-        size="xl",
-        is_open=False,
-        children=[
-            dbc.ModalBody(id="modal-body"),
-        ]
-    )
 ])
 
 register_offcanvas_callback(app, "repurchase_reminder")

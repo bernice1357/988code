@@ -1,2 +1,0 @@
-fastAPI
-"C:/Program Files/Python310/python.exe" -m uvicorn api_server:app --reload 

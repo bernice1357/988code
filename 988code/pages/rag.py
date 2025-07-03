@@ -73,7 +73,7 @@ layout = dbc.Container([
 
     # Modal 彈窗
     dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("新增客戶")),
+        dbc.ModalHeader("新增客戶", style={"fontWeight": "bold", "fontSize": "24px"}),
         dbc.ModalBody([
             dbc.Input(id="new-client-name", placeholder="輸入客戶名稱", type="text")
         ]),
@@ -81,5 +81,5 @@ layout = dbc.Container([
             dbc.Button("取消", id="close-modal", color="secondary", className="me-2"),
             dbc.Button("新增", id="add-client", color="primary")
         ])
-    ], id="modal", is_open=False)
+    ], id="modal", is_open=False, centered=True)
 ], fluid=True)

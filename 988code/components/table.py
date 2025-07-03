@@ -1,15 +1,34 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
     
-def button_table(df):
+def button_table(df, button_text="查看", button_class="btn btn-warning btn-sm", button_id_type='view-button', address_columns=None):
     header = html.Tr([html.Th(col) for col in df.columns] + [html.Th("操作")])
     rows = []
 
     for i, row in df.iterrows():
-        row_cells = [html.Td(row[col]) for col in df.columns]
+        row_cells = []
+        for col in df.columns:
+            if address_columns and col in address_columns:
+                cell_style = {
+                    'maxWidth': '200px',
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis',
+                    'whiteSpace': 'nowrap'
+                }
+                row_cells.append(html.Td(row[col], style=cell_style, title=str(row[col])))
+            else:
+                row_cells.append(html.Td(row[col]))
+        
+        button_props = {
+            'id': {'type': button_id_type, 'index': i}, 
+            'n_clicks': 0, 
+            'className': button_class,
+            'style': {'fontSize': '16px'}
+        }
+        
         row_cells.append(
             html.Td(
-                html.Button("查看", id={'type': 'view-button', 'index': i}, n_clicks=0, className="btn btn-warning btn-sm")
+                html.Button(button_text, **button_props)
             )
         )
         rows.append(html.Tr(row_cells))
