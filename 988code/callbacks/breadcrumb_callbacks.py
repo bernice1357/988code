@@ -48,7 +48,7 @@ def update_breadcrumb(pathname):
     elif pathname == "/product_inventory":
         return [
             {"label": "首頁", "href": "/", "active": False}, 
-            {"label": "商品庫存", "href": "/product_inventory", "active": True}
+            {"label": "商品庫存管理", "href": "/product_inventory", "active": True}
         ]
     elif pathname == "/inactive_customers":
         return [

@@ -87,8 +87,8 @@ def get_modal_fields(customer_id, customer_name, purchase_record):
     ]
 
 layout = dbc.Container([
-    create_success_toast(message=""),
-    create_error_toast(message=""),
+    create_success_toast("homepage", message=""),
+    create_error_toast("homepage", message=""),
     dbc.Row([
         dbc.Col(
             dbc.Card([

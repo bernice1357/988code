@@ -12,7 +12,7 @@ if response.status_code == 200:
                 "customer_id": "客戶ID",
                 "customer_name": "客戶名稱",
                 "address": "客戶地址",
-                "delivery_schedule": "貨物星期",
+                "delivery_schedule": "每週配送日",
                 "transaction_date": "最新交易日期",
                 "notes": "備註"
             })

@@ -1,25 +1,5 @@
 from .common import *
 
-# 呼叫API
-# response = requests.get("http://127.0.0.1:8000/get_customer_data")
-# df = response.json()
-# df = pd.DataFrame(df)
-# df = df.rename(columns={
-#         "customer_id": "客戶ID",
-#         "customer_name": "客戶名稱",
-#         "address": "地址",
-#         "updated_date": "最後更新日期",
-#         "notes": "產品名稱"
-#     })
-
-# if response.status_code == 200:
-#     try:
-#         data = response.json()
-#     except requests.exceptions.JSONDecodeError:
-#         print("回應內容不是有效的 JSON")
-# else:
-#     print(f"API 錯誤，狀態碼：{response.status_code}")
-
 df = pd.DataFrame([
     {"客戶ID": "AAA", "客戶名稱": "123自助餐", "客戶類型": "曾詢問客戶", "上次購買/詢問日期": "紅斑魚片4/5 6K/箱", "購買數量/頻率": "2025/4/16"},
     {"客戶ID": "AAA", "客戶名稱": "布穀鳥(苓雅)", "客戶類型": "潛在需求客戶", "上次購買/詢問日期": "薄鹽鯖魚100/130-6K-[無中骨]A團膳用", "購買數量/頻率": "2025/4/16"},

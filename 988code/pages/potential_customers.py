@@ -48,7 +48,7 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
                 'border': '1px solid #ccc'
             },
             style_header={
-                'backgroundColor': '#fbe8a6',
+                'backgroundColor': '#bcd1df',
                 'fontWeight': 'bold'
             },
             style_data_conditional=[

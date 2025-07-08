@@ -102,8 +102,7 @@ def create_search_offcanvas(
     trigger_button = dbc.Button(
         button_text, 
         id=button_id, 
-        color="primary", 
-        className="mb-3"
+        color="primary"
     )
     
     # Offcanvas

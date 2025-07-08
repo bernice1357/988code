@@ -93,7 +93,7 @@ tab_content = html.Div([
                 'border': '1px solid #ccc'
             },
             style_header={
-                'backgroundColor': '#fbe8a6',
+                'backgroundColor': '#bcd1df',
                 'fontWeight': 'bold'
             },
             style_data_conditional=[
@@ -164,7 +164,7 @@ def update_table(btn_all, btn_unprocessed):
             'border': '1px solid #ccc'
         },
         style_header={
-            'backgroundColor': '#fbe8a6',
+            'backgroundColor': '#bcd1df',
             'fontWeight': 'bold'
         },
         style_data_conditional=[
@@ -220,6 +220,6 @@ def filter_selectable_rows(selected_rows, data):
 )
 def show_confirm_button(selected_rows):
     if selected_rows and len(selected_rows) > 0:
-        return dbc.Button("確認已處理", id="confirm-processed-btn", color="success")
+        return dbc.Button("確認已處理", id="inactive_customers_confirm_btn", color="success")
     else:
         return html.Div()

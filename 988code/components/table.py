@@ -82,30 +82,30 @@ def normal_table(df):
     })
 
 def status_table(df):
-    header = html.Tr([html.Th(col) for col in df.columns])
-    rows = []
-
-    for i, row in df.iterrows():
-        row_cells = [html.Td(row[col]) for col in df.columns]
-        rows.append(html.Tr(row_cells))
-
     table = dash_table.DataTable(
         columns=[{"name": i, "id": i} for i in df.columns],
         data=df.to_dict('records'),
-        row_selectable="multi",  # 可以多選
-        selected_rows=[],        # 預設沒選任何列
+        row_selectable="multi",
+        selected_rows=[],
         style_table={
             'overflowX': 'auto',
-            'border': '1px solid #ccc'
+            'border': '1px solid #ccc',
+            'width': '100%',
+            'borderCollapse': 'collapse'
         },
         style_cell={
             'padding': '8px 12px',
             'textAlign': 'center',
-            'border': '1px solid #ccc'
+            'border': '1px solid #ccc',
+            'fontSize': '16px'
         },
         style_header={
-            'backgroundColor': '#fbe8a6',
-            'fontWeight': 'bold'
+            'backgroundColor': '#bcd1df',
+            'fontWeight': 'bold',
+            'position': 'sticky',
+            'top': '0px',
+            'zIndex': 1,
+            'fontSize': '16px'
         },
         style_data_conditional=[
             {
@@ -118,7 +118,7 @@ def status_table(df):
             },
             {
                 'if': {'state': 'selected'},
-                'backgroundColor': '#d2f8d2',  # 勾選後的顏色
+                'backgroundColor': '#d2f8d2',
                 'border': '1px solid #00aa00',
             },
         ]
@@ -126,8 +126,8 @@ def status_table(df):
 
     return html.Div(table, style={
         'overflowY': 'auto',
-        'maxHeight': '60vh',
-        'minHeight': '60vh',
+        'maxHeight': '75vh',
+        'minHeight': '75vh',
         'display': 'block',
     })
     
@@ -154,7 +154,7 @@ def customer_table(df):
 
     return html.Div(table, style={
         'overflowY': 'auto',
-        'maxHeight': '70vh',
-        'minHeight': '70vh',
+        'maxHeight': '75vh',
+        'minHeight': '75vh',
         'display': 'block',
     })

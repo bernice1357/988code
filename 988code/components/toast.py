@@ -1,11 +1,12 @@
 import dash_bootstrap_components as dbc
 
-def create_success_toast(message="操作成功", header="✅ 系統通知", duration=5000):
+def create_success_toast(page_id, message="操作成功", header="✅ 系統通知", duration=5000):
     """創建成功提示 Toast"""
     return dbc.Toast(
         message,
+        id=f"{page_id}-success-toast",
         header=header,
-        is_open=True,
+        is_open=False,
         dismissable=True,
         duration=duration,
         style={
@@ -20,13 +21,13 @@ def create_success_toast(message="操作成功", header="✅ 系統通知", dura
         }
     )
 
-def create_error_toast(message="操作失敗", header="❌ 系統通知", duration=5000):# TODOid, 
+def create_error_toast(page_id, message="操作失敗", header="❌ 系統通知", duration=5000):
     """創建錯誤提示 Toast"""
     return dbc.Toast(
         message,
-        # id=id,
+        id=f"{page_id}-error-toast",
         header=header,
-        is_open=True,
+        is_open=False,
         dismissable=True,
         duration=duration,
         style={
@@ -41,12 +42,13 @@ def create_error_toast(message="操作失敗", header="❌ 系統通知", durati
         }
     )
 
-def create_warning_toast(message="請注意", header="⚠️ 系統通知", duration=5000):
+def create_warning_toast(page_id, message="請注意", header="⚠️ 系統通知", duration=5000):
     """創建警告提示 Toast"""
     return dbc.Toast(
         message,
+        id=f"{page_id}-warning-toast",
         header=header,
-        is_open=True,
+        is_open=False,
         dismissable=True,
         duration=duration,
         style={
@@ -61,12 +63,13 @@ def create_warning_toast(message="請注意", header="⚠️ 系統通知", dura
         }
     )
 
-def create_info_toast(message="提示訊息", header="ℹ️ 系統通知", duration=5000):
+def create_info_toast(page_id, message="提示訊息", header="ℹ️ 系統通知", duration=5000):
     """創建資訊提示 Toast"""
     return dbc.Toast(
         message,
+        id=f"{page_id}-info-toast",
         header=header,
-        is_open=True,
+        is_open=False,
         dismissable=True,
         duration=duration,
         style={

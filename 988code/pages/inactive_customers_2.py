@@ -91,7 +91,7 @@ tab_content = html.Div([
                 'border': '1px solid #ccc'
             },
             style_header={
-                'backgroundColor': '#fbe8a6',
+                'backgroundColor': '#bcd1df',
                 'fontWeight': 'bold'
             },
             style_data_conditional=[
@@ -162,7 +162,7 @@ def update_product_table(btn_all, btn_unprocessed):
             'border': '1px solid #ccc'
         },
         style_header={
-            'backgroundColor': '#fbe8a6',
+            'backgroundColor': '#bcd1df',
             'fontWeight': 'bold'
         },
         style_data_conditional=[
