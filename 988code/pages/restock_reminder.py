@@ -223,7 +223,6 @@ def show_detail_modal(view_clicks, table_data):
 def download_chart(n_clicks, figure, modal_open, customer_info):
     if n_clicks and figure and modal_open:
         if ctx.triggered_id == "download-chart-btn":
-            print(121212)
             try:
                 import plotly.io as pio
                 

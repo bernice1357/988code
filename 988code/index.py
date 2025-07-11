@@ -1,21 +1,24 @@
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from app import app
-from pages import customer_data, inactive_customers
 from callbacks import main_callbacks, sidebar_callbacks, breadcrumb_callbacks
 
 sidebar = html.Div(
     [
         html.Div(
-            html.Img(src="/assets/images/logo.png", style={"width": "100%", "height": "auto", "margin-bottom": "20px"})
+            html.A(
+                html.Img(src="/assets/images/logo.png", style={"width": "100%", "height": "auto", "margin-bottom": "20px"}),
+                href="/",
+                style={"text-decoration": "none"}
+            )
         ),
         html.Hr(),
         dbc.Nav(
             [
-                dbc.NavLink("首頁", href="/", active="exact"),
+                dbc.NavLink("新進訂單", href="/new_orders", active="exact"),
                 dbc.NavLink("客戶資料管理", href="/customer_data", active="exact"),
-                dbc.NavLink("RAG數據管理", href="/rag", active="exact"),
                 dbc.NavLink("銷售分析", href="/sales_analysis", active="exact"),
+                dbc.NavLink("產品推薦與分析", href="/product_recommendation", active="exact"),
                 dbc.DropdownMenu(
                     label="提醒管理",
                     nav=True,
@@ -39,6 +42,7 @@ sidebar = html.Div(
                     ],
                     style={"margin-top": "1rem"},  # 設定寬度
                 ),
+                dbc.NavLink("RAG數據管理", href="/rag", active="exact"),
             ],
             vertical=True,
             pills=True,

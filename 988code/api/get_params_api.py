@@ -40,7 +40,23 @@ def get_customer_transactions(customer_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
-# 商品庫存 - 取得商品群組底下的資料
+# 透過
+@router.get("/get_recommendation_purchase_history/{customer_id}")
+def get_customer_transactions(customer_id: str):
+    try:
+        query = """
+        SELECT product_name, quantity, transaction_date
+        FROM order_transactions 
+        WHERE customer_id = %s 
+        ORDER BY transaction_date DESC
+        """
+        # 使用參數化查詢避免 SQL 注入
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 商品庫存 - 取得商品群組 modal 的資料
 # TODO現在還少備註、庫存量
 @router.get("/get_subcategory_items/{subcategory}")
 def get_subcategory_items(subcategory: str):
@@ -55,6 +71,7 @@ def get_subcategory_items(subcategory: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
+# 商品庫存 - 取得類別的所有商品群組
 @router.get("/get_subcategories_of_category/{category}")
 def get_subcategories(category: str):
     try:
@@ -65,3 +82,17 @@ def get_subcategories(category: str):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 取得客戶的備註
+@router.get("/get_customer_notes/{customer_id}")
+def get_customer_notes(customer_id: str):
+    try:
+        query = "SELECT notes FROM customer WHERE customer_id = %s"
+        df = get_data_from_db_with_params(query, (customer_id,))
+        if df.empty:
+            return {"notes": None}
+        return {"notes": df.iloc[0]['notes']}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    

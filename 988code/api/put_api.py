@@ -55,7 +55,7 @@ def update_temp(id: int, update_data: RecordUpdate):
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
 
-# 更新客戶資料
+# 客戶資料管理 - 更新資料
 class CustomerUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
@@ -85,20 +85,20 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
 
 # 批量更新subcategory
-class SubcategoryUpdate(BaseModel):
-    old_subcategory: str
+class ItemSubcategoryUpdate(BaseModel):
+    item_id: str
     new_subcategory: str
 
-@router.put("/subcategory/batch-update")
-def update_subcategory_batch(update_data: SubcategoryUpdate):
-    sql = "UPDATE product_master SET subcategory = %s WHERE subcategory = %s"
-    params = (update_data.new_subcategory, update_data.old_subcategory)
+@router.put("/product_master/update_subcategory")
+def update_item_subcategory(update_data: ItemSubcategoryUpdate):
+    sql = "UPDATE product_master SET subcategory = %s WHERE product_id = %s"
+    params = (update_data.new_subcategory, update_data.item_id)
 
     try:
         update_data_to_db(sql, params)
         return {
-            "message": "批量更新成功",
-            "old_subcategory": update_data.old_subcategory,
+            "message": "品項商品群組更新成功",
+            "item_id": update_data.item_id,
             "new_subcategory": update_data.new_subcategory
         }
     except Exception as e:

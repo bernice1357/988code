@@ -8,7 +8,12 @@ from .common import *
 def update_breadcrumb(pathname):
     if pathname == "/":
         return [
-            {"label": "首頁", "href": "/", "active": True}
+            {"label": "首頁", "href": "/", "active": False}, 
+        ]
+    elif pathname == "/new_orders":
+        return [
+            {"label": "首頁", "href": "/", "active": False}, 
+            {"label": "新進訂單", "href": "/new_orders", "active": True}
         ]
     elif pathname == "/customer_data":
         return [
@@ -24,6 +29,11 @@ def update_breadcrumb(pathname):
         return [
             {"label": "首頁", "href": "/", "active": False}, 
             {"label": "銷售分析", "href": "/sales_analysis", "active": True}
+        ]
+    elif pathname == "/product_recommendation":
+        return [
+            {"label": "首頁", "href": "/", "active": False}, 
+            {"label": "產品推薦與分析", "href": "/product_recommendation", "active": True}
         ]
     elif pathname == "/restock_reminder":
         return [

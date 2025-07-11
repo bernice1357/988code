@@ -8,16 +8,7 @@ def button_table(df, button_text="查看", button_class="btn btn-warning btn-sm"
     for i, row in df.iterrows():
         row_cells = []
         for col in df.columns:
-            if address_columns and col in address_columns:
-                cell_style = {
-                    'maxWidth': '200px',
-                    'overflow': 'hidden',
-                    'textOverflow': 'ellipsis',
-                    'whiteSpace': 'nowrap'
-                }
-                row_cells.append(html.Td(row[col], style=cell_style, title=str(row[col])))
-            else:
-                row_cells.append(html.Td(row[col]))
+            row_cells.append(html.Td(row[col], style={'whiteSpace': 'nowrap'}))
         
         button_props = {
             'id': {'type': button_id_type, 'index': i}, 
@@ -28,7 +19,8 @@ def button_table(df, button_text="查看", button_class="btn btn-warning btn-sm"
         
         row_cells.append(
             html.Td(
-                html.Button(button_text, **button_props)
+                html.Button(button_text, **button_props),
+                style={'whiteSpace': 'nowrap'}
             )
         )
         rows.append(html.Tr(row_cells))
@@ -36,21 +28,21 @@ def button_table(df, button_text="查看", button_class="btn btn-warning btn-sm"
     table = html.Table([
         html.Thead([
             html.Tr([
-                html.Th(col, style={"position": "sticky", "top": "0px", "zIndex": 1})
+                html.Th(col, style={"position": "sticky", "top": "0px", "zIndex": 1, "whiteSpace": "nowrap"})
                 for col in df.columns
-            ] + [html.Th("操作", style={"position": "sticky", "top": "0px", "zIndex": 1})])
+            ] + [html.Th("操作", style={"position": "sticky", "top": "0px", "zIndex": 1, "whiteSpace": "nowrap"})])
         ]),
         html.Tbody(rows)
     ], style={
-        "width": "100%",
+        "minWidth": "100%",
         "borderCollapse": "collapse",
+        "tableLayout": "auto"
     })
 
     return html.Div(table, style={
-        'overflowY': 'auto',
+        'overflow': 'auto',
         'maxHeight': '75vh',
         'minHeight': '75vh',
-        'display': 'block',
     })
     
 def normal_table(df):

@@ -1,4 +1,4 @@
-from dash import html, dcc, Input, Output, callback, ctx
+from dash import html, dcc, Input, Output, callback, ctx, dash
 import dash_bootstrap_components as dbc
 
 def create_search_offcanvas(
@@ -26,7 +26,6 @@ def create_search_offcanvas(
     # 根據頁面名稱生成唯一 ID
     offcanvas_id = f"{page_name}-search-offcanvas"
     button_id = f"{page_name}-open-search-offcanvas"
-    search_button_id = f"{page_name}-search-button"
     reset_button_id = f"{page_name}-reset-button"
     date_picker_id = f"{page_name}-date-range-picker"
     
@@ -90,10 +89,15 @@ def create_search_offcanvas(
         field_div.children.append(component)
         offcanvas_children.append(field_div)
     
-    # 按鈕區域
+    # 按鈕區域 - 重置按鈕字體放大
     button_div = html.Div([
-        dbc.Button("搜尋", id=search_button_id, color="primary", size="sm", className="me-2"),
-        dbc.Button("重置", id=reset_button_id, color="secondary", size="sm")
+        dbc.Button(
+            "重置", 
+            id=reset_button_id, 
+            color="secondary", 
+            size="sm",
+            style={"fontSize": "1.1rem"}  # 放大字體
+        )
     ], className="d-flex justify-content-center", style={"position": "absolute", "bottom": "20px", "left": "20px", "right": "20px"})
     
     offcanvas_children.append(button_div)
@@ -121,7 +125,6 @@ def create_search_offcanvas(
         "ids": {
             "offcanvas_id": offcanvas_id,
             "button_id": button_id,
-            "search_button_id": search_button_id,
             "reset_button_id": reset_button_id,
             "date_picker_id": date_picker_id
         }
@@ -141,19 +144,49 @@ def register_offcanvas_callback(
     
     offcanvas_id = f"{page_name}-search-offcanvas"
     button_id = f"{page_name}-open-search-offcanvas"
-    search_button_id = f"{page_name}-search-button"
     
     @app.callback(
         Output(offcanvas_id, "is_open"),
-        [
-            Input(button_id, "n_clicks"),
-            Input(search_button_id, "n_clicks")
-        ],
+        Input(button_id, "n_clicks"),
         prevent_initial_call=True
     )
-    def toggle_search_offcanvas(open_clicks, search_clicks):
-        if ctx.triggered_id == button_id:
+    def toggle_search_offcanvas(open_clicks):
+        if open_clicks:
             return True
-        elif ctx.triggered_id == search_button_id:
-            return False
         return False
+
+def register_reset_callback(
+    app,
+    page_name,
+    field_ids
+):
+    """
+    註冊重置功能的回調函數
+    
+    參數:
+    - app: Dash app 實例
+    - page_name: 頁面名稱
+    - field_ids: 需要重置的欄位 ID 列表
+    """
+    
+    reset_button_id = f"{page_name}-reset-button"
+    
+    # 動態生成完整的 field_ids
+    full_field_ids = []
+    outputs = []
+    
+    for field_id in field_ids:
+        full_field_id = f"{page_name}-{field_id}" if not field_id.startswith(page_name) else field_id
+        full_field_ids.append(full_field_id)
+        outputs.append(Output(full_field_id, "value"))
+    
+    @app.callback(
+        outputs,
+        Input(reset_button_id, "n_clicks"),
+        prevent_initial_call=True
+    )
+    def reset_search_filters(n_clicks):
+        if n_clicks:
+            # 返回與欄位數量相同的 None 值
+            return [None] * len(field_ids)
+        return [dash.no_update] * len(field_ids)

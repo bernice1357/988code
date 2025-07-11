@@ -9,8 +9,14 @@ def display_main_content(pathname):
     if pathname == '/':
         return homepage.layout
     
+    elif pathname == '/new_orders':
+        return new_orders.layout
+    
     elif pathname == '/customer_data':
         return customer_data.layout
+    
+    elif pathname == '/product_recommendation':
+        return product_recommendation.layout
     
     elif pathname == '/history_orders':
         return customer_data.layout

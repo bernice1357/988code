@@ -147,3 +147,25 @@ def get_inventory_data():
         print(f"[API ERROR] get_inventory_data: {e}")
         traceback.print_exc()  # 印出完整 traceback
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到客戶ID列表
+@router.get("/get_customer_ids")
+def get_customer_ids():
+    print("[API] get_customer_ids 被呼叫")
+    try:
+        df = get_data_from_db('SELECT customer_id FROM customer ORDER BY customer_id')
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_customer_ids: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到客戶名稱列表
+@router.get("/get_customer_names")
+def get_customer_names():
+    print("[API] get_customer_names 被呼叫")
+    try:
+        df = get_data_from_db('SELECT customer_name FROM customer ORDER BY customer_name')
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_customer_names: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
