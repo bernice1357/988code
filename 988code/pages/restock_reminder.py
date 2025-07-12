@@ -5,6 +5,8 @@ import requests
 import plotly.graph_objects as go
 from dash import ctx
 
+# TODO 差預計補貨日期欄位
+
 # offcanvas
 product_input_fields = [
     {
@@ -23,7 +25,7 @@ restock_offcanvas = create_search_offcanvas(
     input_fields=product_input_fields,
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     # 儲存初始載入標記
     dcc.Store(id="page-loaded", data=True),
@@ -78,7 +80,12 @@ def load_data_and_handle_errors(page_loaded):
                 'product_name': '補貨品項',
                 'transaction_date': '上次訂貨日期'
             })
-            table_content = button_table(df, button_text="查看歷史補貨紀錄")
+            table_content = custom_table(
+                df, 
+                button_text="查看歷史補貨紀錄",
+                button_id_type="view-button",
+                show_button=True,
+            )
             return table_content, df.to_dict('records'), False, ""
         else:
             error_msg = f"API 請求失敗：{response.status_code}"

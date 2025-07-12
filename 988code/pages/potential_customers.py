@@ -20,10 +20,9 @@ product_input_fields = [
 potential_components = create_search_offcanvas(
     page_name="potential_customers",
     input_fields=product_input_fields,
-    show_date_picker=False
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     # 篩選條件區
     html.Div([

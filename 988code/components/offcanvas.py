@@ -7,8 +7,7 @@ def create_search_offcanvas(
     title="搜尋條件",
     button_text="搜尋條件",
     width="400px",
-    placement="end",
-    show_date_picker=True
+    placement="end"
 ):
     """
     創建通用搜尋 Offcanvas 組件
@@ -20,14 +19,12 @@ def create_search_offcanvas(
     - button_text: 觸發按鈕文字
     - width: Offcanvas 寬度
     - placement: Offcanvas 位置 ("start", "end", "top", "bottom")
-    - show_date_picker: 是否顯示日期選擇器
     """
     
     # 根據頁面名稱生成唯一 ID
     offcanvas_id = f"{page_name}-search-offcanvas"
     button_id = f"{page_name}-open-search-offcanvas"
     reset_button_id = f"{page_name}-reset-button"
-    date_picker_id = f"{page_name}-date-range-picker"
     
     if input_fields is None:
         input_fields = []
@@ -35,31 +32,7 @@ def create_search_offcanvas(
     # 建立 Offcanvas 內容
     offcanvas_children = []
     
-    # 日期選擇器 (可選)
-    if show_date_picker:
-        offcanvas_children.append(
-            html.Div([
-                html.Label("日期範圍", style={"fontSize": "0.9rem", "marginBottom": "4px"}),
-                html.Div(
-                    dcc.DatePickerRange(
-                        id=date_picker_id,
-                        start_date='2025-05-01',
-                        end_date='2025-05-07',
-                        display_format='YYYY-MM-DD',
-                        style={
-                            "width": "100%",
-                            "color": "#495057",
-                            "backgroundColor": "#fff",
-                            "border": "1px solid #ced4da",
-                            "borderRadius": "0.375rem"
-                        }
-                    ),
-                    style={"width": "100%"}
-                )
-            ], className="mb-3")
-        )
-    
-    # 動態生成輸入框 (確保使用完整的 field_id)
+    # 動態生成輸入框
     for field in input_fields:
         field_id = f"{page_name}-{field['id']}" if not field['id'].startswith(page_name) else field['id']
         field_div = html.Div([
@@ -77,6 +50,23 @@ def create_search_offcanvas(
                 options=field.get("options", []),
                 placeholder=field.get("placeholder", ""),
                 className="w-100"
+            )
+        elif field.get("type") == "date_range":
+            component = html.Div(
+                dcc.DatePickerRange(
+                    id=field_id,
+                    start_date=field.get("start_date", ""),
+                    end_date=field.get("end_date", ""),
+                    display_format='YYYY-MM-DD',
+                    style={
+                        "width": "100%",
+                        "color": "#495057",
+                        "backgroundColor": "#fff",
+                        "border": "1px solid #ced4da",
+                        "borderRadius": "0.375rem"
+                    }
+                ),
+                style={"width": "100%"}
             )
         else:
             component = dbc.Input(
@@ -96,7 +86,7 @@ def create_search_offcanvas(
             id=reset_button_id, 
             color="secondary", 
             size="sm",
-            style={"fontSize": "1.1rem"}  # 放大字體
+            style={"fontSize": "1rem"}  # 放大字體
         )
     ], className="d-flex justify-content-center", style={"position": "absolute", "bottom": "20px", "left": "20px", "right": "20px"})
     
@@ -125,8 +115,7 @@ def create_search_offcanvas(
         "ids": {
             "offcanvas_id": offcanvas_id,
             "button_id": button_id,
-            "reset_button_id": reset_button_id,
-            "date_picker_id": date_picker_id
+            "reset_button_id": reset_button_id
         }
     }
 

@@ -10,6 +10,6 @@ from dash import ALL
 from dash import dash_table
 from dash.exceptions import PreventUpdate
 
-from components.table import button_table, normal_table, status_table, customer_table
+from components.table import custom_table
 
 from app import app

@@ -1,28 +1,6 @@
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
-
-df = pd.DataFrame([
-    {"客戶ID": "AAA", "客戶名稱": "123自助餐", "購買日期": "2025/4/01", "新品品項": "紅斑魚片4/5 6K/箱", "規格": "2025/4/16", "購買數量": "10"},
-    {"客戶ID": "AAA", "客戶名稱": "布穀鳥(苓雅)", "購買日期": "2025/4/02", "新品品項": "薄鹽鯖魚100/130-6K-[無中骨]A團膳用", "規格": "2025/4/16", "購買數量": "3"},
-    {"客戶ID": "AAA", "客戶名稱": "稻芝香", "購買日期": "2025/4/03", "新品品項": "薄鹽鯖魚100/130-5K-[無中骨]團膳用", "規格": "2025/4/16", "購買數量": "50"},
-    {"客戶ID": "AAA", "客戶名稱": "八香廚房", "購買日期": "2025/4/04", "新品品項": "青花菜(1K*10包)-佳旻", "規格": "2025/4/16", "購買數量": "6"},
-    {"客戶ID": "AAA", "客戶名稱": "北高美家具工", "購買日期": "2025/4/05", "新品品項": "哈克魚100/120 10K-津湧", "規格": "2025/4/16", "購買數量": "14"},
-    {"客戶ID": "AAA", "客戶名稱": "大高樹自助餐", "購買日期": "2025/4/06", "新品品項": "四季豆(1K*10包)", "規格": "2025/4/16", "購買數量": "22"},
-    {"客戶ID": "AAA", "客戶名稱": "大翰便當", "購買日期": "2025/4/07", "新品品項": "暑魚切塊(帶皮){尾}[無規格]-6K", "規格": "2025/4/16", "購買數量": "45"},
-    {"客戶ID": "AAA", "客戶名稱": "大和食堂(苓", "購買日期": "2025/4/08", "新品品項": "金目鱸魚(蝴蝶切)[真空](450/500)戎-A", "規格": "2025/4/16", "購買數量": "53"},
-    {"客戶ID": "AAA", "客戶名稱": "東皇快餐", "購買日期": "2025/4/09", "新品品項": "杏鮑菇下角料(3K/包)-B", "規格": "2025/4/16", "購買數量": "35"},
-    {"客戶ID": "AAA", "客戶名稱": "大王便當", "購買日期": "2025/4/10", "新品品項": "裹漿紐澳良腿排(50片/箱)-羅德", "規格": "2025/4/16", "購買數量": "1"},
-    {"客戶ID": "AAA", "客戶名稱": "123自助餐", "購買日期": "2025/4/01", "新品品項": "紅斑魚片4/5 6K/箱", "規格": "2025/4/16", "購買數量": "10"},
-    {"客戶ID": "AAA", "客戶名稱": "布穀鳥(苓雅)", "購買日期": "2025/4/02", "新品品項": "薄鹽鯖魚100/130-6K-[無中骨]A團膳用", "規格": "2025/4/16", "購買數量": "3"},
-    {"客戶ID": "AAA", "客戶名稱": "稻芝香", "購買日期": "2025/4/03", "新品品項": "薄鹽鯖魚100/130-5K-[無中骨]團膳用", "規格": "2025/4/16", "購買數量": "50"},
-    {"客戶ID": "AAA", "客戶名稱": "八香廚房", "購買日期": "2025/4/04", "新品品項": "青花菜(1K*10包)-佳旻", "規格": "2025/4/16", "購買數量": "6"},
-    {"客戶ID": "AAA", "客戶名稱": "北高美家具工", "購買日期": "2025/4/05", "新品品項": "哈克魚100/120 10K-津湧", "規格": "2025/4/16", "購買數量": "14"},
-    {"客戶ID": "AAA", "客戶名稱": "大高樹自助餐", "購買日期": "2025/4/06", "新品品項": "四季豆(1K*10包)", "規格": "2025/4/16", "購買數量": "22"},
-    {"客戶ID": "AAA", "客戶名稱": "大翰便當", "購買日期": "2025/4/07", "新品品項": "暑魚切塊(帶皮){尾}[無規格]-6K", "規格": "2025/4/16", "購買數量": "45"},
-    {"客戶ID": "AAA", "客戶名稱": "大和食堂(苓", "購買日期": "2025/4/08", "新品品項": "金目鱸魚(蝴蝶切)[真空](450/500)戎-A", "規格": "2025/4/16", "購買數量": "53"},
-    {"客戶ID": "AAA", "客戶名稱": "東皇快餐", "購買日期": "2025/4/09", "新品品項": "杏鮑菇下角料(3K/包)-B", "規格": "2025/4/16", "購買數量": "35"},
-    {"客戶ID": "AAA", "客戶名稱": "大王便當", "購買日期": "2025/4/10", "新品品項": "裹漿紐澳良腿排(50片/箱)-羅德", "規格": "2025/4/16", "購買數量": "1"},
-])
+import requests
 
 product_input_fields = [
     {
@@ -42,24 +20,54 @@ repurchase_reminder_components = create_search_offcanvas(
     input_fields=product_input_fields
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     html.Div([
         html.Div([
             repurchase_reminder_components["trigger_button"],
-            dbc.Button("匯出", id="export-button", n_clicks=0, color="success", className="ms-2")
+            html.Div([
+                # TODO 要問數值要存哪
+                dbc.Button("回購提醒時間", id="reminder-setting-button", n_clicks=0, color="primary", outline=True, className="ms-2"),
+                dbc.Popover([
+                    dbc.InputGroup([
+                        dbc.Input(type="number", placeholder="輸入天數", id="inactive-days-input", min=1, style={"width": "50px", "fontSize": "0.875rem"}),
+                        dbc.InputGroupText("天", style={"fontSize": "0.875rem"})
+                    ], style={"marginBottom": "10px"}),
+                    dbc.Button("確定", id="reminder-confirm-button", color="primary", size="sm")
+                ], target="reminder-setting-button", trigger="click", placement="bottom-start", style={"padding": "15px", "width": "300px"})
+            ], style={"display": "inline-block"}),
+            dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="success", className="ms-auto")
         ], className="d-flex align-items-center")
     ], className="mb-3"),
 
     repurchase_reminder_components["offcanvas"],
 
     html.Div([
-        status_table(df),
-    ],style={"marginTop": "20px"}),
-    html.Div([
-        html.Button("匯出列表資料", id="export-button", n_clicks=0, style={"marginRight": "10px"}, className="btn btn-outline-danger"),
-        html.Button("確定更改狀態", id="change-status-button", n_clicks=0, style={"marginRight": "10px"}),
-    ],style={"marginTop": "20px"}),
+        html.Div(id="repurchase-table-container"),
+    ],style={"marginTop": "10px"}),
+
 ])
+
+@app.callback(
+    Output("repurchase-table-container", "children"),
+    Input("repurchase-table-container", "id")
+)
+def load_repurchase_data(_):
+    try:
+        response = requests.get("http://127.0.0.1:8000/get_repurchase_data")
+        if response.status_code == 200:
+            data = response.json()
+            df = pd.DataFrame(data)
+            print(df)
+            df.columns = ["客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註", "提醒狀態"]
+            
+            # 轉換布林值為中文顯示
+            df["提醒狀態"] = df["提醒狀態"].map({True: "已提醒", False: "未提醒"})
+            
+            return custom_table(df, show_checkbox=True, show_button=True, button_text="查看")
+        else:
+            return html.Div("無法載入資料", style={"color": "red"})
+    except Exception as e:
+        return html.Div(f"載入資料時發生錯誤: {str(e)}", style={"color": "red"})
 
 register_offcanvas_callback(app, "repurchase_reminder")

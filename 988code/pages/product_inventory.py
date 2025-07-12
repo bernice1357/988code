@@ -6,6 +6,8 @@ import pandas as pd
 import urllib.parse
 from dash import ALL
 
+# TODO 新增狀態radio搜尋條件
+
 # offcanvas
 product_input_fields = [
     {
@@ -24,10 +26,9 @@ product_input_fields = [
 inventory_components = create_search_offcanvas(
     page_name="product_inventory",
     input_fields=product_input_fields,
-    show_date_picker=False
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="inventory-data", data=[]),
     dcc.Store(id="current-table-data", data=[]),  # 新增：儲存當前表格顯示的資料
@@ -134,17 +135,17 @@ def display_inventory_table(inventory_data, selected_category, selected_subcateg
         df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime("%Y-%m-%d %H:%M")
 
     # 重新排列欄位順序並重新命名
-    display_df = df[['category', 'subcategory', 'data_count', 'status', 'updated_at']]
-    display_df.columns = ["類別", "商品群組", "規格數量", "狀態", "最後更新日期"]
+    display_df = df[['category', 'subcategory', 'total_stock_quantity', 'updated_at']]
+    display_df.columns = ["類別", "商品群組", "總庫存量", "最後更新日期"]
     
     # 儲存當前表格資料供匯出使用
     current_table_data = display_df.to_dict('records')
     
-    table_component = button_table(
+    table_component = custom_table(
         display_df,
         button_text="查看群組品項",
         button_id_type="inventory_data_button",
-        address_columns=[],
+        show_button=True,
     )
     
     return table_component, current_table_data
@@ -243,7 +244,7 @@ def load_group_items(is_open, management_mode, modal_title, stored_data):
                 
                 # 將資料轉換為 DataFrame 並儲存
                 df = pd.DataFrame(group_items_data)
-                df.columns = ["商品ID", "商品名稱", "規格", "存放地點", "最後更新日期"]
+                df.columns = ["商品ID", "商品名稱", "庫存量", "存放地點", "最後更新日期"]
                 
                 # 日期格式轉換
                 if "最後更新日期" in df.columns:
@@ -290,45 +291,49 @@ def load_group_items(is_open, management_mode, modal_title, stored_data):
         # 建立管理表格
         table_header = html.Thead([
             html.Tr([
-                html.Th("商品ID"),
-                html.Th("商品名稱"),
-                html.Th("原始商品群組"),
-                html.Th("新商品群組")
+                html.Th("商品ID", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("商品名稱", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("原始商品群組", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("新商品群組", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"})
             ])
         ])
         
         table_rows = []
         for i, item in enumerate(stored_data):
             row = html.Tr([
-                html.Td(item.get("商品ID", "")),
-                html.Td(item.get("商品名稱", "")),
-                html.Td(subcategory),
+                html.Td(item.get("商品ID", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(item.get("商品名稱", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(subcategory, style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
                 html.Td([
                     dcc.Dropdown(
                         id={"type": "subcategory-change-dropdown", "index": i},
                         options=subcategory_options,
                         value=subcategory,
                         clearable=False,
-                        style={"minWidth": "200px"}
+                        style={"minWidth": "200px", "height": "36px"}
                     ),
                     dbc.Input(
                         id={"type": "new-subcategory-input", "index": i},
                         placeholder="輸入新商品群組名稱",
-                        style={"display": "none", "marginTop": "5px"}
+                        style={"display": "none", "marginTop": "5px", "height": "36px"}
                     )
-                ])
-            ])
+                ], style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"})
+            ], style={"height": "60px", "minHeight": "60px"})
             table_rows.append(row)
         
         table_body = html.Tbody(table_rows)
         
-        return dbc.Table([table_header, table_body], 
-                       striped=True, 
-                       bordered=True, 
-                       hover=True,
-                       responsive=False,
-                       className="mb-0",
-                       style={"minHeight": "200px", "maxHeight": "500px", "overflowY": "auto", "width": "100%"}), stored_data
+        table_container = html.Div([
+            dbc.Table([table_header, table_body], 
+                     striped=True, 
+                     bordered=True, 
+                     hover=True,
+                     responsive=False,
+                     className="mb-0",
+                     style={"width": "100%", "tableLayout": "fixed"})
+        ], style={"minHeight": "200px", "maxHeight": "500px", "overflowY": "auto", "width": "100%"})
+        
+        return table_container, stored_data
     else:
         # 查看模式：顯示原始的品項資料表格
         df = pd.DataFrame(stored_data)
@@ -336,34 +341,38 @@ def load_group_items(is_open, management_mode, modal_title, stored_data):
         # 手動建立表格以更好控制行高
         table_header = html.Thead([
             html.Tr([
-                html.Th("商品ID", style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Th("商品名稱", style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Th("規格", style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Th("存放地點", style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Th("最後更新日期", style={"height": "40px", "padding": "8px", "verticalAlign": "middle"})
+                html.Th("商品ID", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("商品名稱", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("庫存量", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("存放地點", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Th("最後更新日期", style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"})
             ])
         ])
         
         table_rows = []
         for _, item in df.iterrows():
             row = html.Tr([
-                html.Td(item.get("商品ID", ""), style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Td(item.get("商品名稱", ""), style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Td(item.get("規格", ""), style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Td(item.get("存放地點", ""), style={"height": "40px", "padding": "8px", "verticalAlign": "middle"}),
-                html.Td(item.get("最後更新日期", ""), style={"height": "40px", "padding": "8px", "verticalAlign": "middle"})
-            ])
+                html.Td(item.get("商品ID", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(item.get("商品名稱", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(item.get("庫存量", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(item.get("存放地點", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"}),
+                html.Td(item.get("最後更新日期", ""), style={"height": "60px", "minHeight": "60px", "padding": "12px", "verticalAlign": "middle"})
+            ], style={"height": "60px", "minHeight": "60px"})
             table_rows.append(row)
         
         table_body = html.Tbody(table_rows)
         
-        return dbc.Table([table_header, table_body], 
-                       striped=True, 
-                       bordered=True, 
-                       hover=True,
-                       responsive=False,
-                       className="mb-0",
-                       style={"minHeight": "200px", "maxHeight": "500px", "overflowY": "auto", "width": "100%"}), stored_data
+        table_container = html.Div([
+            dbc.Table([table_header, table_body], 
+                     striped=True, 
+                     bordered=True, 
+                     hover=True,
+                     responsive=False,
+                     className="mb-0",
+                     style={"width": "100%", "tableLayout": "fixed"})
+        ], style={"minHeight": "200px", "maxHeight": "500px", "overflowY": "auto", "width": "100%"})
+        
+        return table_container, stored_data
 
 # 管理商品群組按鈕切換模式並更新按鈕文字
 @app.callback(
@@ -473,10 +482,10 @@ def toggle_new_subcategory_input(dropdown_values):
     
     for value in dropdown_values:
         if value == "__add_new__":
-            styles.append({"display": "block", "marginTop": "5px"})
+            styles.append({"display": "block", "marginTop": "5px", "height": "36px"})
             values.append("")
         else:
-            styles.append({"display": "none", "marginTop": "5px"})
+            styles.append({"display": "none", "marginTop": "5px", "height": "36px"})
             values.append("")
     
     return styles, values

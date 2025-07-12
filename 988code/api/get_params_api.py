@@ -57,14 +57,21 @@ def get_customer_transactions(customer_id: str):
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 商品庫存 - 取得商品群組 modal 的資料
-# TODO現在還少備註、庫存量
 @router.get("/get_subcategory_items/{subcategory}")
 def get_subcategory_items(subcategory: str):
     try:
         query = """
-        SELECT product_id, name_zh, specification, warehouse_id, updated_at
-        FROM product_master 
-        WHERE subcategory = %s
+        SELECT pm.product_id, 
+                pm.name_zh, 
+                COALESCE(inv.stock_quantity, 0) as stock_quantity,
+                pm.warehouse_id,
+                pm.updated_at
+        FROM product_master pm
+        LEFT JOIN inventory inv ON pm.product_id = inv.product_id 
+                            AND pm.warehouse_id = inv.warehouse_id
+        WHERE pm.subcategory = %s 
+        AND pm.is_active = 'active'
+        ORDER BY pm.product_id, pm.warehouse_id
         """
         df = get_data_from_db_with_params(query, (subcategory,))
         return df.to_dict(orient="records")

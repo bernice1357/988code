@@ -4,32 +4,49 @@
 
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
+import requests
+import pandas as pd
+from datetime import datetime, date
 
-df = pd.DataFrame([
-    {"客戶ID": "AAA", "客戶名稱": "123自助餐", "購買日期": "2025/4/01", "新品品項": "紅斑魚片4/5 6K/箱", "規格": "2025/4/16", "購買數量": "10"},
-    {"客戶ID": "AAA", "客戶名稱": "布穀鳥(苓雅)", "購買日期": "2025/4/02", "新品品項": "薄鹽鯖魚100/130-6K-[無中骨]A團膳用", "規格": "2025/4/16", "購買數量": "3"},
-    {"客戶ID": "AAA", "客戶名稱": "稻芝香", "購買日期": "2025/4/03", "新品品項": "薄鹽鯖魚100/130-5K-[無中骨]團膳用", "規格": "2025/4/16", "購買數量": "50"},
-    {"客戶ID": "AAA", "客戶名稱": "八香廚房", "購買日期": "2025/4/04", "新品品項": "青花菜(1K*10包)-佳旻", "規格": "2025/4/16", "購買數量": "6"},
-    {"客戶ID": "AAA", "客戶名稱": "北高美家具工", "購買日期": "2025/4/05", "新品品項": "哈克魚100/120 10K-津湧", "規格": "2025/4/16", "購買數量": "14"},
-    {"客戶ID": "AAA", "客戶名稱": "大高樹自助餐", "購買日期": "2025/4/06", "新品品項": "四季豆(1K*10包)", "規格": "2025/4/16", "購買數量": "22"},
-    {"客戶ID": "AAA", "客戶名稱": "大翰便當", "購買日期": "2025/4/07", "新品品項": "暑魚切塊(帶皮){尾}[無規格]-6K", "規格": "2025/4/16", "購買數量": "45"},
-    {"客戶ID": "AAA", "客戶名稱": "大和食堂(苓", "購買日期": "2025/4/08", "新品品項": "金目鱸魚(蝴蝶切)[真空](450/500)戎-A", "規格": "2025/4/16", "購買數量": "53"},
-    {"客戶ID": "AAA", "客戶名稱": "東皇快餐", "購買日期": "2025/4/09", "新品品項": "杏鮑菇下角料(3K/包)-B", "規格": "2025/4/16", "購買數量": "35"},
-    {"客戶ID": "AAA", "客戶名稱": "大王便當", "購買日期": "2025/4/10", "新品品項": "裹漿紐澳良腿排(50片/箱)-羅德", "規格": "2025/4/16", "購買數量": "1"},
-    {"客戶ID": "AAA", "客戶名稱": "123自助餐", "購買日期": "2025/4/01", "新品品項": "紅斑魚片4/5 6K/箱", "規格": "2025/4/16", "購買數量": "10"},
-    {"客戶ID": "AAA", "客戶名稱": "布穀鳥(苓雅)", "購買日期": "2025/4/02", "新品品項": "薄鹽鯖魚100/130-6K-[無中骨]A團膳用", "規格": "2025/4/16", "購買數量": "3"},
-    {"客戶ID": "AAA", "客戶名稱": "稻芝香", "購買日期": "2025/4/03", "新品品項": "薄鹽鯖魚100/130-5K-[無中骨]團膳用", "規格": "2025/4/16", "購買數量": "50"},
-    {"客戶ID": "AAA", "客戶名稱": "八香廚房", "購買日期": "2025/4/04", "新品品項": "青花菜(1K*10包)-佳旻", "規格": "2025/4/16", "購買數量": "6"},
-    {"客戶ID": "AAA", "客戶名稱": "北高美家具工", "購買日期": "2025/4/05", "新品品項": "哈克魚100/120 10K-津湧", "規格": "2025/4/16", "購買數量": "14"},
-    {"客戶ID": "AAA", "客戶名稱": "大高樹自助餐", "購買日期": "2025/4/06", "新品品項": "四季豆(1K*10包)", "規格": "2025/4/16", "購買數量": "22"},
-    {"客戶ID": "AAA", "客戶名稱": "大翰便當", "購買日期": "2025/4/07", "新品品項": "暑魚切塊(帶皮){尾}[無規格]-6K", "規格": "2025/4/16", "購買數量": "45"},
-    {"客戶ID": "AAA", "客戶名稱": "大和食堂(苓", "購買日期": "2025/4/08", "新品品項": "金目鱸魚(蝴蝶切)[真空](450/500)戎-A", "規格": "2025/4/16", "購買數量": "53"},
-    {"客戶ID": "AAA", "客戶名稱": "東皇快餐", "購買日期": "2025/4/09", "新品品項": "杏鮑菇下角料(3K/包)-B", "規格": "2025/4/16", "購買數量": "35"},
-    {"客戶ID": "AAA", "客戶名稱": "大王便當", "購買日期": "2025/4/10", "新品品項": "裹漿紐澳良腿排(50片/箱)-羅德", "規格": "2025/4/16", "購買數量": "1"},
-])
+def get_new_item_orders():
+    """從API獲取新品訂單資料"""
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_new_item_orders')
+        response.raise_for_status()
+        data = response.json()
+        df = pd.DataFrame(data)
+        
+        # 重新命名欄位和格式化時間
+        if not df.empty:
+            df = df.rename(columns={
+                'customer_id': '客戶 ID',
+                'customer_name': '客戶名稱',
+                'purchase_record': '購買品項',
+                'created_at': '購買時間'
+            })
+            
+            # 格式化購買時間
+            df['購買時間'] = pd.to_datetime(df['購買時間']).dt.strftime('%Y-%m-%d %H:%M')
+        
+        return df
+    except requests.exceptions.RequestException as e:
+        # TODO 這裡改成toast顯示
+        print(f"API請求失敗: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"資料處理失敗: {e}")
+        return pd.DataFrame()
+
+# 獲取資料
+df = get_new_item_orders()
 
 # offcanvas
 product_input_fields = [
+    {
+        "id": "date-picker", 
+        "label": "新品購買日期區間",
+        "type": "date_range"
+    },
     {
         "id": "customer-id", 
         "label": "客戶ID",
@@ -46,7 +63,7 @@ product_components = create_search_offcanvas(
     input_fields=product_input_fields
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     # 篩選條件區
     html.Div([
@@ -57,8 +74,52 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
     product_components["offcanvas"],
 
     html.Div([
-        normal_table(df)
-    ],style={"marginTop": "20px"}),
+        custom_table(df)
+    ], id="table-container", style={"marginTop": "20px"}),
 ])
 
 register_offcanvas_callback(app, "buy_new_item")
+
+# 日期篩選條件
+@app.callback(
+    Output("table-container", "children", allow_duplicate=True),
+    [Input("buy_new_item-date-picker", "start_date"),  # 正確的ID
+     Input("buy_new_item-date-picker", "end_date"),    # 正確的ID
+     Input("buy_new_item-customer-id", "value"),
+     Input("buy_new_item-product-type", "value")],
+    prevent_initial_call=True
+)
+def update_table_with_filters(start_date, end_date, customer_id, product_type):
+    # 重新獲取原始資料
+    filtered_df = get_new_item_orders()
+    
+    if filtered_df.empty:
+        return custom_table(filtered_df)
+    
+    # 日期篩選 - 必須同時有開始和結束日期
+    if start_date and end_date:
+        # 轉換購買時間為datetime格式，格式: "2024-01-15 10:30"
+        filtered_df['購買時間_datetime'] = pd.to_datetime(filtered_df['購買時間'], format='%Y-%m-%d %H:%M')
+        
+        # 設定日期範圍
+        start_datetime = pd.to_datetime(start_date)
+        end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)  # 包含結束日期整天
+        
+        # 篩選日期範圍
+        filtered_df = filtered_df[
+            (filtered_df['購買時間_datetime'] >= start_datetime) & 
+            (filtered_df['購買時間_datetime'] <= end_datetime)
+        ]
+        
+        # 移除輔助欄位
+        filtered_df = filtered_df.drop(columns=['購買時間_datetime'])
+    
+    # 客戶ID篩選
+    if customer_id:
+        filtered_df = filtered_df[filtered_df['客戶 ID'] == customer_id]
+    
+    # 商品類別篩選
+    if product_type:
+        filtered_df = filtered_df[filtered_df['購買品項'].str.contains(product_type, na=False)]
+    
+    return custom_table(filtered_df)

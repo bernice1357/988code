@@ -24,12 +24,23 @@ def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
         print(f"[DB ERROR] {e}")
         raise
 
-# 得到首頁新進訂單
+# 得到所有新進訂單
 @router.get("/get_new_orders")
 def get_new_orders():
     print("[API] get_new_orders 被呼叫")
     try:
         df = get_data_from_db('SELECT * FROM temp_customer_records')
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_new_orders: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到新品購買訂單
+@router.get("/get_new_item_orders")
+def get_new_orders():
+    print("[API] get_new_orders 被呼叫")
+    try:
+        df = get_data_from_db('SELECT customer_id, customer_name, purchase_record, created_at FROM temp_customer_records WHERE is_new_product = true')
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_new_orders: {e}")
@@ -78,34 +89,56 @@ def get_customer_latest_transactions():
         print(f"[API ERROR] get_customer_latest_transactions: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
-# 得到類別列表
+# 得到商品類別列表
 @router.get("/get_category")
 def get_categories():
     print("[API] get_categories 被呼叫")
     try:
-        df = get_data_from_db('SELECT DISTINCT category FROM product_master WHERE category IS NOT NULL ORDER BY category')
+        query = """
+        SELECT DISTINCT category 
+        FROM product_master 
+        WHERE category IS NOT NULL 
+        AND category IN (
+            SELECT DISTINCT category 
+            FROM product_master 
+            WHERE is_active = 'active'
+        ) 
+        ORDER BY category
+        """
+        df = get_data_from_db(query)
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_categories: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
-# 得到子類別列表
+# 得到商品子類別列表
 @router.get("/get_subcategory")
 def get_subcategories():
     print("[API] get_subcategories 被呼叫")
     try:
-        df = get_data_from_db('SELECT DISTINCT subcategory FROM product_master WHERE subcategory IS NOT NULL ORDER BY subcategory')
+        query = """
+        SELECT DISTINCT subcategory 
+        FROM product_master 
+        WHERE subcategory IS NOT NULL 
+        AND subcategory IN (
+            SELECT DISTINCT subcategory 
+            FROM product_master 
+            WHERE is_active = 'active'
+        ) 
+        ORDER BY subcategory
+        """
+        df = get_data_from_db(query)
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_subcategories: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
-# 得到品項列表
+# 得到商品品項列表
 @router.get("/get_name_zh")
 def get_product_names():
     print("[API] get_product_names 被呼叫")
     try:
-        df = get_data_from_db('SELECT DISTINCT name_zh FROM product_master WHERE name_zh IS NOT NULL ORDER BY name_zh')
+        df = get_data_from_db('SELECT DISTINCT name_zh FROM product_master WHERE name_zh IS NOT NULL AND status = \'active\' ORDER BY name_zh')
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_product_names: {e}")
@@ -129,14 +162,16 @@ def get_inventory_data():
     print("[API] get_inventory_data 被呼叫")
     try:
         query = """
-        SELECT MAX(category) as category,
-            subcategory, 
-            COUNT(*) as data_count,
-            MAX(status) as status,
-            MAX(updated_at) as updated_at
-        FROM product_master 
-        GROUP BY subcategory
-        ORDER BY category, subcategory
+        SELECT pm.category,
+            pm.subcategory,
+            COALESCE(SUM(inv.stock_quantity), 0) as total_stock_quantity,
+            pm.updated_at
+        FROM product_master pm
+        LEFT JOIN inventory inv ON pm.product_id = inv.product_id 
+                            AND pm.warehouse_id = inv.warehouse_id
+        WHERE pm.is_active = 'active'
+        GROUP BY pm.category, pm.subcategory, pm.updated_at
+        ORDER BY pm.category, pm.subcategory;
         """
         print("[DEBUG] SQL 查詢開始")
         df = get_data_from_db(query)
@@ -168,4 +203,14 @@ def get_customer_names():
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_customer_names: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+@router.get("/get_repurchase_data")
+def get_repurchase_data():
+    print("[API] get_repurchase_reminders 被呼叫")
+    try:
+        df = get_data_from_db('SELECT customer_id, customer_name, product_name, last_purchase_date, days_since_purchase, repurchase_note, reminder_sent FROM repurchase_reminders')
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_repurchase_reminders: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")

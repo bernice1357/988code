@@ -61,6 +61,7 @@ class CustomerUpdate(BaseModel):
     customer_name: Optional[str] = None
     address: Optional[str] = None
     notes: Optional[str] = None
+    delivery_schedule: Optional[str] = None  # 新增此欄位
 
 @router.put("/customer/{customer_id}")
 def update_customer(customer_id: str, update_data: CustomerUpdate):

@@ -2,7 +2,7 @@ from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback, register_reset_callback
 from dash import ALL, callback_context
 
-# TODO 確定MODAL可以改什麼欄位
+# TODO MODAL可以改 Id 、名稱、地址、送貨時間、備註
 
 # offcanvas
 product_input_fields = [
@@ -22,10 +22,9 @@ product_input_fields = [
 search_customers = create_search_offcanvas(
     page_name="customer_data",
     input_fields=product_input_fields,
-    show_date_picker=False
 )
 
-layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, children=[
+layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="customer-data", data=[]),
     dcc.Store(id="current-table-data", data=[]),
@@ -55,6 +54,10 @@ layout = html.Div(style={"fontFamily": "sans-serif", "padding": "20px"}, childre
                 dbc.Row([
                     dbc.Label("客戶地址", width=3),
                     dbc.Col(dbc.Input(id="input-customer-address", type="text"), width=9)
+                ], className="mb-3"),
+                dbc.Row([
+                    dbc.Label("每週配送日", width=3),
+                    dbc.Col(dbc.Input(id="input-delivery-schedule", type="text"), width=9)
                 ], className="mb-3"),
                 dbc.Row([
                     dbc.Label("備註", width=3),
@@ -171,11 +174,11 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     # 儲存當前表格資料供匯出使用
     current_table_data = df.to_dict('records')
     
-    table_component = button_table(
+    table_component = custom_table(
         df,
         button_text="編輯客戶資料",
         button_id_type="customer_data_button",
-        address_columns=["客戶地址"],
+        show_button=True,
     )
     
     return table_component, current_table_data
@@ -185,6 +188,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     Output('input-customer-name', 'value'),
     Output('input-customer-id', 'value'),
     Output('input-customer-address', 'value'),
+    Output('input-delivery-schedule', 'value'),
     Output('input-notes', 'value'),
     Input({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
     [State("customer-data", "data"),
@@ -194,11 +198,11 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
 )
 def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, selected_customer_name):
     if not any(n_clicks):
-        return False, "", "", "", ""
+        return False, "", "", "", "", ""
     
     ctx = callback_context
     if not ctx.triggered:
-        return False, "", "", "", ""
+        return False, "", "", "", "", ""
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     button_index = eval(button_id)['index']
@@ -230,9 +234,10 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
                 row_data['客戶名稱'], 
                 row_data['客戶ID'], 
                 row_data['客戶地址'], 
+                row_data['每週配送日'],
                 row_data['備註'])
     else:
-        return False, "", "", "", ""
+        return False, "", "", "", "", ""
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
@@ -244,6 +249,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State('input-customer-name', 'value'),
     State('input-customer-id', 'value'),
     State('input-customer-address', 'value'),
+    State('input-delivery-schedule', 'value'),
     State('input-notes', 'value'),
     State({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
     State("customer-data", "data"),
@@ -251,7 +257,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State("customer_data-customer-name", "value"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, address, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name):
+def save_customer_data(save_clicks, customer_name, customer_id, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -296,6 +302,7 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, notes, 
         "customer_name": customer_name,
         "customer_id": customer_id,
         "address": address,
+        "delivery_schedule": delivery_schedule,
         "notes": notes
     }
     
