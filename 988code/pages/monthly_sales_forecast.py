@@ -2,7 +2,7 @@ from .common import *
 
 monthly_forecast_df = pd.DataFrame([
     {
-        "商品名稱": "白雪魚冷凍280/320-A",
+        "商品名稱": "白雪魚冷凍280/320-A ",
         "類別": "白雪魚",
         "預測銷量": "15箱"
     }
