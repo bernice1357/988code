@@ -1,11 +1,11 @@
 from .common import *
+from components.table import custom_table
 
 daily_forecast_df = pd.DataFrame([
     {
-        "配送日期": "2025-07-11 ",
-        "配送區域": "台南市",
-        "預測配送量": "45箱",
-        "配送狀態": "已安排"
+        "商品名稱": "白雪魚冷凍280/320-A ",
+        "類別": "白雪魚",
+        "預測銷量": "15箱"
     }
 ])
 
@@ -67,55 +67,12 @@ tab_content = html.Div([
             "fontSize": "16px"
         }),
         
-        # 表格容器
-        html.Div([
-            dash_table.DataTable(
-                id='daily-forecast-table',
-                columns=[
-                    {"name": "商品名稱", "id": "商品名稱"},
-                    {"name": "類別", "id": "類別"},
-                    {"name": "預測銷量", "id": "預測銷量"}
-                ],
-                data=[
-                    {
-                        "商品名稱": "白雪魚冷凍280/320-A",
-                        "類別": "白雪魚",
-                        "預測銷量": "15箱"
-                    }
-                ],
-                style_table={
-                    'border': 'none',
-                    'borderCollapse': 'collapse'
-                },
-                style_cell={
-                    'padding': '12px 15px',
-                    'textAlign': 'center',
-                    'border': '1px solid #ccc',
-                    'fontFamily': 'Arial, sans-serif',
-                    'fontSize': '14px'
-                },
-                style_header={
-                    'backgroundColor': '#bcd1df',
-                    'fontWeight': 'bold',
-                    'border': '1px solid #ccc',
-                    'color': '#000'
-                },
-                style_data={
-                    'backgroundColor': 'white',
-                    'border': '1px solid #ccc'
-                },
-                style_data_conditional=[
-                    {
-                        'if': {'row_index': 'odd'},
-                        'backgroundColor': '#f9f9f9'
-                    }
-                ]
-            )
-        ], style={
-            "backgroundColor": "white",
-            "border": "1px solid #dee2e6",
-            "borderTop": "none"
-        })
+        # 使用 custom_table 組件
+        custom_table(
+            df=daily_forecast_df,
+            show_checkbox=True,
+            show_button=True
+        )
     ], style={
         "backgroundColor": "white",
         "border": "1px solid #dee2e6",
