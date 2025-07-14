@@ -214,3 +214,20 @@ def get_repurchase_data():
     except Exception as e:
         print(f"[API ERROR] get_repurchase_reminders: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到不活躍客戶資料
+@router.get("/get_inactive_customers")
+def get_inactive_customers():
+    print("[API] get_inactive_customers 被呼叫")
+    try:
+        query = """
+        SELECT customer_name, inactive_days, last_order_date, last_product, 
+               processed, processed_at, processed_by
+        FROM inactive_customers
+        ORDER BY inactive_days DESC
+        """
+        df = get_data_from_db(query)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_inactive_customers: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

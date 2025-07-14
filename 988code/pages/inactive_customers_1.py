@@ -1,53 +1,21 @@
 from .common import *
-from dash import ALL
-
-df = pd.DataFrame([
-    {
-        "客戶名稱": "王小明",
-        "最後訂單日期": "2024-03-15",
-        "最後訂購商品": "無線耳機",
-        "地址": "台北市大安區忠孝東路100號",
-        "電話": "02-1234-5678",
-        "不活躍天數": 106,
-        "狀態": "未處理"
-    },
-    {
-        "客戶名稱": "李美華",
-        "最後訂單日期": "2024-02-28",
-        "最後訂購商品": "手機保護殼",
-        "地址": "新北市板橋區中山路88號",
-        "電話": "02-8765-4321",
-        "不活躍天數": 122,
-        "狀態": "已處理"
-    },
-    {
-        "客戶名稱": "陳志強",
-        "最後訂單日期": "2024-01-20",
-        "最後訂購商品": "藍牙喇叭",
-        "地址": "台中市西屯區台灣大道200號",
-        "電話": "04-5555-6666",
-        "不活躍天數": 161,
-        "狀態": "未處理"
-    }
-])
-
-# 計算統計變數
-total_customers = len(df)
-processed_customers = len(df[df['狀態'] == '已處理'])
-unprocessed_customers = len(df[df['狀態'] == '未處理'])
-
-# 計算可選取的行（只有未處理的）
-selectable_rows = [i for i, row in df.iterrows() if row['狀態'] == '未處理']
+from dash import ALL, callback_context
 
 tab_content = html.Div([
+    dcc.Store(id="page-loaded-inactive", data=True),
+    dcc.Store(id="inactive-customers-data", data=[]),
+    dcc.Store(id="filtered-inactive-data", data=[]),
+    
     dbc.Row([
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader("摘要分析"),
                 dbc.CardBody([
-                    html.H5(f"不活躍客戶: {total_customers}"),
-                    html.H5(f"已處理: {processed_customers}"),
-                    html.H5(f"未處理: {unprocessed_customers}")
+                    html.Div(id="inactive-stats-container", children=[
+                        html.H5("不活躍客戶: 0"),
+                        html.H5("已處理: 0"),
+                        html.H5("未處理: 0")
+                    ])
                 ])
             ], color="light", style={"height": "100%"})
         ], width=6),
@@ -67,6 +35,7 @@ tab_content = html.Div([
             ], color="light", style={"height": "100%"})
         ], width=6)
     ], className="h-100"),
+    
     html.Div([
         html.Div(id="confirm-button-container", style={"display": "flex", "alignItems": "center"}),
         html.Div([
@@ -77,37 +46,140 @@ tab_content = html.Div([
             ])
         ], style={"display": "flex", "justifyContent": "flex-end"})
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
-    html.Div(id="customer-table", children=[
-        custom_table(df, show_checkbox=False)
-    ], style={"marginTop": "20px"}),
+    
+    html.Div(id="inactive-customer-table-container"),
+    
+    create_success_toast("inactive_customers", message=""),
+    create_error_toast("inactive_customers", message=""),
 ], className="mt-3")
 
+# 載入不活躍客戶資料的 callback
 @app.callback(
-    Output('customer-table', 'children'),
-    [Input('btn-all-customers', 'n_clicks'),
-     Input('btn-unprocessed-customers', 'n_clicks'),
-     Input('btn-processed-customers', 'n_clicks')]
+    Output("inactive-customers-data", "data"),
+    Input("page-loaded-inactive", "data"),
+    prevent_initial_call=False
 )
-def update_table(btn_all, btn_unprocessed, btn_processed):
-    ctx = dash.callback_context
+def load_inactive_customers_data(page_loaded):
+    try:
+        response = requests.get("http://127.0.0.1:8000/get_inactive_customers")
+        if response.status_code == 200:
+            try:
+                inactive_data = response.json()
+                return inactive_data
+            except requests.exceptions.JSONDecodeError:
+                print("回應內容不是有效的 JSON")
+                return []
+        else:
+            print(f"get_inactive_customers API 錯誤，狀態碼：{response.status_code}")
+            return []
+    except Exception as e:
+        print(f"載入不活躍客戶資料時發生錯誤：{e}")
+        return []
+
+# 處理天數篩選和資料更新
+@app.callback(
+    Output("filtered-inactive-data", "data"),
+    [Input("inactive-customers-data", "data"),
+     Input("save-days-btn", "n_clicks")],
+    State("inactive-days-input", "value"),
+    prevent_initial_call=False
+)
+def filter_inactive_data(inactive_data, save_clicks, min_days):
+    if not inactive_data:
+        return []
     
-    if not ctx.triggered:
-        filtered_df = df
-        show_checkbox = False
-    else:
+    # 轉換為 DataFrame 並重新命名欄位
+    df = pd.DataFrame(inactive_data)
+    if not df.empty:
+        df = df.rename(columns={
+            'customer_name': '客戶名稱',
+            'last_order_date': '最後訂單日期',
+            'last_product': '最後訂購商品',
+            'inactive_days': '不活躍天數',
+            'processed': '狀態原始值'
+        })
+        
+        # 轉換處理狀態為中文
+        df['狀態'] = df['狀態原始值'].map({True: '已處理', False: '未處理'})
+        
+        # 格式化日期
+        if '最後訂單日期' in df.columns:
+            df['最後訂單日期'] = pd.to_datetime(df['最後訂單日期']).dt.strftime('%Y-%m-%d')
+        
+        # 天數篩選
+        if min_days and save_clicks:
+            df = df[df['不活躍天數'] >= min_days]
+        
+        # 只保留需要的欄位
+        columns_to_keep = ['客戶名稱', '最後訂單日期', '最後訂購商品', '不活躍天數', '狀態']
+        df = df[columns_to_keep]
+    
+    return df.to_dict('records')
+
+# 更新統計資訊
+@app.callback(
+    Output("inactive-stats-container", "children"),
+    Input("filtered-inactive-data", "data")
+)
+def update_stats(filtered_data):
+    if not filtered_data:
+        return [
+            html.H5("不活躍客戶: 0"),
+            html.H5("已處理: 0"),
+            html.H5("未處理: 0")
+        ]
+    
+    df = pd.DataFrame(filtered_data)
+    total_customers = len(df)
+    processed_customers = len(df[df['狀態'] == '已處理'])
+    unprocessed_customers = len(df[df['狀態'] == '未處理'])
+    
+    return [
+        html.H5(f"不活躍客戶: {total_customers}"),
+        html.H5(f"已處理: {processed_customers}"),
+        html.H5(f"未處理: {unprocessed_customers}")
+    ]
+
+# 顯示表格的 callback
+@app.callback(
+    Output("inactive-customer-table-container", "children"),
+    [Input("filtered-inactive-data", "data"),
+     Input("btn-all-customers", "n_clicks"),
+     Input("btn-unprocessed-customers", "n_clicks"),
+     Input("btn-processed-customers", "n_clicks")]
+)
+def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
+    if not filtered_data:
+        return html.Div("暫無資料")
+    
+    # 轉換為 DataFrame
+    df = pd.DataFrame(filtered_data)
+    
+    # 判斷按鈕篩選
+    ctx = callback_context
+    show_checkbox = False
+    
+    if ctx.triggered:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
         if button_id == 'btn-unprocessed-customers':
-            filtered_df = df[df['狀態'] == '未處理']
+            df = df[df['狀態'] == '未處理']
             show_checkbox = True
         elif button_id == 'btn-processed-customers':
-            filtered_df = df[df['狀態'] == '已處理']
+            df = df[df['狀態'] == '已處理']
             show_checkbox = False
-        else:
-            filtered_df = df
-            show_checkbox = False
+        # else: 顯示全部客戶
     
-    return custom_table(filtered_df, show_checkbox=show_checkbox)
+    # 重置索引，讓按鈕index從0開始連續
+    df = df.reset_index(drop=True)
+    
+    table_component = custom_table(
+        df,
+        show_checkbox=show_checkbox
+    )
+    
+    return table_component
 
+# 顯示確認已處理按鈕
 @app.callback(
     Output('confirm-button-container', 'children'),
     [Input({'type': 'status-checkbox', 'index': ALL}, 'value')]
@@ -122,3 +194,53 @@ def show_confirm_button(checkbox_values):
         return dbc.Button("確認已處理", id="inactive_customers_confirm_btn", color="success")
     else:
         return html.Div()
+
+# 處理確認已處理的邏輯（你可以根據需要實作對應的 PUT API）
+@app.callback(
+    [Output('inactive_customers-success-toast', 'is_open'),
+     Output('inactive_customers-success-toast', 'children'),
+     Output('inactive_customers-error-toast', 'is_open'),
+     Output('inactive_customers-error-toast', 'children'),
+     Output("page-loaded-inactive", "data", allow_duplicate=True)],  # 觸發重新載入
+    Input('inactive_customers_confirm_btn', 'n_clicks'),
+    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     State("filtered-inactive-data", "data")],
+    prevent_initial_call=True
+)
+def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
+    if not confirm_clicks:
+        return False, "", False, "", dash.no_update
+    
+    # 獲取選中的客戶
+    selected_indices = []
+    for i, values in enumerate(checkbox_values):
+        if values:
+            selected_indices.extend(values)
+    
+    if not selected_indices or not filtered_data:
+        return False, "", True, "沒有選擇任何客戶", dash.no_update
+    
+    try:
+        df = pd.DataFrame(filtered_data)
+        success_count = 0
+        
+        for index in selected_indices:
+            if index < len(df):
+                customer_name = df.iloc[index]['客戶名稱']
+                
+                # 在 confirm_processed 函數中替換 TODO 部分：
+                customer_names = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
+
+                update_data = {
+                    "customer_names": customer_names,
+                    "processed": True,
+                    "processed_by": "系統管理員"  # 可以根據登入使用者動態設定
+                }
+
+                response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)
+        
+        # 觸發重新載入資料
+        return True, f"成功處理 {success_count} 位客戶", False, "", True
+        
+    except Exception as e:
+        return False, "", True, f"處理失敗：{e}", dash.no_update
