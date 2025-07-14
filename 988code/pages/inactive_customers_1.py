@@ -37,7 +37,9 @@ tab_content = html.Div([
     ], className="h-100"),
     
     html.Div([
-        html.Div(id="confirm-button-container", style={"display": "flex", "alignItems": "center"}),
+        html.Div([
+            html.Div(id="confirm-button-container", style={"display": "flex", "alignItems": "center"})
+        ], style={"display": "flex", "alignItems": "center"}),
         html.Div([
             dbc.ButtonGroup([
                 dbc.Button("全部客戶", outline=True, id="btn-all-customers", color="primary"),
@@ -48,6 +50,37 @@ tab_content = html.Div([
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
     html.Div(id="inactive-customer-table-container"),
+    
+    # 處理確認 Modal
+    dbc.Modal(
+        id="process-confirm-modal",
+        is_open=False,
+        centered=True,
+        style={"fontSize": "18px"},
+        children=[
+            dbc.ModalHeader("確認處理不活躍客戶", style={"fontWeight": "bold", "fontSize": "24px"}),
+            dbc.ModalBody([
+                html.Div(id="selected-customers-info", style={"marginBottom": "20px"}),
+                dbc.Row([
+                    dbc.Label("處理人員", width=3),
+                    dbc.Col(dbc.Input(
+                        id="modal-processor-name",
+                        type="text",
+                        placeholder="輸入處理人員姓名",
+                        value="系統管理員"
+                    ), width=9)
+                ], className="mb-3"),
+                dbc.Row([
+                    dbc.Label("處理時間", width=3),
+                    dbc.Col(html.Div(id="process-datetime", style={"padding": "8px", "backgroundColor": "#f8f9fa", "border": "1px solid #ced4da", "borderRadius": "4px"}), width=9)
+                ], className="mb-3"),
+            ]),
+            dbc.ModalFooter([
+                dbc.Button("取消", id="modal-cancel-btn", color="secondary", className="me-2"),
+                dbc.Button("確認處理", id="modal-confirm-btn", color="success")
+            ])
+        ]
+    ),
     
     create_success_toast("inactive_customers", message=""),
     create_error_toast("inactive_customers", message=""),
@@ -190,21 +223,70 @@ def show_confirm_button(checkbox_values):
     else:
         return html.Div()
 
+# 顯示處理確認 Modal
+@app.callback(
+    [Output('process-confirm-modal', 'is_open'),
+     Output('selected-customers-info', 'children'),
+     Output('process-datetime', 'children')],
+    [Input('inactive_customers_confirm_btn', 'n_clicks'),
+     Input('modal-cancel-btn', 'n_clicks')],
+    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     State("filtered-inactive-data", "data"),
+     State('process-confirm-modal', 'is_open')],
+    prevent_initial_call=True
+)
+def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, is_open):
+    ctx = callback_context
+    if not ctx.triggered:
+        return False, "", ""
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if button_id == 'inactive_customers_confirm_btn' and confirm_clicks:
+        # 獲取選中的客戶
+        selected_indices = []
+        for i, values in enumerate(checkbox_values):
+            if values:
+                selected_indices.extend(values)
+        
+        if selected_indices and filtered_data:
+            df = pd.DataFrame(filtered_data)
+            selected_customers = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
+            
+            # 顯示選中的客戶
+            customer_info = html.Div([
+                html.H6(f"將處理以下 {len(selected_customers)} 位客戶：", style={"marginBottom": "10px"}),
+                html.Ul([html.Li(customer) for customer in selected_customers])
+            ])
+            
+            # 顯示當前時間
+            from datetime import datetime
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            return True, customer_info, current_time
+    
+    elif button_id == 'modal-cancel-btn':
+        return False, "", ""
+    
+    return is_open, dash.no_update, dash.no_update
+
 # 處理確認已處理的邏輯
 @app.callback(
     [Output('inactive_customers-success-toast', 'is_open'),
      Output('inactive_customers-success-toast', 'children'),
      Output('inactive_customers-error-toast', 'is_open'),
      Output('inactive_customers-error-toast', 'children'),
-     Output("page-loaded-inactive", "data", allow_duplicate=True)],
-    Input('inactive_customers_confirm_btn', 'n_clicks'),
+     Output("page-loaded-inactive", "data", allow_duplicate=True),
+     Output('process-confirm-modal', 'is_open', allow_duplicate=True)],
+    Input('modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
-     State("filtered-inactive-data", "data")],
+     State("filtered-inactive-data", "data"),
+     State("modal-processor-name", "value")],
     prevent_initial_call=True
 )
-def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
-    if not confirm_clicks:
-        return False, "", False, "", dash.no_update
+def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, processor_name):
+    if not modal_confirm_clicks:
+        return False, "", False, "", dash.no_update, dash.no_update
     
     # 獲取選中的客戶
     selected_indices = []
@@ -213,7 +295,7 @@ def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
             selected_indices.extend(values)
     
     if not selected_indices or not filtered_data:
-        return False, "", True, "沒有選擇任何客戶", dash.no_update
+        return False, "", True, "沒有選擇任何客戶", dash.no_update, False
     
     try:
         df = pd.DataFrame(filtered_data)
@@ -223,7 +305,7 @@ def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
         update_data = {
             "customer_names": customer_names,
             "processed": True,
-            "processed_by": "系統管理員"
+            "processed_by": processor_name or "系統管理員"
         }
 
         response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)
@@ -231,9 +313,9 @@ def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
         if response.status_code == 200:
             result = response.json()
             success_count = result.get('success_count', len(customer_names))
-            return True, f"成功處理 {success_count} 位客戶", False, "", True
+            return True, f"成功處理 {success_count} 位客戶", False, "", True, False
         else:
-            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", dash.no_update
+            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", dash.no_update, False
         
     except Exception as e:
-        return False, "", True, f"處理失敗：{e}", dash.no_update
+        return False, "", True, f"處理失敗：{e}", dash.no_update, False
