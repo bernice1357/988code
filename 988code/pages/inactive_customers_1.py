@@ -172,12 +172,7 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
     # 重置索引，讓按鈕index從0開始連續
     df = df.reset_index(drop=True)
     
-    table_component = custom_table(
-        df,
-        show_checkbox=show_checkbox
-    )
-    
-    return table_component
+    return custom_table(df, show_checkbox=show_checkbox, show_button=False)
 
 # 顯示確認已處理按鈕
 @app.callback(
@@ -195,13 +190,13 @@ def show_confirm_button(checkbox_values):
     else:
         return html.Div()
 
-# 處理確認已處理的邏輯（你可以根據需要實作對應的 PUT API）
+# 處理確認已處理的邏輯
 @app.callback(
     [Output('inactive_customers-success-toast', 'is_open'),
      Output('inactive_customers-success-toast', 'children'),
      Output('inactive_customers-error-toast', 'is_open'),
      Output('inactive_customers-error-toast', 'children'),
-     Output("page-loaded-inactive", "data", allow_duplicate=True)],  # 觸發重新載入
+     Output("page-loaded-inactive", "data", allow_duplicate=True)],
     Input('inactive_customers_confirm_btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-inactive-data", "data")],
@@ -222,25 +217,23 @@ def confirm_processed(confirm_clicks, checkbox_values, filtered_data):
     
     try:
         df = pd.DataFrame(filtered_data)
-        success_count = 0
         
-        for index in selected_indices:
-            if index < len(df):
-                customer_name = df.iloc[index]['客戶名稱']
-                
-                # 在 confirm_processed 函數中替換 TODO 部分：
-                customer_names = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
+        customer_names = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
 
-                update_data = {
-                    "customer_names": customer_names,
-                    "processed": True,
-                    "processed_by": "系統管理員"  # 可以根據登入使用者動態設定
-                }
+        update_data = {
+            "customer_names": customer_names,
+            "processed": True,
+            "processed_by": "系統管理員"
+        }
 
-                response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)
+        response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)
         
-        # 觸發重新載入資料
-        return True, f"成功處理 {success_count} 位客戶", False, "", True
+        if response.status_code == 200:
+            result = response.json()
+            success_count = result.get('success_count', len(customer_names))
+            return True, f"成功處理 {success_count} 位客戶", False, "", True
+        else:
+            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", dash.no_update
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", dash.no_update
