@@ -231,3 +231,81 @@ def get_inactive_customers():
     except Exception as e:
         print(f"[API ERROR] get_inactive_customers: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+
+# 得到滯銷品分析資料
+@router.get("/get_sales_change_data")
+def get_sales_change_data():
+    print("[API] get_sales_change_data 被呼叫")
+    try:
+        query = """
+        SELECT 
+            sct.product_id,
+            COALESCE(pm.name_zh, '未知商品') as product_name,
+            COALESCE(sct.last_month_sales, 0) as last_month_sales,
+            COALESCE(sct.current_month_sales, 0) as current_month_sales,
+            COALESCE(sct.change_percentage, 0) as change_percentage,
+            COALESCE(sct.stock_quantity, 0) as stock_quantity,
+            COALESCE(c1.customer_name, NULL) as recommended_customer_1,
+            COALESCE(c1.phone_number, NULL) as recommended_customer_1_phone,
+            COALESCE(c2.customer_name, NULL) as recommended_customer_2,
+            COALESCE(c2.phone_number, NULL) as recommended_customer_2_phone,
+            COALESCE(c3.customer_name, NULL) as recommended_customer_3,
+            COALESCE(c3.phone_number, NULL) as recommended_customer_3_phone,
+            COALESCE(sct.status, false) as status
+        FROM sales_change_table sct
+        LEFT JOIN product_master pm ON sct.product_id = pm.product_id
+        LEFT JOIN customer c1 ON sct.recommended_customer_id_rank1 = c1.customer_id
+        LEFT JOIN customer c2 ON sct.recommended_customer_id_rank2 = c2.customer_id
+        LEFT JOIN customer c3 ON sct.recommended_customer_id_rank3 = c3.customer_id
+        ORDER BY sct.change_percentage ASC
+        """
+        df = get_data_from_db(query)
+        
+        # 在後端也處理一下 NULL 值
+        result = df.to_dict(orient="records")
+        print(f"[API] 返回 {len(result)} 筆資料")
+        if result:
+            print(f"[API] 第一筆資料: {result[0]}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"[API ERROR] get_sales_change_data: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據下降比例篩選滯銷品資料
+@router.get("/get_sales_change_data_by_threshold/{threshold}")
+def get_sales_change_data_by_threshold(threshold: float):
+    print(f"[API] get_sales_change_data_by_threshold 被呼叫，閾值：{threshold}")
+    try:
+        query = """
+        SELECT 
+            sct.product_id,
+            pm.name_zh as product_name,
+            sct.last_month_sales,
+            sct.current_month_sales,
+            sct.change_percentage,
+            sct.stock_quantity,
+            c1.customer_name as recommended_customer_1,
+            c1.phone_number as recommended_customer_1_phone,
+            c2.customer_name as recommended_customer_2,
+            c2.phone_number as recommended_customer_2_phone,
+            c3.customer_name as recommended_customer_3,
+            c3.phone_number as recommended_customer_3_phone,
+            sct.status
+        FROM sales_change_table sct
+        LEFT JOIN product_master pm ON sct.product_id = pm.product_id
+        LEFT JOIN customer c1 ON sct.recommended_customer_id_rank1 = c1.customer_id
+        LEFT JOIN customer c2 ON sct.recommended_customer_id_rank2 = c2.customer_id
+        LEFT JOIN customer c3 ON sct.recommended_customer_id_rank3 = c3.customer_id
+        WHERE ABS(sct.change_percentage) >= %s
+        ORDER BY sct.change_percentage ASC
+        """
+        df = get_data_from_db_with_params(query, (threshold,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_sales_change_data_by_threshold: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
