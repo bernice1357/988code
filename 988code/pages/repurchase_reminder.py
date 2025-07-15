@@ -35,8 +35,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                     ], style={"marginBottom": "10px"}),
                     dbc.Button("確定", id="reminder-confirm-button", color="primary", size="sm")
                 ], target="reminder-setting-button", trigger="click", placement="bottom-start", style={"padding": "15px", "width": "300px"})
-            ], style={"display": "inline-block"}),
-            dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="success", className="ms-auto")
+            ], style={"display": "inline-block", "marginLeft": "auto"}),
+            dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="success", className="ms-2")
         ], className="d-flex align-items-center")
     ], className="mb-3"),
 
@@ -58,7 +58,6 @@ def load_repurchase_data(_):
         if response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data)
-            print(df)
             df.columns = ["客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註", "提醒狀態"]
             
             # 轉換布林值為中文顯示

@@ -1,5 +1,4 @@
 from .common import *
-from callbacks import restock_reminder_callback
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 import requests
 import plotly.graph_objects as go
@@ -93,6 +92,25 @@ def load_data_and_handle_errors(page_loaded):
     except Exception as ex:
         error_msg = f"API 請求錯誤：{ex}"
         return html.Div(), [], True, error_msg
+
+# 載入客戶ID選項
+@app.callback(
+    Output("buy_new_item-customer-id", "options"),
+    Input("page-loaded", "data"),
+    prevent_initial_call=False
+)
+def load_customer_options(page_loaded):
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_restock_customer_ids')
+        if response.status_code == 200:
+            data = response.json()
+            customer_ids = data['customer_ids']
+            options = [{"label": customer_id, "value": customer_id} for customer_id in customer_ids]
+            return options
+        else:
+            return []
+    except Exception as ex:
+        return []
 
 # 抓 modal 歷史紀錄
 @app.callback(

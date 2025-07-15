@@ -4,14 +4,21 @@ from dash import ALL
 
 tab_content = html.Div([
     html.Div([
-        dcc.DatePickerRange(
-            id="item-datepicker",
-            start_date_placeholder_text="開始日期",
-            end_date_placeholder_text="結束日期",
-            display_format="YYYY-MM-DD"
+        dbc.Input(
+            type="month",
+            value="2025-07",
+            id="item-start-date",
+            style={"width": "140px", "display": "inline-block", "marginRight": "10px"}
+        ),
+        html.Span("→", style={"marginRight": "10px", "fontSize": "30px"}),
+        dbc.Input(
+            type="month",
+            value="2025-07",
+            id="item-end-date",
+            style={"width": "140px", "display": "inline-block", "marginRight": "20px"}
         ),
         dbc.Button(
-            "+新增",
+            "+新增產品",
             id="item-add-button",
             color="info",
             style={"marginLeft": "15px"}

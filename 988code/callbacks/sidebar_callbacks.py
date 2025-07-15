@@ -19,7 +19,7 @@ def toggle_sidebar(n1, n2, is_open):
     if is_open:
         return (
             {"position": "fixed", "top": 0, "left": 0, "bottom": 0, "width": "0rem", "transition": "all 0.3s", "overflow": "hidden", "padding": "0", "backgroundColor": "#f0f4f8"},
-            {"position": "fixed", "bottom": "20px", "left": "10px", "zIndex": "1001", "backgroundColor": "#000000", "color": "#ffffff", "border": "none", "borderRadius": "4px", "padding": "6px 10px", "fontSize": "20px", "cursor": "pointer", "display": "block"},
+            {"position": "fixed", "bottom": "20px", "left": "10px", "zIndex": "1001", "backgroundColor": "#ffffff", "color": "#000000", "border": "1px solid #e0e0e0", "borderRadius": "50%", "width": "48px", "height": "48px", "fontSize": "20px", "cursor": "pointer", "display": "flex", "justifyContent": "center", "alignItems": "center", "boxShadow": "0 2px 8px rgba(0, 0, 0, 0.1)"},
             {"margin": "0", "padding": "0.75rem 2rem", "backgroundColor": "#29648a", "color": "#FFFFFF", "height": "64px", "display": "flex", "alignItems": "center", "position": "fixed", "left": "0", "right": "0", "top": "0", "zIndex": "1000", "width": "100%"},
             {"margin-left": "0", "margin-top": "64px", "padding": "2rem", "backgroundColor": "#FFFFFF", "color": "#000000"},
             False

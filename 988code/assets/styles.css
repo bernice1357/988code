@@ -28,16 +28,16 @@ div.card .card-header {
     width: 224px !important;
 }
 
-.dash-table .dash-cell {
-    font-size: 100px;
-}
-
 #button-container {
     text-align: center;
     padding-top: 10px;
     background-color: #f9f9f9;
     border-top: 1px solid #ccc;
-    margin-top: -10px; /* 可視情況調整讓它視覺上靠近表格 */
+    margin-top: -10px;
+}
+
+.nav-item{
+    margin-top: 0rem !important;
 }
 
 .shadow-box {
@@ -48,4 +48,6 @@ div.card .card-header {
     background-color: #fff;
 }
 
-
+input[type="month"], input[type="date"] {
+    width: 180px !important;
+}

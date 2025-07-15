@@ -52,7 +52,7 @@ def get_customer_data():
     print("[API] get_customer_data 被呼叫")
     try:
         query = """
-        SELECT c.customer_id, c.customer_name, c.address, c.delivery_schedule,
+        SELECT c.customer_id, c.customer_name, c.phone_number, c.address, c.delivery_schedule,
                 ot.transaction_date, c.notes
         FROM customer c
         LEFT JOIN (

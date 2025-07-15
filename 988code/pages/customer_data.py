@@ -156,6 +156,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     df = df.rename(columns={
             "customer_id": "客戶ID",
             "customer_name": "客戶名稱",
+            "phone_number": "電話",
             "address": "客戶地址",
             "delivery_schedule": "每週配送日",
             "transaction_date": "最新交易日期",
@@ -179,6 +180,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
         button_text="編輯客戶資料",
         button_id_type="customer_data_button",
         show_button=True,
+        sticky_columns=['客戶ID', '客戶名稱']
     )
     
     return table_component, current_table_data

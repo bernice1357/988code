@@ -103,3 +103,14 @@ def get_customer_notes(customer_id: str):
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
     
+# 補貨提醒 - 取得所有客戶ID
+@router.get("/get_restock_customer_ids")
+def get_all_customer_ids():
+    try:
+        query = "SELECT DISTINCT customer_id FROM order_transactions"
+        df = get_data_from_db_with_params(query)
+        customer_ids = df['customer_id'].tolist()
+        return {"customer_ids": customer_ids}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

@@ -70,13 +70,15 @@ sidebar = html.Div(
 )
 
 toggle_button_float = html.Button(
-    html.I(className="fas fa-bars"),
+    html.I(className="fas fa-caret-right"),
     id="toggle-button-float",
     style={
         "position": "fixed", "bottom": "20px", "left": "10px",
-        "zIndex": "1001", "backgroundColor": "#000000", "color": "#ffffff",
-        "border": "none", "borderRadius": "4px", "padding": "6px 10px",
-        "fontSize": "20px", "cursor": "pointer", "display": "none"
+        "zIndex": "1001", "backgroundColor": "#ffffff", "color": "#000000",
+        "border": "1px solid #e0e0e0", "borderRadius": "50%", "width": "48px", "height": "48px",
+        "fontSize": "20px", "cursor": "pointer", "display": "none",
+        "justifyContent": "center", "alignItems": "center",
+        "boxShadow": "0 2px 8px rgba(0, 0, 0, 0.1)"
     }
 )
 
