@@ -8,6 +8,6 @@ import requests
 from dash import ctx
 import urllib.parse
 
-from components.toast import create_success_toast, create_error_toast, create_warning_toast, create_info_toast
+from components.toast import success_toast, error_toast, warning_toast, info_toast
 from components.table import custom_table
 from app import app

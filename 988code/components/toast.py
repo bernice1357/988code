@@ -1,6 +1,6 @@
 import dash_bootstrap_components as dbc
 
-def create_success_toast(page_id, message="操作成功", header="✅ 系統通知", duration=5000):
+def success_toast(page_id, message="操作成功", header="✅ 系統通知", duration=5000):
     """創建成功提示 Toast"""
     return dbc.Toast(
         message,
@@ -21,7 +21,7 @@ def create_success_toast(page_id, message="操作成功", header="✅ 系統通�
         }
     )
 
-def create_error_toast(page_id, message="操作失敗", header="❌ 系統通知", duration=5000):
+def error_toast(page_id, message="操作失敗", header="❌ 系統通知", duration=5000):
     """創建錯誤提示 Toast"""
     return dbc.Toast(
         message,
@@ -42,7 +42,7 @@ def create_error_toast(page_id, message="操作失敗", header="❌ 系統通知
         }
     )
 
-def create_warning_toast(page_id, message="請注意", header="⚠️ 系統通知", duration=5000):
+def warning_toast(page_id, message="請注意", header="⚠️ 系統通知", duration=5000):
     """創建警告提示 Toast"""
     return dbc.Toast(
         message,
@@ -63,7 +63,7 @@ def create_warning_toast(page_id, message="請注意", header="⚠️ 系統通�
         }
     )
 
-def create_info_toast(page_id, message="提示訊息", header="ℹ️ 系統通知", duration=5000):
+def info_toast(page_id, message="提示訊息", header="ℹ️ 系統通知", duration=5000):
     """創建資訊提示 Toast"""
     return dbc.Toast(
         message,

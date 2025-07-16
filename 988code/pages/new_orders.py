@@ -108,8 +108,8 @@ def get_modal_fields(customer_id, customer_name, purchase_record):
 orders = get_orders()
 
 layout = dbc.Container([
-    create_success_toast("homepage", message="訂單已確認"),
-    create_error_toast("homepage", message=""),
+    success_toast("homepage", message="訂單已確認"),
+    error_toast("homepage", message=""),
     dcc.Interval(
         id='interval-component',
         interval=30*1000,  # 30秒更新一次

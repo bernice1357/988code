@@ -82,8 +82,8 @@ tab_content = html.Div([
         ]
     ),
     
-    create_success_toast("inactive_customers", message=""),
-    create_error_toast("inactive_customers", message=""),
+    success_toast("inactive_customers", message=""),
+    error_toast("inactive_customers", message=""),
 ], className="mt-3")
 
 # 載入不活躍客戶資料的 callback

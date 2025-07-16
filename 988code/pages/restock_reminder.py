@@ -34,7 +34,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="customer-info-store", data={}),
     
     # 觸發 Offcanvas 的按鈕
-    create_error_toast("restock-reminder", message=""),
+    error_toast("restock-reminder", message=""),
     restock_offcanvas["trigger_button"],
     restock_offcanvas["offcanvas"],
     html.Div(id="table-container", style={"marginTop": "20px"}),
@@ -50,7 +50,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     ),
     
     # 下載提示 toast
-    create_info_toast(
+    info_toast(
         "restock-download",
         message="正在準備下載圖表，請稍候..."
     ),

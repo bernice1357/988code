@@ -8,17 +8,18 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
     
     # 計算每個浮空欄位的最適寬度
     def calculate_column_width(col):
-        # 計算標題寬度
-        header_width = len(str(col)) * 12 + 24  # 每個字元約12px + padding
+        # 計算標題寬度 (padding: 8px 12px = 24px)
+        header_width = len(str(col)) * 12 + 24
         
         # 計算內容最大寬度
         max_content_width = 0
         for value in df[col]:
-            content_width = len(str(value)) * 10 + 24  # 每個字元約10px + padding
+            content_width = len(str(value)) * 10 + 24  # padding: 8px 12px = 24px
             max_content_width = max(max_content_width, content_width)
         
-        # 取標題和內容的最大值，最小100px，最大300px
-        return max(100, min(300, max(header_width, max_content_width)))
+        # 取標題和內容的最大值，再加上額外的空間避免超出，最小100px，最大300px
+        calculated_width = max(header_width, max_content_width) + 20  # 額外20px緩衝
+        return max(100, min(300, calculated_width))
     
     # 計算所有浮空欄位的寬度
     sticky_widths = {}
@@ -86,7 +87,10 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'position': 'sticky',
                     'left': f'{left_offset}px',
                     'zIndex': 2,
-                    'backgroundColor': "#edf7ff"
+                    'backgroundColor': "#edf7ff",
+                    'width': f'{sticky_widths[col]}px',
+                    'minWidth': f'{sticky_widths[col]}px',
+                    'maxWidth': f'{sticky_widths[col]}px'
                 })
                 sticky_col_data.append(html.Td(row[col], style=cell_style))
             else:
@@ -154,7 +158,9 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
                     'whiteSpace': 'nowrap',
-                    'width': 'auto',
+                    'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                    'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                    'maxWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
                     'boxShadow': 'none'
                 }) for col in df.columns] +
                 ([html.Th('操作', style={

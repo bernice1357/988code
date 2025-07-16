@@ -184,7 +184,22 @@ def batch_update_inactive_customers(update_data: BatchInactiveCustomerUpdate):
                 "processed_at": datetime.now() if update_data.processed else None
             }
         }
-        
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="批量更新失敗")
+    
+@router.put("/update_repurchase_reminder/{id}")
+def update_reminder_sent(id: int):
+    sql = "UPDATE repurchase_reminders SET reminder_sent = %s WHERE id = %s"
+    params = (True, id)
+
+    try:
+        update_data_to_db(sql, params)
+        return {
+            "message": "提醒狀態更新成功",
+            "id": id,
+            "reminder_sent": True
+        }
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫更新失敗")

@@ -114,3 +114,14 @@ def get_all_customer_ids():
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 取得超過指定天數的補貨提醒
+@router.get("/get_repurchase_reminders/{days}")
+def get_repurchase_reminders(days: int):
+    try:
+        query = "SELECT id, reminder_sent, customer_id, customer_name, product_name, last_purchase_date, days_since_purchase, repurchase_note FROM repurchase_reminders WHERE days_since_purchase >= %s"
+        df = get_data_from_db_with_params(query, (days,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

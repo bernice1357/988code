@@ -209,7 +209,7 @@ def get_customer_names():
 def get_repurchase_data():
     print("[API] get_repurchase_reminders 被呼叫")
     try:
-        df = get_data_from_db('SELECT customer_id, customer_name, product_name, last_purchase_date, days_since_purchase, repurchase_note, reminder_sent FROM repurchase_reminders')
+        df = get_data_from_db('SELECT id, reminder_sent, customer_id, customer_name, product_name, last_purchase_date, days_since_purchase, repurchase_note FROM repurchase_reminders')
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_repurchase_reminders: {e}")

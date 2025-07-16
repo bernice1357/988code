@@ -70,8 +70,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ])
         ]
     ),
-    create_success_toast("customer_data", message=""),
-    create_error_toast("customer_data", message=""),
+    success_toast("customer_data", message=""),
+    error_toast("customer_data", message=""),
 ])
 
 register_offcanvas_callback(app, "customer_data")

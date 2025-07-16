@@ -36,7 +36,7 @@ tab_content = html.Div([
                 style={"marginBottom": "10px"}
             ),
             dbc.Button("新增", id="area-confirm-add-area", color="primary", size="sm")
-        ], id="area-popover-form", target="area-add-button", placement="bottom-start", trigger="click", style={"width": "350px", "backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "boxShadow": "0 4px 8px rgba(0,0,0,0.1)", "padding": "15px"}, hide_arrow=True),
+        ], id="area-popover-form", target="area-add-button", placement="bottom-start", trigger="click", hide_arrow=True),
         
         dbc.Button(
             "生成圖表",
