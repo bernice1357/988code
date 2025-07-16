@@ -158,12 +158,13 @@ tab_content = html.Div([
     
     # 向下拉式詳情區域
     html.Div(id="product-detail-dropdown", style={
-        "marginTop": "10px",
-        "border": "1px solid #ddd",
+        "marginTop": "15px",
+        "border": "2px solid #007bff",
         "borderRadius": "8px",
         "backgroundColor": "#f8f9fa",
         "padding": "20px",
-        "display": "none"
+        "display": "none",
+        "boxShadow": "0 4px 6px rgba(0, 123, 255, 0.1)"
     }),
     
     # 處理確認 Modal
@@ -479,17 +480,19 @@ def toggle_product_detail_dropdown(detail_clicks, filtered_data, btn_all, btn_un
                 ]),
                 html.Hr(),
                 html.Div([
-                    dbc.Button("收起", id="close-detail-btn", color="secondary", size="sm")
-                ], style={"textAlign": "right"})
+                    dbc.Button("收起詳情", id="close-detail-btn", color="primary", size="sm", outline=True)
+                ], style={"textAlign": "right", "marginTop": "10px"})
             ])
             
             return {
-                "marginTop": "10px",
-                "border": "1px solid #ddd",
+                "marginTop": "15px",
+                "border": "2px solid #007bff",           # 更明顯的藍色邊框
                 "borderRadius": "8px",
                 "backgroundColor": "#f8f9fa",
                 "padding": "20px",
-                "display": "block"
+                "display": "block",
+                "boxShadow": "0 4px 6px rgba(0, 123, 255, 0.1)",  # 藍色陰影
+                "animation": "fadeIn 0.3s ease-in-out"   # 淡入動畫效果
             }, detail_content
     
     return {"display": "none"}, ""
