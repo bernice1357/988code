@@ -205,7 +205,20 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
     # 重置索引，讓按鈕index從0開始連續
     df = df.reset_index(drop=True)
     
-    return custom_table(df, show_checkbox=show_checkbox, show_button=False)
+    # 用 html.Div 包裝 custom_table 並添加滾動樣式
+    return html.Div(
+        children=[
+            custom_table(df, show_checkbox=show_checkbox, show_button=False)
+        ],
+        style={
+            "maxHeight": "40vh",     # # 螢幕高度的40%
+            "overflowY": "hidden",      # 垂直滾動
+            "overflowX": "auto",      # 水平滾動
+            "border": "1px solid #dee2e6",    # 邊框
+            "borderRadius": "0.375rem",       # 圓角
+            "backgroundColor": "white"        # 背景色
+        }
+    )
 
 # 顯示確認已處理按鈕
 @app.callback(

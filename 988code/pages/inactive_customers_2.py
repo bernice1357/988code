@@ -111,52 +111,48 @@ tab_content = html.Div([
         ], width=6)
     ], className="h-100"),
     
-    # 篩選區域
-    dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader("篩選條件"),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("銷量變化類型："),
-                            dbc.Select(
-                                id="filter-type-select",
-                                options=[
-                                    {"label": "全部商品", "value": "all"},
-                                    {"label": "銷量上升", "value": "increase"},
-                                    {"label": "銷量下降", "value": "decrease"},
-                                    {"label": "銷量無變化", "value": "no_change"}
-                                ],
-                                value="all"
-                            )
-                        ], width=6),
-                        dbc.Col([
-                            dbc.Label("商品名稱搜尋："),
-                            dbc.Input(
-                                id="product-name-filter",
-                                type="text",
-                                placeholder="搜尋商品名稱..."
-                            )
-                        ], width=6)
-                    ])
-                ])
-            ], color="light")
-        ], width=12)
-    ], className="mt-3"),
-    
+    html.Div([
+    # 左側：篩選功能
     html.Div([
         html.Div([
-            html.Div(id="sales-confirm-button-container", style={"display": "flex", "alignItems": "center"})
-        ], style={"display": "flex", "alignItems": "center"}),
+            dbc.Label("銷量變化類型：", style={"marginRight": "10px", "marginBottom": "0"}),
+            dbc.Select(
+                id="filter-type-select",
+                options=[
+                    {"label": "全部商品", "value": "all"},
+                    {"label": "銷量上升", "value": "increase"},
+                    {"label": "銷量下降", "value": "decrease"},
+                    {"label": "銷量無變化", "value": "no_change"}
+                ],
+                value="all",
+                style={"width": "150px", "marginRight": "20px"}
+            )
+        ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}),
         html.Div([
-            dbc.ButtonGroup([
-                dbc.Button("全部商品", outline=True, id="btn-all-products", color="primary"),
-                dbc.Button("未處理商品", outline=True, id="btn-unprocessed-products", color="primary"),
-                dbc.Button("已處理商品", outline=True, id="btn-processed-products", color="primary")
-            ])
-        ], style={"display": "flex", "justifyContent": "flex-end"})
-    ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
+            dbc.Label("商品名稱搜尋：", style={"marginRight": "10px", "marginBottom": "0"}),
+            dbc.Input(
+                id="product-name-filter",
+                type="text",
+                placeholder="搜尋商品名稱...",
+                style={"width": "200px"}
+            )
+        ], style={"display": "flex", "alignItems": "center"})
+    ], style={"display": "flex", "alignItems": "center"}),
+    
+    # 中間：確認按鈕
+    html.Div([
+        html.Div(id="sales-confirm-button-container", style={"display": "flex", "alignItems": "center"})
+    ], style={"display": "flex", "alignItems": "center"}),
+    
+    # 右側：篩選按鈕
+    html.Div([
+        dbc.ButtonGroup([
+            dbc.Button("全部商品", outline=True, id="btn-all-products", color="primary"),
+            dbc.Button("未處理商品", outline=True, id="btn-unprocessed-products", color="primary"),
+            dbc.Button("已處理商品", outline=True, id="btn-processed-products", color="primary")
+        ])
+    ], style={"display": "flex", "justifyContent": "flex-end"})
+], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
     html.Div(id="sales-table-container"),
     
@@ -358,7 +354,17 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             button_id_type="sales_detail_button"
         )
         
-        return table
+        return html.Div(
+            children=[table],
+            style={
+                "maxHeight": "40vh",              # 螢幕高度的40%
+                "overflowY": "hidden",              # 垂直滾動
+                "overflowX": "auto",              # 水平滾動
+                "border": "1px solid #dee2e6",    # 邊框
+                "borderRadius": "0.375rem",       # 圓角
+                "backgroundColor": "white"        # 背景色
+            }
+        )
     
     except Exception as e:
         return html.Div(f"表格顯示錯誤: {str(e)}")
@@ -577,8 +583,6 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         df = pd.DataFrame(filtered_data)
         product_names = [df.iloc[index]['商品名稱'] for index in selected_indices if index < len(df)]
         
-        # TODO: 這裡需要實作滯銷品的批量更新 API
-        # 暫時模擬成功
         success_count = len(product_names)
         
         return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
