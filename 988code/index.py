@@ -88,13 +88,20 @@ app.layout = html.Div([
     toggle_button_float,
     dcc.Location(id='url', refresh=False),
     html.Div([
+    html.Div([
         dbc.Breadcrumb(
             id='breadcrumb',
             items=[{"label": "首頁", "href": "/", "active": True}],
         ),
-        html.Div(
-            id="main-content",
-            style={"margin-left": "16rem", "margin-top": "64px", "padding": "2rem", "backgroundColor": "#FFFFFF", "color": "#000000"}
+        dbc.NavLink(
+            "登入",
+            href="/login",
+            id="login-nav-link"
+        )
+    ], style={"position": "relative"}),
+    html.Div(
+        id="main-content",
+        style={"margin-left": "16rem", "margin-top": "64px", "padding": "2rem", "backgroundColor": "#FFFFFF", "color": "#000000"}
         )
     ])
 ])

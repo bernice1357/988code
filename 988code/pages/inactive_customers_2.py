@@ -155,6 +155,8 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-sales", data=True),
     dcc.Store(id="sales-change-data", data=[]),
     dcc.Store(id="filtered-sales-data", data=[]),
+    # 新增：用於存儲變化比例設定的 Store（支持本地存儲）
+    dcc.Store(id="sales-threshold-storage", storage_type='local'),
     
     dbc.Row([
         dbc.Col([
@@ -215,10 +217,10 @@ tab_content = html.Div([
                 style={
                     "width": "200px",
                     "fontSize": "14px",
-                    "lineHeight": "1.5"
+                    "lineHeight": "1.2"
                 },
                 # 設定下拉選單的樣式
-                optionHeight=35,  # 每個選項的高度
+                optionHeight=40,  # 每個選項的高度
                 maxHeight=200     # 下拉選單最大高度
             )
         ], style={"display": "flex", "alignItems": "center"})
@@ -287,6 +289,29 @@ tab_content = html.Div([
     error_toast("sales_change", message=""),
 ], className="mt-3")
 
+# 新增：從本地存儲載入變化比例設定
+@app.callback(
+    Output("sales-threshold-input", "value"),
+    Input("sales-threshold-storage", "data"),
+    prevent_initial_call=False
+)
+def load_saved_threshold(stored_threshold):
+    if stored_threshold:
+        return stored_threshold
+    return 50  # 預設值
+
+# 新增：保存變化比例設定到本地存儲
+@app.callback(
+    Output("sales-threshold-storage", "data"),
+    Input("save-threshold-btn", "n_clicks"),
+    State("sales-threshold-input", "value"),
+    prevent_initial_call=True
+)
+def save_threshold_to_storage(n_clicks, threshold_value):
+    if n_clicks and threshold_value:
+        return threshold_value
+    return dash.no_update
+
 # 載入滯銷品資料的 callback
 @app.callback(
     Output("sales-change-data", "data"),
@@ -312,7 +337,7 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
         return []
     
     # 如果點擊了儲存按鈕且有閾值，使用閾值篩選的 API
-    if save_clicks and threshold:
+    if threshold:
         df_threshold = get_sales_change_data_by_threshold(threshold)
         if not df_threshold.empty:
             sales_data = df_threshold.to_dict('records')
@@ -698,6 +723,10 @@ def update_product_name_options(sales_data):
     product_names = df['商品名稱'].unique()
     
     # 轉換為下拉選單選項格式
-    options = [{"label": name, "value": name} for name in sorted(product_names)]
-    
+    options = [{"label": "全部商品", "value": ""}]  # 空值代表全部商品
+    product_options = []
+    for name in sorted(product_names):
+        product_options.append({"label": name, "value": name})
+
+    options.extend(product_options)
     return options

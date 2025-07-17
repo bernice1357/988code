@@ -48,5 +48,8 @@ def display_main_content(pathname):
     elif pathname == '/sales_analysis':
         return sales_analysis.layout
     
+    elif pathname == '/login':
+        return login.layout
+
     else:
         return html.Div([html.H1('404 找不到頁面')])
