@@ -203,3 +203,23 @@ def update_reminder_sent(id: int):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
+    
+# 更新repurchase_note
+class RepurchaseNoteUpdate(BaseModel):
+    repurchase_note: str
+
+@router.put("/update_repurchase_note/{id}")
+def update_repurchase_note(id: int, update_data: RepurchaseNoteUpdate):
+    sql = "UPDATE repurchase_reminders SET repurchase_note = %s WHERE id = %s"
+    params = (update_data.repurchase_note, id)
+
+    try:
+        update_data_to_db(sql, params)
+        return {
+            "message": "回購備註更新成功",
+            "id": id,
+            "repurchase_note": update_data.repurchase_note
+        }
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫更新失敗")

@@ -125,3 +125,91 @@ def get_repurchase_reminders(days: int):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 取得客戶商品推薦
+@router.get("/get_customer_recommendations/{customer_id}")
+def get_customer_recommendations(customer_id: str):
+    try:
+        query = """
+        SELECT 
+            cpr.recommended_product_id_rank1,
+            cpr.recommended_product_id_rank2,
+            cpr.recommended_product_id_rank3,
+            pm1.name_zh as recommended_product_name_rank1,
+            pm2.name_zh as recommended_product_name_rank2,
+            pm3.name_zh as recommended_product_name_rank3
+        FROM customer_product_recommendations cpr
+        LEFT JOIN product_master pm1 ON cpr.recommended_product_id_rank1 = pm1.product_id
+        LEFT JOIN product_master pm2 ON cpr.recommended_product_id_rank2 = pm2.product_id
+        LEFT JOIN product_master pm3 ON cpr.recommended_product_id_rank3 = pm3.product_id
+        WHERE cpr.customer_id = %s
+        """
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 取得客戶每月消費金額統計
+@router.get("/get_customer_monthly_spending/{customer_id}")
+def get_customer_monthly_spending(customer_id: str):
+    try:
+        query = """
+        SELECT 
+            TO_CHAR(DATE_TRUNC('month', transaction_date), 'YYYY-MM') as month,
+            SUM(amount) as total_amount
+        FROM order_transactions 
+        WHERE customer_id = %s 
+        GROUP BY DATE_TRUNC('month', transaction_date)
+        ORDER BY DATE_TRUNC('month', transaction_date) ASC
+        """
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據 product_id 取得推薦的客戶
+@router.get("/get_product_recommendations/{product_id}")
+def get_product_recommendations(product_id: str):
+    try:
+        query = """
+        SELECT 
+            pcr.recommended_customer_id_rank1,
+            pcr.recommended_customer_id_rank2,
+            pcr.recommended_customer_id_rank3,
+            c1.customer_name as recommended_customer_name_rank1,
+            c2.customer_name as recommended_customer_name_rank2,
+            c3.customer_name as recommended_customer_name_rank3
+        FROM product_customer_recommendations pcr
+        LEFT JOIN customer c1 ON pcr.recommended_customer_id_rank1 = c1.customer_id
+        LEFT JOIN customer c2 ON pcr.recommended_customer_id_rank2 = c2.customer_id
+        LEFT JOIN customer c3 ON pcr.recommended_customer_id_rank3 = c3.customer_id
+        WHERE pcr.product_id = %s
+        """
+        df = get_data_from_db_with_params(query, (product_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 根據 customer_id 取得客戶購買過的產品（不重複）
+@router.get("/get_recommended_customer_history/{customer_id}")
+def get_recommended_customer_history(customer_id: str):
+    try:
+        query = """
+        SELECT 
+            product_id,
+            product_name,
+            MIN(transaction_date) as earliest_purchase_date,
+            MAX(transaction_date) as latest_purchase_date
+        FROM order_transactions 
+        WHERE customer_id = %s
+        GROUP BY product_id, product_name
+        ORDER BY product_id
+        """
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

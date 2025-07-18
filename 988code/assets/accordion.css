@@ -1,0 +1,45 @@
+/* 未展開的 Accordion 項目 - 白色背景 */
+.accordion-item {
+    background-color: white !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+.accordion-item .accordion-button {
+    background-color: white !important;
+    color: black !important;
+    border: none !important;
+}
+
+.accordion-item .accordion-button:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* 展開的 Accordion 項目 - #f9f9f9 背景 */
+.accordion-item .accordion-button:not(.collapsed) {
+    background-color: #f9f9f9 !important;
+    color: black !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.accordion-item .accordion-button:focus {
+    box-shadow: none !important;
+    border-color: #dee2e6 !important;
+}
+
+/* 重點：修正 accordion-body 的黃色背景 */
+.accordion-item .accordion-body {
+    background-color: white !important;
+    background-image: none !important;
+    padding: 0 !important;
+}
+
+/* 展開的內容區域 */
+.accordion-item .accordion-collapse.show {
+    background-color: white !important;
+}
+
+.accordion-item .accordion-collapse.show .accordion-body {
+    background-color: white !important;
+    background-image: none !important;
+}

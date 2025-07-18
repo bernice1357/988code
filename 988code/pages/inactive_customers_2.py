@@ -198,8 +198,8 @@ tab_content = html.Div([
         ]
     ),
     
-    create_success_toast("sales_change", message=""),
-    create_error_toast("sales_change", message=""),
+    success_toast("sales_change", message=""),
+    error_toast("sales_change", message=""),
 ], className="mt-3")
 
 # 載入滯銷品資料的 callback

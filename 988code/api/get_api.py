@@ -231,7 +231,6 @@ def get_inactive_customers():
     except Exception as e:
         print(f"[API ERROR] get_inactive_customers: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-    
 
 # 得到滯銷品分析資料
 @router.get("/get_sales_change_data")
@@ -308,4 +307,20 @@ def get_sales_change_data_by_threshold(threshold: float):
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_sales_change_data_by_threshold: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 得到商品推薦列表
+@router.get("/get_recommended_product_ids")
+def get_product_recommendations():
+    print("[API] get_product_recommendations 被呼叫")
+    try:
+        query = """
+        SELECT pcr.product_id, pm.name_zh
+        FROM product_customer_recommendations pcr
+        LEFT JOIN product_master pm ON pcr.product_id = pm.product_id
+        """
+        df = get_data_from_db(query)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_product_recommendations: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
