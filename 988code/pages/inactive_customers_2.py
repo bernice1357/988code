@@ -76,10 +76,87 @@ def get_sales_change_data():
         traceback.print_exc()
         return pd.DataFrame()
 
+def get_sales_change_data_by_threshold(threshold):
+    """根據閾值從API獲取滯銷品資料"""
+    try:
+        response = requests.get(f'http://127.0.0.1:8000/get_sales_change_data_by_threshold/{threshold}')
+        response.raise_for_status()
+        data = response.json()
+        
+        # 先檢查資料是否為空
+        if not data:
+            print("API 返回空資料")
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(data)
+        
+        # 重新命名欄位和格式化資料
+        if not df.empty:
+            # 檢查必要欄位是否存在
+            required_columns = ['product_name', 'last_month_sales', 'current_month_sales', 
+                                  'change_percentage', 'stock_quantity', 'status']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                print(f"缺少必要欄位: {missing_columns}")
+                return pd.DataFrame()
+            
+            df = df.rename(columns={
+                'product_name': '商品名稱',
+                'last_month_sales': '上月銷量',
+                'current_month_sales': '本月銷量',
+                'change_percentage': '變化比例原始值',
+                'stock_quantity': '目前庫存',
+                'recommended_customer_1': '推薦客戶1',
+                'recommended_customer_1_phone': '推薦客戶1電話',
+                'recommended_customer_2': '推薦客戶2',
+                'recommended_customer_2_phone': '推薦客戶2電話',
+                'recommended_customer_3': '推薦客戶3',
+                'recommended_customer_3_phone': '推薦客戶3電話',
+                'status': '狀態原始值'
+            })
+            
+            # 格式化變化比例
+            df['變化比例'] = df['變化比例原始值'].apply(
+                lambda x: f"{abs(x):.1f}%" if pd.notna(x) and x != 0 else "0%"
+            )
+            
+            # 轉換處理狀態為中文
+            df['狀態'] = df['狀態原始值'].map({True: '已處理', False: '未處理', 1: '已處理', 0: '未處理'})
+            
+            # 處理推薦客戶欄位 - 確保這些欄位存在
+            customer_fields = [
+                ('推薦客戶1', '推薦客戶1電話'),
+                ('推薦客戶2', '推薦客戶2電話'), 
+                ('推薦客戶3', '推薦客戶3電話')
+            ]
+            
+            for customer_col, phone_col in customer_fields:
+                if customer_col not in df.columns:
+                    df[customer_col] = '未設定'
+                if phone_col not in df.columns:
+                    df[phone_col] = '未設定'
+                    
+                # 處理空值和 None
+                df[customer_col] = df[customer_col].fillna('未設定').replace('', '未設定')
+                df[phone_col] = df[phone_col].fillna('未設定').replace('', '未設定')
+            
+        return df
+        
+    except requests.exceptions.RequestException as e:
+        print(f"API請求失敗: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"資料處理失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame()
+
 tab_content = html.Div([
     dcc.Store(id="page-loaded-sales", data=True),
     dcc.Store(id="sales-change-data", data=[]),
     dcc.Store(id="filtered-sales-data", data=[]),
+    # 新增：用於存儲變化比例設定的 Store（支持本地存儲）
+    dcc.Store(id="sales-threshold-storage", storage_type='local'),
     
     dbc.Row([
         dbc.Col([
@@ -130,11 +207,21 @@ tab_content = html.Div([
         ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}),
         html.Div([
             dbc.Label("商品名稱搜尋：", style={"marginRight": "10px", "marginBottom": "0"}),
-            dbc.Input(
+            dcc.Dropdown(
                 id="product-name-filter",
-                type="text",
+                options=[],  # 初始為空，會透過 callback 動態更新
+                value=None,
                 placeholder="搜尋商品名稱...",
-                style={"width": "200px"}
+                searchable=True,  # 啟用搜尋功能
+                clearable=True,   # 可清除選項
+                style={
+                    "width": "200px",
+                    "fontSize": "14px",
+                    "lineHeight": "1.2"
+                },
+                # 設定下拉選單的樣式
+                optionHeight=40,  # 每個選項的高度
+                maxHeight=200     # 下拉選單最大高度
             )
         ], style={"display": "flex", "alignItems": "center"})
     ], style={"display": "flex", "alignItems": "center"}),
@@ -202,6 +289,29 @@ tab_content = html.Div([
     error_toast("sales_change", message=""),
 ], className="mt-3")
 
+# 新增：從本地存儲載入變化比例設定
+@app.callback(
+    Output("sales-threshold-input", "value"),
+    Input("sales-threshold-storage", "data"),
+    prevent_initial_call=False
+)
+def load_saved_threshold(stored_threshold):
+    if stored_threshold:
+        return stored_threshold
+    return 50  # 預設值
+
+# 新增：保存變化比例設定到本地存儲
+@app.callback(
+    Output("sales-threshold-storage", "data"),
+    Input("save-threshold-btn", "n_clicks"),
+    State("sales-threshold-input", "value"),
+    prevent_initial_call=True
+)
+def save_threshold_to_storage(n_clicks, threshold_value):
+    if n_clicks and threshold_value:
+        return threshold_value
+    return dash.no_update
+
 # 載入滯銷品資料的 callback
 @app.callback(
     Output("sales-change-data", "data"),
@@ -218,7 +328,7 @@ def load_sales_change_data(page_loaded):
     [Input("sales-change-data", "data"),
      Input("save-threshold-btn", "n_clicks"),
      Input("filter-type-select", "value"),
-     Input("product-name-filter", "value")],
+     Input("product-name-filter", "value")],  # 這裡現在接收的是選中的值，而不是輸入的文字
     State("sales-threshold-input", "value"),
     prevent_initial_call=False
 )
@@ -226,11 +336,13 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
     if not sales_data:
         return []
     
-    df = pd.DataFrame(sales_data)
+    # 如果點擊了儲存按鈕且有閾值，使用閾值篩選的 API
+    if threshold:
+        df_threshold = get_sales_change_data_by_threshold(threshold)
+        if not df_threshold.empty:
+            sales_data = df_threshold.to_dict('records')
     
-    # 閾值篩選
-    if threshold and save_clicks:
-        df = df[df['變化比例原始值'].abs() >= threshold]
+    df = pd.DataFrame(sales_data)
     
     # 類型篩選
     if filter_type == "increase":
@@ -240,9 +352,9 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
     elif filter_type == "no_change":
         df = df[df['變化比例原始值'] == 0]
     
-    # 商品名稱篩選
+    # 商品名稱篩選 - 修改為精確匹配
     if product_name_filter:
-        df = df[df['商品名稱'].str.contains(product_name_filter, na=False, case=False)]
+        df = df[df['商品名稱'] == product_name_filter]  # 改為精確匹配
     
     # 只保留需要的欄位
     columns_to_keep = ['商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
@@ -592,3 +704,29 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", dash.no_update, False
+    
+# 更新商品名稱下拉選單選項
+@app.callback(
+    Output("product-name-filter", "options"),
+    Input("sales-change-data", "data"),
+    prevent_initial_call=False
+)
+def update_product_name_options(sales_data):
+    if not sales_data:
+        return []
+    
+    df = pd.DataFrame(sales_data)
+    if df.empty or '商品名稱' not in df.columns:
+        return []
+    
+    # 獲取所有唯一的商品名稱
+    product_names = df['商品名稱'].unique()
+    
+    # 轉換為下拉選單選項格式
+    options = [{"label": "全部商品", "value": ""}]  # 空值代表全部商品
+    product_options = []
+    for name in sorted(product_names):
+        product_options.append({"label": name, "value": name})
+
+    options.extend(product_options)
+    return options

@@ -70,6 +70,11 @@ def update_breadcrumb(pathname):
             {"label": "首頁", "href": "/", "active": False}, 
             {"label": "庫存預測", "href": "/inventory_forecasting", "active": True}
         ]
+    elif pathname == "/login":
+        return [
+            {"label": "首頁", "href": "/", "active": False},
+            {"label": "登入", "href": "/login", "active": True}
+        ]
     else:
         return [
             {"label": "404 - 找不到頁面", "href": "#", "active": True}

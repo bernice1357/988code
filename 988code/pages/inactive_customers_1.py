@@ -5,6 +5,8 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-inactive", data=True),
     dcc.Store(id="inactive-customers-data", data=[]),
     dcc.Store(id="filtered-inactive-data", data=[]),
+    # 新增：用於存儲天數設定的 Store（支持本地存儲）
+    dcc.Store(id="inactive-days-storage", storage_type='local'),
     
     dbc.Row([
         dbc.Col([
@@ -86,6 +88,29 @@ tab_content = html.Div([
     error_toast("inactive_customers", message=""),
 ], className="mt-3")
 
+# 新增：從本地存儲載入天數設定
+@app.callback(
+    Output("inactive-days-input", "value"),
+    Input("inactive-days-storage", "data"),
+    prevent_initial_call=False
+)
+def load_saved_days(stored_days):
+    if stored_days:
+        return stored_days
+    return None
+
+# 新增：保存天數設定到本地存儲
+@app.callback(
+    Output("inactive-days-storage", "data"),
+    Input("save-days-btn", "n_clicks"),
+    State("inactive-days-input", "value"),
+    prevent_initial_call=True
+)
+def save_days_to_storage(n_clicks, days_value):
+    if n_clicks and days_value:
+        return days_value
+    return dash.no_update
+
 # 載入不活躍客戶資料的 callback
 @app.callback(
     Output("inactive-customers-data", "data"),
@@ -140,7 +165,7 @@ def filter_inactive_data(inactive_data, save_clicks, min_days):
             df['最後訂單日期'] = pd.to_datetime(df['最後訂單日期']).dt.strftime('%Y-%m-%d')
         
         # 天數篩選
-        if min_days and save_clicks:
+        if min_days:
             df = df[df['不活躍天數'] >= min_days]
         
         # 只保留需要的欄位
