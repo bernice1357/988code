@@ -12,5 +12,6 @@ __all__ = [
     "repurchase_reminder",
     "restock_reminder",
     "sales_analysis",
-    "login"
+    "login",
+    "register"
 ]

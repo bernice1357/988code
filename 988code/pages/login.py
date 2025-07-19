@@ -1,6 +1,8 @@
 from .common import *
 from dash import ALL, callback_context
 from dash.exceptions import PreventUpdate
+import requests
+import json
 
 layout = dbc.Container([
     dcc.Store(id="login-status", storage_type='local'),
@@ -62,6 +64,18 @@ layout = dbc.Container([
                                         style={"fontSize": "18px", "fontWeight": "bold"}
                                     )
                                 ], width=12)
+                            ]),
+                            dbc.Row([
+                                dbc.Col([
+                                    dbc.Button(
+                                        "註冊",
+                                        id="register-btn",
+                                        color="outline-secondary",
+                                        size="lg",
+                                        className="w-100 mt-2",
+                                        style={"fontSize": "16px"}
+                                    )
+                                ], width=12)
                             ])
                         ])
                     ])
@@ -99,33 +113,67 @@ def handle_login(n_clicks, username, password, remember_me):
     if not username or not password:
         return dash.no_update, False, "", True, "請輸入使用者名稱和密碼", dash.no_update, dash.no_update
     
-    # 這裡可以加入實際的登入驗證邏輯
-    # 目前先做簡單的示範驗證
-    if username == "admin" and password == "password":
-        # 登入成功，儲存登入狀態到 cookie
-        login_data = {
-            "logged_in": True,
-            "username": username,
-            "login_time": datetime.now().isoformat(),
-            "remember_me": remember_me
-        }
+    try:
+        # 呼叫登入 API
+        response = requests.post("http://127.0.0.1:8000/login", 
+                               json={"username": username, "password": password})
         
-        # 清空輸入框
-        return login_data, True, f"登入成功！歡迎 {username}", False, "", "", ""
-    else:
-        # 登入失敗
-        return dash.no_update, False, "", True, "使用者名稱或密碼錯誤", dash.no_update, ""
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                # 登入成功，儲存登入狀態到 localStorage
+                user_data = result.get("user", {})
+                login_data = {
+                    "logged_in": True,
+                    "username": user_data.get("username"),
+                    "email": user_data.get("email"),
+                    "full_name": user_data.get("full_name"),
+                    "role": user_data.get("role"),
+                    "login_time": datetime.now().isoformat(),
+                    "remember_me": remember_me
+                }
+                
+                # 清空輸入框
+                welcome_message = f"登入成功！歡迎 {user_data.get('full_name', username)}"
+                return login_data, True, welcome_message, False, "", "", ""
+            else:
+                # 登入失敗
+                error_message = result.get("message", "登入失敗")
+                return dash.no_update, False, "", True, error_message, dash.no_update, ""
+        else:
+            return dash.no_update, False, "", True, "伺服器連接失敗", dash.no_update, ""
+            
+    except requests.exceptions.RequestException as e:
+        print(f"登入 API 請求錯誤: {e}")
+        return dash.no_update, False, "", True, "網路連接錯誤", dash.no_update, ""
+    except Exception as e:
+        print(f"登入處理錯誤: {e}")
+        return dash.no_update, False, "", True, "系統錯誤", dash.no_update, ""
 
-# 檢查登入狀態
+
+
+# 註冊按鈕處理
+# 檢查登入狀態並處理頁面導向
 @app.callback(
     Output("url", "pathname"),
-    Input("login-status", "data"),
+    [Input("login-status", "data"),
+     Input("register-btn", "n_clicks")],
     prevent_initial_call=True
 )
-def redirect_after_login(login_data):
-    if login_data and login_data.get("logged_in"):
+def handle_navigation(login_data, register_clicks):
+    ctx = callback_context
+    if not ctx.triggered:
+        return dash.no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if trigger_id == "login-status" and login_data and login_data.get("logged_in"):
         # 登入成功後重定向到首頁
         return "/"
+    elif trigger_id == "register-btn" and register_clicks:
+        # 點擊註冊按鈕
+        return "/register"
+    
     return dash.no_update
 
 # Enter 鍵登入
