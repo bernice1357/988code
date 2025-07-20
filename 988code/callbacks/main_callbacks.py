@@ -50,6 +50,9 @@ def display_main_content(pathname):
     
     elif pathname == '/login':
         return login.layout
+    
+    elif pathname == '/register':
+        return register.layout
 
     else:
         return html.Div([html.H1('404 找不到頁面')])

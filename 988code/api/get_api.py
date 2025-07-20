@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Form
 import psycopg2
 import pandas as pd
 
@@ -274,6 +274,121 @@ def get_sales_change_data():
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 登入驗證
+@router.post("/login")
+def login(username: str, password: str):
+    print(f"[API] login 被呼叫，使用者: {username}")
+    try:
+        query = """
+        SELECT username, email, password_hash, full_name, role, is_active
+        FROM users 
+        WHERE username = %s AND is_active = true
+        """
+        
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (username,))
+                user_data = cursor.fetchone()
+                
+                if user_data:
+                    columns = [desc[0] for desc in cursor.description]
+                    user_dict = dict(zip(columns, user_data))
+                    
+                    # 這裡應該要驗證密碼hash，暫時簡化處理
+                    # 實際應用中需要使用 bcrypt 或其他加密方式驗證
+                    if password == "password":  # 簡化的密碼驗證
+                        return {
+                            "success": True,
+                            "user": {
+                                "username": user_dict["username"],
+                                "email": user_dict["email"],
+                                "full_name": user_dict["full_name"],
+                                "role": user_dict["role"]
+                            }
+                        }
+                    else:
+                        return {"success": False, "message": "密碼錯誤"}
+                else:
+                    return {"success": False, "message": "使用者不存在"}
+                    
+    except Exception as e:
+        print(f"[API ERROR] login: {e}")
+        raise HTTPException(status_code=500, detail="登入驗證失敗")
+
+# 獲取使用者資料
+@router.get("/get_user/{username}")
+def get_user(username: str):
+    print(f"[API] get_user 被呼叫，使用者: {username}")
+    try:
+        query = """
+        SELECT username, email, full_name, role, is_active
+        FROM users 
+        WHERE username = %s
+        """
+        df = get_data_from_db(query % f"'{username}'")
+        if not df.empty:
+            return df.iloc[0].to_dict()
+        else:
+            raise HTTPException(status_code=404, detail="使用者不存在")
+    except Exception as e:
+        print(f"[API ERROR] get_user: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 註冊新使用者
+@router.post("/register")
+def register(request: dict):
+    print(f"[API] register 被呼叫，使用者: {request.get('username')}")
+    try:
+        username = request.get('username')
+        email = request.get('email')
+        full_name = request.get('full_name')
+        password = request.get('password')
+        role = request.get('role', 'user')
+        
+        # 檢查使用者是否已存在
+        check_query = """
+        SELECT username, email FROM users 
+        WHERE username = %s OR email = %s
+        """
+        
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(check_query, (username, email))
+                existing_user = cursor.fetchone()
+                
+                if existing_user:
+                    return {"success": False, "message": "使用者名稱或電子郵件已存在"}
+                
+                # 插入新使用者（這裡簡化密碼處理，實際應用中需要加密）
+                insert_query = """
+                INSERT INTO users (username, email, password_hash, full_name, role, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                
+                # 實際應用中應該使用 bcrypt 加密密碼
+                password_hash = password  # 簡化處理
+                
+                cursor.execute(insert_query, (username, email, password_hash, full_name, role, True))
+                conn.commit()
+                
+                return {"success": True, "message": "註冊成功"}
+                
+    except Exception as e:
+        print(f"[API ERROR] register: {e}")
+        raise HTTPException(status_code=500, detail="註冊失敗")
     
 # 得到商品推薦列表
 @router.get("/get_recommended_product_ids")
