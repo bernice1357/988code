@@ -181,10 +181,11 @@ def load_customer_history_on_expand(trigger, selected_product_id, active_item, c
                         if history_data:
                             # 建立固定標題和可滾動內容的結構
                             table_header = html.Div([
-                                html.Div('品項ID', style={'font-weight': 'bold', 'flex': '1'}),
-                                html.Div('品項名稱', style={'font-weight': 'bold', 'flex': '2'}),
-                                html.Div('首次購買', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1'}),
-                                html.Div('最後購買', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1'})
+                                html.Div('購買品項ID', style={'font-weight': 'bold', 'flex': '1'}),
+                                html.Div('購買品項名稱', style={'font-weight': 'bold', 'flex': '2'}),
+                                html.Div('購買次數', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1'}),
+                                html.Div('首次購買日期', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1'}),
+                                html.Div('最後購買日期', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1'})
                             ], style={'display': 'flex', 'padding': '10px', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd'})
                             
                             # 可滾動的資料內容
@@ -192,6 +193,7 @@ def load_customer_history_on_expand(trigger, selected_product_id, active_item, c
                             for record in history_data:
                                 product_id = record.get('product_id', '')
                                 product_name = record.get('product_name', '')
+                                purchase_count = record.get('purchase_count', '')
                                 earliest_date = record.get('earliest_purchase_date', '')
                                 latest_date = record.get('latest_purchase_date', '')
                                 
@@ -200,6 +202,7 @@ def load_customer_history_on_expand(trigger, selected_product_id, active_item, c
                                         html.Div([
                                             html.Div(product_id, style={'flex': '1'}),
                                             html.Div(product_name, style={'flex': '2'}),
+                                            html.Div(str(purchase_count), style={'text-align': 'center', 'flex': '1'}),
                                             html.Div(earliest_date, style={'text-align': 'center', 'flex': '1'}),
                                             html.Div(latest_date, style={'text-align': 'center', 'flex': '1'})
                                         ], style={

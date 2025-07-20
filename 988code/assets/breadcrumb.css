@@ -61,26 +61,30 @@
     text-decoration: underline; /* 可選：加底線，顯示為選中狀態 */
 }
 
+/* 修正分隔符設定 */
 .breadcrumb .breadcrumb-item + .breadcrumb-item::before {
-    content: "›";            /* 自定義分隔符（如果需要） */
-    margin: 0 5px;            /* 分隔符間距 */
+    content: "›";            /* 分隔符 */
+    margin: 0 8px;           /* 分隔符間距 */
+    color: #ffffff !important;
+    font-size: 18px;         /* 讓分隔符號更大 */
+    padding: 0;
 }
 
 /* 登入按鈕樣式 */
 #login-nav-link {
-   position: fixed;
-   top: 0;
-   right: 20px;
-   z-index: 1001;
-   height: 64px;
-   display: flex;
-   align-items: center;
-   color: #ffffff;
-   text-decoration: none;
-   font-size: 16px;
-   background-color: transparent;
+    position: fixed;
+    top: 0;
+    right: 20px;
+    z-index: 1001;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 16px;
+    background-color: transparent;
 }
 
 #login-nav-link:hover {
-   color: #ffffff;
+    color: #ffffff;
 }

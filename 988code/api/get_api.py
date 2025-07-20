@@ -274,40 +274,6 @@ def get_sales_change_data():
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-
-# 根據下降比例篩選滯銷品資料
-@router.get("/get_sales_change_data_by_threshold/{threshold}")
-def get_sales_change_data_by_threshold(threshold: float):
-    print(f"[API] get_sales_change_data_by_threshold 被呼叫，閾值：{threshold}")
-    try:
-        query = """
-        SELECT 
-            sct.product_id,
-            pm.name_zh as product_name,
-            sct.last_month_sales,
-            sct.current_month_sales,
-            sct.change_percentage,
-            sct.stock_quantity,
-            c1.customer_name as recommended_customer_1,
-            c1.phone_number as recommended_customer_1_phone,
-            c2.customer_name as recommended_customer_2,
-            c2.phone_number as recommended_customer_2_phone,
-            c3.customer_name as recommended_customer_3,
-            c3.phone_number as recommended_customer_3_phone,
-            sct.status
-        FROM sales_change_table sct
-        LEFT JOIN product_master pm ON sct.product_id = pm.product_id
-        LEFT JOIN customer c1 ON sct.recommended_customer_id_rank1 = c1.customer_id
-        LEFT JOIN customer c2 ON sct.recommended_customer_id_rank2 = c2.customer_id
-        LEFT JOIN customer c3 ON sct.recommended_customer_id_rank3 = c3.customer_id
-        WHERE ABS(sct.change_percentage) >= %s
-        ORDER BY sct.change_percentage ASC
-        """
-        df = get_data_from_db_with_params(query, (threshold,))
-        return df.to_dict(orient="records")
-    except Exception as e:
-        print(f"[API ERROR] get_sales_change_data_by_threshold: {e}")
-        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
     
 # 得到商品推薦列表
 @router.get("/get_recommended_product_ids")

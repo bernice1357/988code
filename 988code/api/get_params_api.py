@@ -202,7 +202,8 @@ def get_recommended_customer_history(customer_id: str):
             product_id,
             product_name,
             MIN(transaction_date) as earliest_purchase_date,
-            MAX(transaction_date) as latest_purchase_date
+            MAX(transaction_date) as latest_purchase_date,
+            COUNT(*) as purchase_count
         FROM order_transactions 
         WHERE customer_id = %s
         GROUP BY product_id, product_name
