@@ -4,58 +4,26 @@
 
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
+from callbacks.export_callback import create_export_callback, add_download_component
 import requests
 import pandas as pd
 from datetime import datetime, date
-
-def get_new_item_orders():
-    """從API獲取新品訂單資料"""
-    try:
-        response = requests.get('http://127.0.0.1:8000/get_new_item_orders')
-        response.raise_for_status()
-        data = response.json()
-        df = pd.DataFrame(data)
-        
-        # 重新命名欄位和格式化時間
-        if not df.empty:
-            df = df.rename(columns={
-                'customer_id': '客戶 ID',
-                'customer_name': '客戶名稱',
-                'purchase_record': '購買品項',
-                'created_at': '購買時間'
-            })
-            
-            # 格式化購買時間
-            df['購買時間'] = pd.to_datetime(df['購買時間']).dt.strftime('%Y-%m-%d %H:%M')
-        
-        return df
-    except requests.exceptions.RequestException as e:
-        # TODO 這裡改成toast顯示
-        print(f"API請求失敗: {e}")
-        return pd.DataFrame()
-    except Exception as e:
-        print(f"資料處理失敗: {e}")
-        return pd.DataFrame()
-
-# 獲取資料
-df = get_new_item_orders()
 
 # offcanvas
 product_input_fields = [
     {
         "id": "date-picker", 
         "label": "新品購買日期區間",
-        "type": "date_range"
+        "type": "date_range",
+        "start_date": "",  # 覆蓋預設值為空
+        "end_date": ""     # 覆蓋預設值為空
     },
     {
         "id": "customer-id", 
         "label": "客戶ID",
-        "type": "dropdown"
-    },
-    {
-        "id": "product-type",
-        "label": "商品類別",
-        "type": "dropdown"
+        "type": "dropdown",
+        "options": [],  # 初始為空，會透過 callback 動態載入
+        "placeholder": "請選擇客戶"
     },
 ]
 product_components = create_search_offcanvas(
@@ -64,40 +32,161 @@ product_components = create_search_offcanvas(
 )
 
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
+    dcc.Store(id="buy_new_item-page-loaded", data=True),
+    dcc.Store(id="buy_new_item-data", data=[]),
+    dcc.Store(id="buy_new_item-current-table-data", data=[]),  # 儲存當前表格顯示的資料
+    dcc.Store(id="buy_new_item-date-validation", data={"is_valid": True, "message": ""}),  # 新增日期驗證狀態
+    add_download_component("buy_new_item"),  # 加入下載元件
 
     # 篩選條件區
     html.Div([
         product_components["trigger_button"],
-        dbc.Button("匯出", id="export-button", n_clicks=0, color="success")
+        dbc.Button("匯出列表資料", id="buy_new_item-export-button", n_clicks=0, color="info", outline=True)
     ], className="mb-3 d-flex justify-content-between align-items-center"),
 
     product_components["offcanvas"],
 
-    html.Div([
-        custom_table(df)
-    ], id="table-container", style={"marginTop": "20px"}),
+    html.Div(id="buy_new_item-table-container", style={"marginTop": "20px"}),
+    error_toast("buy_new_item"),
 ])
 
 register_offcanvas_callback(app, "buy_new_item")
 
-# 日期篩選條件
+# 註冊匯出功能 - 使用當前表格資料
+create_export_callback(app, "buy_new_item", "buy_new_item-current-table-data", "新品購買資料")
+
+# 日期驗證 callback
 @app.callback(
-    Output("table-container", "children", allow_duplicate=True),
-    [Input("buy_new_item-date-picker", "start_date"),  # 正確的ID
-     Input("buy_new_item-date-picker", "end_date"),    # 正確的ID
-     Input("buy_new_item-customer-id", "value"),
-     Input("buy_new_item-product-type", "value")],
+    [Output("buy_new_item-date-validation", "data"),
+     Output("buy_new_item-date-picker-start", "invalid"),
+     Output("buy_new_item-date-picker-end", "invalid")],
+    [Input("buy_new_item-date-picker-start", "value"),
+     Input("buy_new_item-date-picker-end", "value")],
+    prevent_initial_call=False
+)
+def validate_date_range(start_date, end_date):
+    if start_date and end_date and start_date > end_date:
+        error_msg = f"結束日期不能早於開始日期"
+        return {"is_valid": False, "message": error_msg}, True, True
+    else:
+        return {"is_valid": True, "message": ""}, False, False
+
+# 載入客戶ID選項的 callback
+@app.callback(
+    Output("buy_new_item-customer-id", "options", allow_duplicate=True),
+    Input("buy_new_item-page-loaded", "data"),
     prevent_initial_call=True
 )
-def update_table_with_filters(start_date, end_date, customer_id, product_type):
-    # 重新獲取原始資料
-    filtered_df = get_new_item_orders()
+def load_customer_options(page_loaded):
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_new_item_customers')
+        
+        if response.status_code != 200:
+            return []
+            
+        data = response.json()
+        options = [{"label": f"{item['customer_id']} - {item['customer_name']}", "value": item['customer_id']} for item in data]
+        return options
+        
+    except requests.exceptions.RequestException as e:
+        print(f"載入客戶選項失敗: {e}")
+        return []
+    except Exception as e:
+        print(f"處理客戶選項失敗: {e}")
+        return []
+
+# 載入新品購買資料的 callback
+@app.callback(
+    Output("buy_new_item-data", "data"),
+    Input("buy_new_item-page-loaded", "data"),
+    prevent_initial_call=False
+)
+def load_new_item_data(page_loaded):
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_new_item_orders')
+        
+        if response.status_code != 200:
+            return []
+            
+        data = response.json()
+        return data
+        
+    except requests.exceptions.RequestException as e:
+        print(f"API請求失敗: {e}")
+        return []
+    except Exception as e:
+        print(f"資料處理失敗: {e}")
+        return []
+
+# 載入客戶選項的獨立 callback - 使用不同的觸發條件
+@app.callback(
+    Output("buy_new_item-customer-id", "options"),
+    Input("buy_new_item-data", "data"),  # 改用資料載入完成作為觸發條件
+    prevent_initial_call=False
+)
+def load_customer_options(data):
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_new_item_customers')
+        
+        if response.status_code != 200:
+            print(f"API回應狀態碼: {response.status_code}")
+            return []
+            
+        customer_data = response.json()
+        
+        if not customer_data:
+            return []
+        
+        # 提取所有客戶ID並去重
+        customer_ids = list(set([item['customer_id'] for item in customer_data if 'customer_id' in item]))
+        
+        # 建立選項列表
+        options = [{"label": customer_id, "value": customer_id} for customer_id in sorted(customer_ids)]
+        
+        return options
+        
+    except requests.exceptions.RequestException as e:
+        print(f"載入客戶選項失敗: {e}")
+        return []
+    except Exception as e:
+        print(f"處理客戶選項失敗: {e}")
+        return []
+
+# 顯示篩選後的表格
+@app.callback(
+    [Output("buy_new_item-table-container", "children"),
+     Output("buy_new_item-current-table-data", "data"),  # 同時更新當前表格資料
+     Output('buy_new_item-error-toast', 'is_open'),
+     Output('buy_new_item-error-toast', 'children')],
+    [Input("buy_new_item-data", "data"),
+     Input("buy_new_item-date-picker-start", "value"),
+     Input("buy_new_item-date-picker-end", "value"),
+     Input("buy_new_item-customer-id", "value")],
+    prevent_initial_call=False
+)
+def display_filtered_table(data, start_date, end_date, customer_id):
     
-    if filtered_df.empty:
-        return custom_table(filtered_df)
+    if not data:
+        return html.Div("暫無資料"), [], False, ""
     
-    # 日期篩選 - 必須同時有開始和結束日期
+    # 轉換為 DataFrame
+    filtered_df = pd.DataFrame(data)
+    
+    # 重新命名欄位和格式化時間
+    if not filtered_df.empty:
+        filtered_df = filtered_df.rename(columns={
+            'customer_id': '客戶 ID',
+            'customer_name': '客戶名稱',
+            'purchase_record': '購買品項',
+            'created_at': '購買時間'
+        })
+        
+        # 格式化購買時間
+        filtered_df['購買時間'] = pd.to_datetime(filtered_df['購買時間']).dt.strftime('%Y-%m-%d %H:%M')
+    
+    # 日期篩選 - 只有在同時有開始和結束日期時才進行篩選
     if start_date and end_date:
+        
         # 轉換購買時間為datetime格式，格式: "2024-01-15 10:30"
         filtered_df['購買時間_datetime'] = pd.to_datetime(filtered_df['購買時間'], format='%Y-%m-%d %H:%M')
         
@@ -106,6 +195,7 @@ def update_table_with_filters(start_date, end_date, customer_id, product_type):
         end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)  # 包含結束日期整天
         
         # 篩選日期範圍
+        before_filter = len(filtered_df)
         filtered_df = filtered_df[
             (filtered_df['購買時間_datetime'] >= start_datetime) & 
             (filtered_df['購買時間_datetime'] <= end_datetime)
@@ -116,10 +206,15 @@ def update_table_with_filters(start_date, end_date, customer_id, product_type):
     
     # 客戶ID篩選
     if customer_id:
+        before_filter = len(filtered_df)
         filtered_df = filtered_df[filtered_df['客戶 ID'] == customer_id]
     
-    # 商品類別篩選
-    if product_type:
-        filtered_df = filtered_df[filtered_df['購買品項'].str.contains(product_type, na=False)]
+    # 重置索引，讓按鈕index從0開始連續
+    filtered_df = filtered_df.reset_index(drop=True)
     
-    return custom_table(filtered_df)
+    # 儲存當前表格資料供匯出使用
+    current_table_data = filtered_df.to_dict('records')
+    
+    table_component = custom_table(filtered_df)
+    
+    return table_component, current_table_data, False, ""

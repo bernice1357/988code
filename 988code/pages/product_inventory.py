@@ -1,5 +1,5 @@
 from .common import *
-from components.offcanvas import create_search_offcanvas, register_offcanvas_callback, register_reset_callback
+from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from callbacks.export_callback import create_export_callback, add_download_component
 import requests
 import pandas as pd
@@ -63,9 +63,6 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 ])
 
 register_offcanvas_callback(app, "product_inventory")
-
-# 註冊重置功能
-register_reset_callback(app, "product_inventory", ["inventory_id", "subcategory_id"])
 
 # 註冊匯出功能 - 使用當前表格資料
 create_export_callback(app, "product_inventory", "current-table-data", "商品庫存資料")

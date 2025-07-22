@@ -4,6 +4,8 @@ from datetime import datetime
 from dash import callback_context, ALL
 from dash.exceptions import PreventUpdate
 
+# TODO 這頁要有cookie，設定天數會保留
+
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     dcc.Store(id='customer-data-store'),

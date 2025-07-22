@@ -1,5 +1,5 @@
 from .common import *
-from components.offcanvas import create_search_offcanvas, register_offcanvas_callback, register_reset_callback
+from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from dash import ALL, callback_context
 
 # TODO MODAL可以改 Id 、名稱、地址、送貨時間、備註
@@ -75,9 +75,6 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 ])
 
 register_offcanvas_callback(app, "customer_data")
-
-# 註冊重置功能
-register_reset_callback(app, "customer_data", ["customer-id", "customer-name"])
 
 # 載入客戶ID選項的 callback
 @app.callback(

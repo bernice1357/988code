@@ -13,7 +13,7 @@ sidebar = html.Div(
             )
         ),
         html.Hr(),
-        dbc.Nav(
+        dbc.Nav( # TODO 這邊把下拉選單做成可以看到J
             [
                 dbc.NavLink("新進訂單", href="/new_orders", active="exact"),
                 dbc.NavLink("客戶資料管理", href="/customer_data", active="exact"),

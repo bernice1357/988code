@@ -20,7 +20,7 @@ product_input_fields = [
     },
 ]
 restock_offcanvas = create_search_offcanvas(
-    page_name="buy_new_item",
+    page_name="restock_reminder",
     input_fields=product_input_fields,
 )
 
@@ -95,7 +95,7 @@ def load_data_and_handle_errors(page_loaded):
 
 # 載入客戶ID選項
 @app.callback(
-    Output("buy_new_item-customer-id", "options"),
+    Output("restock_reminder-customer-id", "options"),
     Input("page-loaded", "data"),
     prevent_initial_call=False
 )

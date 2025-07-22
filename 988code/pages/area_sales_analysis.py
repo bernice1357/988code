@@ -2,6 +2,8 @@ from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from dash import ALL
 
+# TODO 地區選項還沒放
+
 tab_content = html.Div([
     html.Div([
         dbc.Input(

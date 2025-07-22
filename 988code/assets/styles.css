@@ -49,5 +49,6 @@ div.card .card-header {
 }
 
 input[type="month"], input[type="date"] {
-    width: 180px !important;
+    width: 160px !important;
+    padding: 12px 12px;
 }

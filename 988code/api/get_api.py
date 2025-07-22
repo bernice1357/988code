@@ -45,6 +45,16 @@ def get_new_orders():
     except Exception as e:
         print(f"[API ERROR] get_new_orders: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+@router.get("/get_new_item_customers")
+def get_new_item_customers():
+    print("[API] get_new_orders 被呼叫")
+    try:
+        df = get_data_from_db('SELECT customer_id FROM temp_customer_records WHERE is_new_product = true')
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_new_orders: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 客戶資料管理列表資料
 @router.get("/get_customer_data")
