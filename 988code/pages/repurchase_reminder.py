@@ -4,12 +4,11 @@ from datetime import datetime
 from dash import callback_context, ALL
 from dash.exceptions import PreventUpdate
 
-# TODO 這頁要有cookie，設定天數會保留
-
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     dcc.Store(id='customer-data-store'),
-    dcc.Store(id='current-edit-index'),  # 新增：儲存目前編輯的索引
+    dcc.Store(id='current-edit-index'),
+    dcc.Store(id='repurchase-days-cookie', storage_type='local'),
     success_toast("repurchase_reminder"),
     error_toast("repurchase_reminder"),
 
@@ -35,10 +34,10 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         html.Div([
             html.Span("設定回購提醒天數", style={"marginRight": "10px"}),
             dbc.InputGroup([
-                dbc.Input(type="number", placeholder="輸入天數", id="inactive-days-input", min=1, style={"width": "120px"}),
+                dbc.Input(type="number", placeholder="輸入天數", id="repurchase-days-input", min=1, style={"width": "120px"}),
                 dbc.InputGroupText("天")
             ], style={"width": "auto", "marginRight": "10px"}),
-            dbc.Button("搜尋", id="reminder-confirm-button", color="primary", className="me-2"),
+            dbc.Button("確認", id="confirm-days-button", color="primary", className="me-2"),
             html.Div([
                 dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="info", outline=True)
             ], style={"marginLeft": "auto"})
@@ -48,8 +47,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     html.Div(style={"borderBottom": "1px solid #dee2e6"}),
 
     html.Div([
-        html.Div(id="confirm-reminded-button-container"),  # 用於動態顯示按鈕
-        html.Div(id="button-group-container", style={"display": "none"})  # 初始隱藏
+        html.Div(id="confirm-reminded-button-container"),
+        html.Div(id="button-group-container", style={"display": "none"})
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "20px"}),
 
     html.Div([
@@ -58,20 +57,22 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
 ])
 
+# 頁面初始化callback
 @app.callback(
-    [Output("repurchase-table-container", "children"),
+    [Output("repurchase-days-input", "value"),
+     Output("repurchase-table-container", "children"),
      Output("customer-data-store", "data"),
      Output("button-group-container", "children"),
      Output("button-group-container", "style"),
-     Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True)],
-    [Input("reminder-confirm-button", "n_clicks")],
-    [State("inactive-days-input", "value")],
-    prevent_initial_call=True
+     Output("repurchase_reminder-error-toast", "is_open"),
+     Output("repurchase_reminder-error-toast", "children")],
+    Input("repurchase-days-cookie", "data")
 )
-def load_repurchase_data(reminder_btn, days_input):
-    if not days_input or days_input <= 0:
-        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數"
+def initialize_page(cookie_data):
+    # 從cookie讀取天數值，如果沒有則使用預設值7
+    days_input = 7
+    if cookie_data and cookie_data.get('repurchase_days'):
+        days_input = cookie_data['repurchase_days']
     
     try:
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -106,14 +107,73 @@ def load_repurchase_data(reminder_btn, days_input):
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, ""
+            return days_input, table_component, df.to_dict('records'), button_group, {"display": "block"}, False, ""
         else:
-            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}"
+            return days_input, html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}"
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
-        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}"
+        return days_input, html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}"
+
+# 當確認按鈕被點擊時載入資料
+@app.callback(
+    [Output("repurchase-table-container", "children", allow_duplicate=True),
+     Output("customer-data-store", "data", allow_duplicate=True),
+     Output("button-group-container", "children", allow_duplicate=True),
+     Output("button-group-container", "style", allow_duplicate=True),
+     Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
+     Output("repurchase-days-cookie", "data")],
+    Input("confirm-days-button", "n_clicks"),
+    State("repurchase-days-input", "value"),
+    prevent_initial_call=True
+)
+def load_repurchase_data(n_clicks, days_input):
+    if not days_input or days_input <= 0:
+        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數", {}
+    
+    try:
+        response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            df = pd.DataFrame(data)
+            df.columns = ["id", "提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]
+            
+            # 轉換布林值為中文顯示
+            df["提醒狀態"] = df["提醒狀態"].map({True: "已提醒", False: "未提醒"})
+            
+            # 轉換上次購買日期格式（去掉秒數）
+            df["上次購買日期"] = pd.to_datetime(df["上次購買日期"]).dt.strftime("%Y/%m/%d %H:%M")
+            
+            # 保留id欄位但不顯示，只傳遞需要顯示的欄位
+            display_df = df[["提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]]
+            
+            # 建立按鈕組
+            button_group = dbc.ButtonGroup([
+                dbc.Button("全部客戶", outline=True, id="btn-all-customers", color="primary"),
+                dbc.Button("未提醒客戶", outline=True, id="btn-unreminded-customers", color="primary"),
+                dbc.Button("已提醒客戶", outline=True, id="btn-reminded-customers", color="primary")
+            ])
+            
+            # 預設顯示全部客戶
+            table_component = custom_table(
+                display_df, 
+                show_button=True, 
+                button_text="編輯備註",
+                button_id_type="repurchase-note-btn",
+                sticky_columns=["提醒狀態", "客戶ID"],
+            )
+            
+            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, "", {"repurchase_days": days_input}
+        else:
+            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}", {"repurchase_days": days_input}
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Exception details: {error_details}")
+        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}", {}
 
 # 處理篩選按鈕點擊
 @app.callback(
@@ -192,7 +252,7 @@ def show_confirm_button(checkbox_values):
     [Input("confirm-reminded-button", "n_clicks")],
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("customer-data-store", "data"),
-     State("inactive-days-input", "value")],
+     State("repurchase-days-input", "value")],
     prevent_initial_call=True
 )
 def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input):
@@ -327,7 +387,7 @@ def handle_edit_note_modal(edit_clicks, cancel_clicks, save_clicks, stored_data,
     [State("edit-note-textarea", "value"),
      State("customer-data-store", "data"),
      State("current-edit-index", "data"),
-     State("inactive-days-input", "value")],
+     State("repurchase-days-input", "value")],
     prevent_initial_call=True
 )
 def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_input):
