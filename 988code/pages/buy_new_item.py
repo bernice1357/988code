@@ -1,7 +1,3 @@
-"""
-要用temp_customer_records
-"""
-
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from callbacks.export_callback import create_export_callback, add_download_component

@@ -31,7 +31,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     # 篩選條件區
     html.Div([
         search_customers["trigger_button"],
-        dbc.Button("匯出", id="export-button", n_clicks=0, color="success")
+        dbc.Button("匯出列表資料", id="export-button", n_clicks=0, outline=True, color="info")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     search_customers["offcanvas"],
     html.Div(id="customer-table-container"),
@@ -57,7 +57,21 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                 ], className="mb-3"),
                 dbc.Row([
                     dbc.Label("每週配送日", width=3),
-                    dbc.Col(dbc.Input(id="input-delivery-schedule", type="text"), width=9)
+                    dbc.Col(dcc.Checklist(
+                        id="input-delivery-schedule",
+                        options=[
+                            {"label": "一", "value": "一"},
+                            {"label": "二", "value": "二"},
+                            {"label": "三", "value": "三"},
+                            {"label": "四", "value": "四"},
+                            {"label": "五", "value": "五"},
+                            {"label": "六", "value": "六"},
+                            {"label": "日", "value": "日"}
+                        ],
+                        value=[],
+                        inline=True,
+                        style={"display": "flex", "gap": "15px"}
+                    ), width=9)
                 ], className="mb-3"),
                 dbc.Row([
                     dbc.Label("備註", width=3),
@@ -229,11 +243,18 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     if button_index < len(df):
         row_data = df.iloc[button_index]
         
+        # 處理每週配送日的資料格式
+        delivery_schedule = row_data['每週配送日']
+        if isinstance(delivery_schedule, str) and delivery_schedule:
+            delivery_schedule_list = [day.strip() for day in delivery_schedule.split(',')]
+        else:
+            delivery_schedule_list = []
+        
         return (True, 
                 row_data['客戶名稱'], 
                 row_data['客戶ID'], 
                 row_data['客戶地址'], 
-                row_data['每週配送日'],
+                delivery_schedule_list,
                 row_data['備註'])
     else:
         return False, "", "", "", "", ""
@@ -297,11 +318,21 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
     row_data = df.iloc[button_index]
     original_id = row_data['客戶ID']
     
+    # 處理多選框的值，將列表轉換為字串並按順序排列
+    if isinstance(delivery_schedule, list):
+        # 定義順序
+        day_order = ["一", "二", "三", "四", "五", "六", "日"]
+        # 按照順序排列
+        sorted_days = [day for day in day_order if day in delivery_schedule]
+        delivery_schedule_str = ','.join(sorted_days)
+    else:
+        delivery_schedule_str = delivery_schedule or ""
+    
     update_data = {
         "customer_name": customer_name,
         "customer_id": customer_id,
         "address": address,
-        "delivery_schedule": delivery_schedule,
+        "delivery_schedule": delivery_schedule_str,
         "notes": notes
     }
     

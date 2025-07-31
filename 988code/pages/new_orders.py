@@ -108,8 +108,8 @@ def get_modal_fields(customer_id, customer_name, purchase_record):
 orders = get_orders()
 
 layout = dbc.Container([
-    success_toast("homepage", message="訂單已確認"),
-    error_toast("homepage", message=""),
+    success_toast("new_orders", message="訂單已確認"),
+    error_toast("new_orders", message=""),
     dcc.Interval(
         id='interval-component',
         interval=30*1000,  # 30秒更新一次
@@ -243,9 +243,9 @@ def close_delete_modal(n_clicks):
 # 確認刪除
 @app.callback(
     [Output("delete-modal", "is_open", allow_duplicate=True),
-     Output("homepage-success-toast", "is_open", allow_duplicate=True),
-     Output("homepage-success-toast", "children", allow_duplicate=True),
-     Output("homepage-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "children", allow_duplicate=True),
+     Output("new_orders-error-toast", "is_open", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True)],
     [Input("submit-delete", "n_clicks")],
     [State("delete-modal-body", "children")],
@@ -351,9 +351,9 @@ def close_modal(n_clicks):
 # modal確認送出
 @app.callback(
     [Output("confirm-modal", "is_open", allow_duplicate=True),
-     Output("homepage-success-toast", "is_open", allow_duplicate=True),
-     Output("homepage-success-toast", "children", allow_duplicate=True),
-     Output("homepage-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "children", allow_duplicate=True),
+     Output("new_orders-error-toast", "is_open", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True)],
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),

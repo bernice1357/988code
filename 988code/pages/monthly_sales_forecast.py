@@ -77,10 +77,10 @@ tab_content = html.Div([
         "backgroundColor": "white",
         "border": "1px solid #dee2e6",
         "borderRadius": "4px",
-        "overflow": "hidden"
+        "overflow": "hidden",
+        "height": "65vh"
     })
 ], style={
-    "backgroundColor": "#f5f5f5",
     "padding": "20px",
     "minHeight": "500px"
 })

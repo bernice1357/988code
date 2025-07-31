@@ -3,13 +3,11 @@ from pages import *
 
 @app.callback(
     Output('main-content', 'children'),
-    Input('url', 'pathname')
+    Input('index-url', 'pathname')
 )
 def display_main_content(pathname):
-    if pathname == '/':
-        return homepage.layout
     
-    elif pathname == '/new_orders':
+    if pathname == '/new_orders':
         return new_orders.layout
     
     elif pathname == '/customer_data':
@@ -47,12 +45,9 @@ def display_main_content(pathname):
     
     elif pathname == '/sales_analysis':
         return sales_analysis.layout
-    
-    elif pathname == '/login':
-        return login.layout
-    
-    elif pathname == '/register':
-        return register.layout
+
+    elif pathname == '/scheduling_settings':
+        return scheduling_settings.layout
 
     else:
         return html.Div([html.H1('404 找不到頁面')])

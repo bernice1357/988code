@@ -71,16 +71,16 @@ tab_content = html.Div([
         custom_table(
             df=daily_forecast_df,
             show_checkbox=True,
-            show_button=True
+            show_button=True,
         )
     ], style={
         "backgroundColor": "white",
         "border": "1px solid #dee2e6",
         "borderRadius": "4px",
-        "overflow": "hidden"
+        "overflow": "hidden",
+        "height": "65vh"
     })
 ], style={
-    "backgroundColor": "#f5f5f5",
     "padding": "20px",
     "minHeight": "500px"
 })

@@ -3,6 +3,8 @@ from dash import callback_context
 from dash.exceptions import PreventUpdate
 from dash import ALL
 
+# TODO 現在還不知道檔案要存到哪
+
 initial_items = ["商品價目表", "六月特價商品"]
 
 layout = dbc.Container([
@@ -187,7 +189,7 @@ def update_output(list_of_contents, list_of_names, list_of_dates):
         if invalid_files:
             show_error = True
             if len(invalid_files) == 1:
-                error_message = f"檔案 '{invalid_files[0]}' 格式不符合要求，僅支援 .pdf、.doc、.docx、.xls、.xlsx 格式"
+                error_message = f"僅支援 .pdf、.doc、.docx、.xls、.xlsx 格式"
             else:
                 error_message = f"以下檔案格式不符合要求：{', '.join(invalid_files)}，僅支援 .pdf、.doc、.docx、.xls、.xlsx 格式"
     
@@ -384,7 +386,7 @@ def display_client_data(n_clicks_list, id_list):
                                                  style={"color": "#6c757d", "marginLeft": "15px"})
                                     ], style={
                                         "display": "flex", 
-                                        "alignItems": "center", 
+                                        "alignItems": "center",
                                         "marginBottom": "15px",
                                         "paddingTop": "15px"
                                     }),

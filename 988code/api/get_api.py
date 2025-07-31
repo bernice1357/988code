@@ -27,7 +27,6 @@ def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
 # 得到所有新進訂單
 @router.get("/get_new_orders")
 def get_new_orders():
-    print("[API] get_new_orders 被呼叫")
     try:
         df = get_data_from_db('SELECT * FROM temp_customer_records')
         return df.to_dict(orient="records")
@@ -38,7 +37,6 @@ def get_new_orders():
 # 得到新品購買訂單
 @router.get("/get_new_item_orders")
 def get_new_orders():
-    print("[API] get_new_orders 被呼叫")
     try:
         df = get_data_from_db('SELECT customer_id, customer_name, purchase_record, created_at FROM temp_customer_records WHERE is_new_product = true')
         return df.to_dict(orient="records")
@@ -48,7 +46,6 @@ def get_new_orders():
     
 @router.get("/get_new_item_customers")
 def get_new_item_customers():
-    print("[API] get_new_orders 被呼叫")
     try:
         df = get_data_from_db('SELECT customer_id FROM temp_customer_records WHERE is_new_product = true')
         return df.to_dict(orient="records")
@@ -166,7 +163,6 @@ def get_new_products():
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
     
 # 得到商品庫存類別
-# TODO 缺總庫存量
 @router.get("/get_inventory_data")
 def get_inventory_data():                                                                       
     print("[API] get_inventory_data 被呼叫")
@@ -284,53 +280,6 @@ def get_sales_change_data():
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-    
-# 登入驗證
-@router.post("/login")
-def login(username: str, password: str):
-    print(f"[API] login 被呼叫，使用者: {username}")
-    try:
-        query = """
-        SELECT username, email, password_hash, full_name, role, is_active
-        FROM users 
-        WHERE username = %s AND is_active = true
-        """
-        
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, (username,))
-                user_data = cursor.fetchone()
-                
-                if user_data:
-                    columns = [desc[0] for desc in cursor.description]
-                    user_dict = dict(zip(columns, user_data))
-                    
-                    # 這裡應該要驗證密碼hash，暫時簡化處理
-                    # 實際應用中需要使用 bcrypt 或其他加密方式驗證
-                    if password == "password":  # 簡化的密碼驗證
-                        return {
-                            "success": True,
-                            "user": {
-                                "username": user_dict["username"],
-                                "email": user_dict["email"],
-                                "full_name": user_dict["full_name"],
-                                "role": user_dict["role"]
-                            }
-                        }
-                    else:
-                        return {"success": False, "message": "密碼錯誤"}
-                else:
-                    return {"success": False, "message": "使用者不存在"}
-                    
-    except Exception as e:
-        print(f"[API ERROR] login: {e}")
-        raise HTTPException(status_code=500, detail="登入驗證失敗")
 
 # 獲取使用者資料
 @router.get("/get_user/{username}")
