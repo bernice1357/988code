@@ -3,6 +3,7 @@ from dash import ALL, callback_context, clientside_callback, ClientsideFunction
 import requests
 from datetime import datetime
 import json
+import time
 
 layout = html.Div([
     dcc.Location(id='login-redirect', refresh=True),
@@ -163,11 +164,8 @@ layout = html.Div([
     success_toast("login", message=""),
     error_toast("login", message=""),
     
-    # 用來觸發設定 cookie 的 Store
-    dcc.Store(id='user-role-store', data=None),
-    
-    # 添加 cookie-setter 元素
-    html.Div(id='cookie-setter', style={'display': 'none'}),
+    # 用來觸發設定 localStorage 的 Store
+    # dcc.Store(id='login_status', storage_type='local'),
     
 ], style={"margin": "0", "padding": "0"})
 
@@ -179,7 +177,7 @@ layout = html.Div([
      Output("login-error-toast", "children"),
      Output("username-input", "value"),
      Output("password-input", "value"),
-     Output("user-role-store", "data"),
+     Output("login_status", "data"),
      Output("login-redirect", "href")],
     Input("login-submit-btn", "n_clicks"),
     [State("username-input", "value"),
@@ -208,10 +206,18 @@ def handle_login(btn_clicks, username, password):
                 role = user_data.get("role")
                 full_name = user_data.get("full_name")
                 
+                # 建立登入狀態字典，包含 role 和過期時間（現在時間+2小時）
+                from datetime import datetime, timedelta
+                exp_time = datetime.now() + timedelta(hours=2)
+                login_data = {
+                    "role": role,
+                    "exp": exp_time.strftime("%Y-%m-%d %H:%M:%S")  # 時間格式字串
+                }
+                
                 # 清空輸入框並跳轉頁面
                 welcome_message = f"登入成功！歡迎 {full_name}"
                 
-                return True, welcome_message, False, "", "", "", role, "/new_orders"
+                return True, welcome_message, False, "", "", "", login_data, "/new_orders"
             else:
                 # 登入失敗
                 error_message = result.get("message", "登入失敗")

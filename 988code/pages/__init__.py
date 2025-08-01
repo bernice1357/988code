@@ -12,5 +12,6 @@ __all__ = [
     "repurchase_reminder",
     "restock_reminder",
     "sales_analysis",
-    "scheduling_settings"
+    "scheduling_settings",
+    "import_data",
 ]

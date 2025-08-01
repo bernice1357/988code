@@ -71,7 +71,6 @@ def get_customer_data():
         df = get_data_from_db(query)
         return df.to_dict(orient="records")
     except Exception as e:
-        print(f"[API ERROR] get_customer_data: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 得到客戶最新補貨紀錄

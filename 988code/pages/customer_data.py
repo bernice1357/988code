@@ -34,7 +34,18 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         dbc.Button("匯出列表資料", id="export-button", n_clicks=0, outline=True, color="info")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     search_customers["offcanvas"],
-    html.Div(id="customer-table-container"),
+    dcc.Loading(
+        id="loading-customer-table",
+        type="dot",
+        children=html.Div(id="customer-table-container"),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
     dbc.Modal(
         id="customer_data_modal",
         is_open=False,
@@ -129,6 +140,8 @@ def load_customer_name_options(page_loaded):
 # 載入客戶資料的 callback
 @app.callback(
     Output("customer-data", "data"),
+    Output('customer_data-error-toast', 'is_open'),
+    Output('customer_data-error-toast', 'children'),
     Input("page-loaded", "data"),
     prevent_initial_call=False
 )
@@ -138,16 +151,13 @@ def load_customer_data(page_loaded):
         if response.status_code == 200:
             try:
                 customer_data = response.json()
-                return customer_data
+                return customer_data, False, ""
             except requests.exceptions.JSONDecodeError:
-                print("回應內容不是有效的 JSON")
-                return []
+                return [], True, "回應內容不是有效的 JSON"
         else:
-            print(f"get_customer_data API 錯誤，狀態碼：{response.status_code}")
-            return []
+            return [], True, f"資料載入失敗，狀態碼：{response.status_code}"
     except Exception as e:
-        print(f"載入客戶資料時發生錯誤：{e}")
-        return []
+        return [], True, f"載入資料時發生錯誤：{e}"
 
 # 顯示客戶表格的 callback
 @app.callback(
@@ -263,8 +273,8 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
     Output('customer_data-success-toast', 'is_open'),
     Output('customer_data-success-toast', 'children'),
-    Output('customer_data-error-toast', 'is_open'),
-    Output('customer_data-error-toast', 'children'),
+    Output('customer_data-error-toast', 'is_open', allow_duplicate=True),
+    Output('customer_data-error-toast', 'children', allow_duplicate=True),
     Input('input-customer-save', 'n_clicks'),
     State('input-customer-name', 'value'),
     State('input-customer-id', 'value'),
@@ -341,9 +351,9 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
         if response.status_code == 200:
             return False, True, "客戶資料更新成功！", False, ""
         else:
-            return dash.no_update, False, "", True, f"更新失敗，狀態碼：{response.status_code}"
+            return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}"
     except Exception as e:
-        return dash.no_update, False, "", True, f"API 呼叫錯誤：{e}"
+        return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}"
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),

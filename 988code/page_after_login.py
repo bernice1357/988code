@@ -41,6 +41,7 @@ sidebar = html.Div(
                     ],
                     style={"margin-top": "1rem"},  # 設定寬度
                 ),
+                dbc.NavLink("ERP 資料匯入", href="/import_data", active="exact"),
                 dbc.NavLink("RAG數據管理", href="/rag", active="exact"),
                 dbc.NavLink("排程設定", href="/scheduling_settings", active="exact"),
             ],
@@ -118,14 +119,12 @@ layout = html.Div([
 @app.callback(
     [Output('url', 'href'),
      Output('page_after_login-success-toast', 'is_open'),      
-     Output('page_after_login-success-toast', 'children')],
+     Output('page_after_login-success-toast', 'children'),
+     Output('login_status', 'data', allow_duplicate=True)],
     Input('logout-button', 'n_clicks'),
     prevent_initial_call=True
 )
 def logout(n_clicks):
     if n_clicks:
-        # 刪除userRole cookie並重新整理頁面
-        response = dash.callback_context.response
-        response.set_cookie('userRole', '', expires=0)
-        return '/', True, "登出成功"
-    return dash.no_update, dash.no_update, dash.no_update
+        return '/', True, "登出成功", None
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update

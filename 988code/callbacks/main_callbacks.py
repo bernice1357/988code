@@ -48,6 +48,9 @@ def display_main_content(pathname):
 
     elif pathname == '/scheduling_settings':
         return scheduling_settings.layout
+    
+    elif pathname == '/import_data':
+        return import_data.layout
 
     else:
         return html.Div([html.H1('404 找不到頁面')])

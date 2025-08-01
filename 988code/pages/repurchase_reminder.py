@@ -4,11 +4,13 @@ from datetime import datetime
 from dash import callback_context, ALL
 from dash.exceptions import PreventUpdate
 
+# 設定回購提醒天數
+REPURCHASE_DAYS = 7
+
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     dcc.Store(id='customer-data-store'),
     dcc.Store(id='current-edit-index'),
-    dcc.Store(id='repurchase-days-cookie', storage_type='local'),
     success_toast("repurchase_reminder"),
     error_toast("repurchase_reminder"),
 
@@ -66,13 +68,11 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
      Output("button-group-container", "style"),
      Output("repurchase_reminder-error-toast", "is_open"),
      Output("repurchase_reminder-error-toast", "children")],
-    Input("repurchase-days-cookie", "data")
+    Input("repurchase-days-input", "id")
 )
-def initialize_page(cookie_data):
-    # 從cookie讀取天數值，如果沒有則使用預設值7
-    days_input = 7
-    if cookie_data and cookie_data.get('repurchase_days'):
-        days_input = cookie_data['repurchase_days']
+def initialize_page(_):
+    global REPURCHASE_DAYS
+    days_input = REPURCHASE_DAYS
     
     try:
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -123,15 +123,19 @@ def initialize_page(cookie_data):
      Output("button-group-container", "children", allow_duplicate=True),
      Output("button-group-container", "style", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
-     Output("repurchase-days-cookie", "data")],
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True)],
     Input("confirm-days-button", "n_clicks"),
     State("repurchase-days-input", "value"),
     prevent_initial_call=True
 )
 def load_repurchase_data(n_clicks, days_input):
+    global REPURCHASE_DAYS
+    
     if not days_input or days_input <= 0:
-        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數", {}
+        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數"
+    
+    # 更新全域變數
+    REPURCHASE_DAYS = days_input
     
     try:
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -166,14 +170,14 @@ def load_repurchase_data(n_clicks, days_input):
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, "", {"repurchase_days": days_input}
+            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, ""
         else:
-            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}", {"repurchase_days": days_input}
+            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}"
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
-        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}", {}
+        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}"
 
 # 處理篩選按鈕點擊
 @app.callback(
