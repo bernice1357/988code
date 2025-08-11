@@ -36,7 +36,7 @@ def get_new_orders():
 
 # 得到新品購買訂單
 @router.get("/get_new_item_orders")
-def get_new_orders():
+def get_new_item_orders():
     try:
         df = get_data_from_db('SELECT customer_id, customer_name, purchase_record, created_at FROM temp_customer_records WHERE is_new_product = true')
         return df.to_dict(orient="records")
@@ -72,6 +72,18 @@ def get_customer_data():
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 補貨提醒 - 取得所有客戶ID
+@router.get("/get_restock_customer_ids")
+def get_all_customer_ids():
+    try:
+        query = "SELECT DISTINCT customer_id FROM prophet_predictions"
+        df = get_data_from_db(query)
+        customer_ids = df['customer_id'].tolist()
+        return {"customer_ids": customer_ids}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 得到客戶最新補貨紀錄
 # TODO 還沒放預計補貨日期欄位
@@ -80,14 +92,11 @@ def get_customer_latest_transactions():
     print("[API] get_customer_latest_transactions 被呼叫")
     try:
         query = """
-        SELECT ot.customer_id, c.customer_name, ot.product_name, ot.transaction_date
-        FROM (
-            SELECT customer_id, product_name, transaction_date,
-                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
-            FROM order_transactions
-        ) ot
-        LEFT JOIN customer c ON ot.customer_id = c.customer_id
-        WHERE ot.rn = 1
+        SELECT pp.customer_id, c.customer_name, pp.product_id, pp.product_name, 
+               pp.prediction_date, pp.estimated_quantity, pp.confidence_level
+        FROM prophet_predictions pp
+        LEFT JOIN customer c ON pp.customer_id = c.customer_id
+        ORDER BY pp.customer_id, pp.prediction_date
         """
         df = get_data_from_db(query)
         return df.to_dict(orient="records")
@@ -144,7 +153,7 @@ def get_subcategories():
 def get_product_names():
     print("[API] get_product_names 被呼叫")
     try:
-        df = get_data_from_db('SELECT DISTINCT name_zh FROM product_master WHERE name_zh IS NOT NULL AND status = \'active\' ORDER BY name_zh')
+        df = get_data_from_db('SELECT DISTINCT name_zh FROM product_master WHERE name_zh IS NOT NULL AND is_active = \'active\' ORDER BY name_zh')
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_product_names: {e}")
@@ -178,9 +187,7 @@ def get_inventory_data():
         GROUP BY pm.category, pm.subcategory, pm.updated_at
         ORDER BY pm.category, pm.subcategory;
         """
-        print("[DEBUG] SQL 查詢開始")
         df = get_data_from_db(query)
-        print("[DEBUG] SQL 查詢成功，資料筆數:", len(df))
         return df.to_dict(orient="records")
     except Exception as e:
         import traceback
@@ -298,55 +305,7 @@ def get_user(username: str):
     except Exception as e:
         print(f"[API ERROR] get_user: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-    
-# 註冊新使用者
-@router.post("/register")
-def register(request: dict):
-    print(f"[API] register 被呼叫，使用者: {request.get('username')}")
-    try:
-        username = request.get('username')
-        email = request.get('email')
-        full_name = request.get('full_name')
-        password = request.get('password')
-        role = request.get('role', 'user')
-        
-        # 檢查使用者是否已存在
-        check_query = """
-        SELECT username, email FROM users 
-        WHERE username = %s OR email = %s
-        """
-        
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(check_query, (username, email))
-                existing_user = cursor.fetchone()
-                
-                if existing_user:
-                    return {"success": False, "message": "使用者名稱或電子郵件已存在"}
-                
-                # 插入新使用者（這裡簡化密碼處理，實際應用中需要加密）
-                insert_query = """
-                INSERT INTO users (username, email, password_hash, full_name, role, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                
-                # 實際應用中應該使用 bcrypt 加密密碼
-                password_hash = password  # 簡化處理
-                
-                cursor.execute(insert_query, (username, email, password_hash, full_name, role, True))
-                conn.commit()
-                
-                return {"success": True, "message": "註冊成功"}
-                
-    except Exception as e:
-        print(f"[API ERROR] register: {e}")
-        raise HTTPException(status_code=500, detail="註冊失敗")
+
     
 # 得到商品推薦列表
 @router.get("/get_recommended_product_ids")
@@ -362,4 +321,56 @@ def get_product_recommendations():
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_product_recommendations: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 獲取RAG知識庫條目列表
+@router.get("/get_rag_titles")
+def get_rag_titles():
+    print("[API] get_rag_titles 被呼叫")
+    try:
+        query = "SELECT title FROM rag"
+        df = get_data_from_db(query)
+        result = df.to_dict(orient="records")
+        return result
+    except Exception as e:
+        print(f"[API ERROR] get_rag_titles: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 獲取指定RAG條目的內容
+@router.get("/get_rag_content/{title}")
+def get_rag_content(title: str):
+    print(f"[API] get_rag_content 被呼叫: {title}")
+    try:
+        query = "SELECT title, text_content, file_content, file_name FROM rag WHERE title = %s"
+        
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (title,))
+                result = cursor.fetchone()
+                if result:
+                    
+                    file_names_list = []
+                    if result[3] and len(result[3]) > 0:
+                        file_names_list = result[3]
+                    
+                    return {
+                        "title": result[0],
+                        "text_content": result[1][0] if result[1] and len(result[1]) > 0 else "",
+                        "has_file": result[2] is not None and len(result[2]) > 0,
+                        "file_names": file_names_list
+                    }
+                else:
+                    return {
+                        "title": title,
+                        "text_content": "",
+                        "has_file": False,
+                        "file_names": []
+                    }
+    except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")

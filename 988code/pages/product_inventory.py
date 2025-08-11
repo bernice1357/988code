@@ -40,12 +40,22 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             inventory_components["trigger_button"]
         ], className="d-flex align-items-center"),
         html.Div([
-            dbc.Button("匯入 ERP 庫存資料", id="import-erp-button", n_clicks=0, color="info", className="me-2"),
-            dbc.Button("匯出列表資料", id="product_inventory-export-button", n_clicks=0, color="success")
+            dbc.Button("匯出列表資料", id="product_inventory-export-button", n_clicks=0, color="info", outline=True)
         ], className="d-flex align-items-center")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     inventory_components["offcanvas"],
-    html.Div(id="inventory-table-container"),
+    dcc.Loading(
+        id="loading-inventory-table",
+        type="dot",
+        children=html.Div(id="inventory-table-container"),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
     dbc.Modal([
         dbc.ModalHeader([
             dbc.ModalTitle(id="inventory-modal-title"),

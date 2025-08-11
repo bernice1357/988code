@@ -1,5 +1,6 @@
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
+from callbacks.export_callback import create_export_callback, add_download_component
 from dash import ALL, callback_context
 
 # TODO MODAL可以改 Id 、名稱、地址、送貨時間、備註
@@ -28,10 +29,11 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="customer-data", data=[]),
     dcc.Store(id="current-table-data", data=[]),
+    add_download_component("customer_data"),  # 加入下載元件
     # 篩選條件區
     html.Div([
         search_customers["trigger_button"],
-        dbc.Button("匯出列表資料", id="export-button", n_clicks=0, outline=True, color="info")
+        dbc.Button("匯出列表資料", id="customer_data-export-button", n_clicks=0, outline=True, color="info")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     search_customers["offcanvas"],
     dcc.Loading(
@@ -100,6 +102,9 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 ])
 
 register_offcanvas_callback(app, "customer_data")
+
+# 註冊匯出功能 - 使用當前表格資料
+create_export_callback(app, "customer_data", "current-table-data", "客戶資料")
 
 # 載入客戶ID選項的 callback
 @app.callback(

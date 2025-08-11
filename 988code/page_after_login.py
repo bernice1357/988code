@@ -42,7 +42,7 @@ sidebar = html.Div(
                     style={"margin-top": "1rem"},  # 設定寬度
                 ),
                 dbc.NavLink("ERP 資料匯入", href="/import_data", active="exact"),
-                dbc.NavLink("RAG數據管理", href="/rag", active="exact"),
+                dbc.NavLink("RAG 數據管理", href="/rag", active="exact"),
                 dbc.NavLink("排程設定", href="/scheduling_settings", active="exact"),
             ],
             vertical=True,

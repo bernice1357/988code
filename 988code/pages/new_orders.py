@@ -34,20 +34,52 @@ def make_card_item(order):
             customer_notes = ""
     
     # 卡片標題：左邊顯示客戶ID
-    title = html.Div([
-        html.Span(
-            order["customer_id"] + ' ' + order["customer_name"] if order.get("customer_id") else order["line_id"], 
-            style={"fontWeight": "bold", "fontSize": "0.9rem", "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis"}
-        )
-    ], style={"flex": "1", "minWidth": "0"})
+    if order.get("customer_id"):
+        title = html.Div([
+            html.Span(order["customer_id"], style={
+                "color": "black", 
+                "fontWeight": "bold", 
+                "fontSize": "0.9rem"
+            }),
+            html.Span(" ", style={"fontSize": "0.9rem"}),
+            html.Span(order["customer_name"], style={
+                "color": "#6c757d", 
+                "fontSize": "0.9rem"
+            })
+        ], style={
+            "whiteSpace": "nowrap", 
+            "overflow": "hidden", 
+            "textOverflow": "ellipsis",
+            "paddingTop": "8px",
+            "flex": "1", 
+            "minWidth": "0"
+        })
+    else:
+        title = html.Div([
+            html.Span(
+                order["line_id"], 
+                style={
+                    "fontWeight": "bold", 
+                    "fontSize": "0.9rem", 
+                    "color": "black",
+                    "paddingTop": "8px"
+                }
+            )
+        ], style={
+            "whiteSpace": "nowrap", 
+            "overflow": "hidden", 
+            "textOverflow": "ellipsis",
+            "flex": "1", 
+            "minWidth": "0"
+        })
     return dbc.Card([
         dbc.CardHeader([
             title,
             html.Div([
-                dbc.Badge("新品提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem"}) if order.get("is_new_product") == "true" or order.get("is_new_product") == True else None,
-                dbc.Badge("備註與歷史提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem"})
-            ], style={"marginTop": "-2px"})
-        ]),
+                dbc.Badge("新品提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"}) if order.get("is_new_product") == "true" or order.get("is_new_product") == True else None,
+                dbc.Badge("備註與歷史提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"})
+            ], style={"marginTop": "8px", "lineHeight": "1"})
+        ], style={"overflow": "hidden"}),
         dbc.CardBody([
             # 對話紀錄區塊
             html.Div([
@@ -58,7 +90,11 @@ def make_card_item(order):
             # 購買紀錄區塊
             html.Div([
                 html.Small("購買品項", className="text-info mb-1 d-block"),
-                html.Pre(order["purchase_record"], style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
+                html.Div([
+                    html.Span(order.get('product_id', ''), style={"color": "black", "fontWeight": "bold", "fontSize": "0.9rem"}) if order.get('product_id') else None,
+                    html.Span(" ", style={"fontSize": "0.9rem"}) if order.get('product_id') else None,
+                    html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap"})
+                ], style={"whiteSpace": "pre-wrap"})
             ], className="mb-3"),
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
             # 歷史備註區塊
@@ -71,7 +107,7 @@ def make_card_item(order):
             html.Div([
                 html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"}),
                 html.Div([
-                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True) if order.get("status") == "0" else None,
+                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
                     dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
                 ]) if order.get("status") == "0" else None
             ], className="d-flex justify-content-between align-items-center mt-2")
@@ -124,10 +160,20 @@ layout = dbc.Container([
             dbc.Button("已刪除", id="filter-deleted", color="primary", outline=True)
         ])
     ], className="d-flex justify-content-between align-items-center mb-4"),
-    dbc.Row(id="orders-container", className="g-3", children=[dbc.Col(make_card_item(order), width=4) for order in orders], style={
-        "maxHeight": "80vh", 
-        "overflowY": "auto"
-    } if len(orders) > 6 else {}),
+    dcc.Loading(
+        id="loading-orders",
+        type="dot",
+        children=dbc.Row(id="orders-container", className="g-3", children=[dbc.Col(make_card_item(order), width=4) for order in orders], style={
+            "maxHeight": "80vh", 
+            "overflowY": "auto"
+        } if len(orders) > 6 else {}),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "minHeight": "60vh"
+        }
+    ),
     dbc.Modal([
         dbc.ModalHeader("確認訂單", id="modal-header", style={"fontWeight": "bold", "fontSize": "24px"}),
         dbc.ModalBody(id="modal-body-content"),

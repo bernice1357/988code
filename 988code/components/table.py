@@ -1,10 +1,11 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
-# TODO 要把欄位標題做懸空的
-def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None):
+def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='77vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
+    if sortable_columns is None:
+        sortable_columns = []
     
     # 計算每個浮空欄位的最適寬度
     def calculate_column_width(col):
@@ -74,6 +75,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'backgroundColor': 'white'
             }
             
+            
             if col in sticky_columns:
                 sticky_index = sticky_columns.index(col)
                 # 計算前面所有欄位的寬度總和
@@ -92,9 +94,14 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'minWidth': f'{sticky_widths[col]}px',
                     'maxWidth': f'{sticky_widths[col]}px'
                 })
-                sticky_col_data.append(html.Td(row[col], style=cell_style))
+                
+                cell_content = row[col]
+                    
+                sticky_col_data.append(html.Td(cell_content, style=cell_style))
             else:
-                normal_col_data.append(html.Td(row[col], style=cell_style))
+                cell_content = row[col]
+                    
+                normal_col_data.append(html.Td(cell_content, style=cell_style))
         
         row_cells.extend(sticky_col_data + normal_col_data)
         
@@ -105,6 +112,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'className': button_class,
                 'style': {'fontSize': '16px'}
             }
+            
+            button_right_position = '0px'
             
             row_cells.append(
                 html.Td(
@@ -117,7 +126,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'height': '50px',
                         'whiteSpace': 'nowrap',
                         'position': 'sticky',
-                        'right': '0px',
+                        'right': button_right_position,
                         'zIndex': 2,
                         'backgroundColor': 'white',
                         'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)'
@@ -125,6 +134,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 )
             )
         
+        # 添加主要行
         rows.append(html.Tr(row_cells, style={
             'backgroundColor': 'white'
         }))
@@ -146,23 +156,64 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'width': '50px',
                     'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none'
                 })] if show_checkbox else []) +
-                [html.Th(col, style={
-                    "position": "sticky",
-                    "top": "0px" if col not in sticky_columns else "0px",
-                    "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
-                    "zIndex": 3 if col in sticky_columns else 1,
-                    'backgroundColor': '#bcd1df',
-                    'fontWeight': 'bold',
-                    'fontSize': '16px',
-                    'padding': '8px 12px',
-                    'textAlign': 'center',
-                    'border': '1px solid #ccc',
-                    'whiteSpace': 'nowrap',
-                    'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
-                    'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
-                    'maxWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
-                    'boxShadow': 'none'
-                }) for col in df.columns] +
+                [html.Th(
+                    html.Button(
+                        html.Div([
+                            html.Span(col, style={"marginRight": "8px"}),
+                            html.Div([
+                                html.Div("▲", style={
+                                    "margin": "0",
+                                    "lineHeight": "0.8",
+                                    "fontSize": "12px",
+                                    "color": "#cc5500" if sort_state and sort_state.get("column") == col and sort_state.get("ascending", True) else "#666"
+                                }),
+                                html.Div("▼", style={
+                                    "margin": "0",
+                                    "lineHeight": "0.8",
+                                    "fontSize": "12px",
+                                    "color": "#cc5500" if sort_state and sort_state.get("column") == col and not sort_state.get("ascending", True) else "#666"
+                                })
+                            ], style={
+                                "display": "flex",
+                                "flexDirection": "column",
+                                "alignItems": "center"
+                            })
+                        ], style={
+                            "display": "flex",
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "width": "100%"
+                        }),
+                        id={"type": "sort-button", "column": col},
+                        style={
+                            "background": "transparent",
+                            "border": "none",
+                            "color": "inherit",
+                            "fontWeight": "bold",
+                            "fontSize": "16px",
+                            "cursor": "pointer",
+                            "width": "100%",
+                            "textAlign": "center"
+                        }
+                    ) if col in sortable_columns else col,
+                    style={
+                        "position": "sticky",
+                        "top": "0px" if col not in sticky_columns else "0px",
+                        "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
+                        "zIndex": 3 if col in sticky_columns else 1,
+                        'backgroundColor': '#bcd1df',
+                        'fontWeight': 'bold',
+                        'fontSize': '16px',
+                        'padding': '8px 12px' if col not in sortable_columns else '4px 8px',
+                        'textAlign': 'center',
+                        'border': '1px solid #ccc',
+                        'whiteSpace': 'nowrap',
+                        'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                        'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                        'maxWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                        'boxShadow': 'none'
+                    }
+                ) for col in df.columns] +
                 ([html.Th('操作', style={
                     "position": "sticky",
                     "top": "0px",
@@ -186,11 +237,15 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         'border': '1px solid #ccc'
     })
 
-    return html.Div(table, style={
+    table_div = html.Div([
+        table
+    ], style={
         'overflowY': 'auto',
         'overflowX': 'auto',
-        'maxHeight': '77vh',
-        'minHeight': '77vh',
+        'maxHeight': table_height,
+        'minHeight': table_height,
         'display': 'block',
         'position': 'relative',
     })
+    
+    return table_div

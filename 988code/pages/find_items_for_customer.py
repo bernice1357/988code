@@ -41,20 +41,31 @@ tab_content = html.Div([
                             ], style={'display': 'flex', 'padding': '10px', 'background-color': '#f0f0f0', 'border-bottom': '2px solid #ddd'}),
                             
                             # 可滾動的表格內容區域
-                            html.Div(
-                                id='purchase-history-table', 
-                                children=[],
+                            dcc.Loading(
+                                id="loading-purchase-history-table",
+                                type="dot",
+                                children=html.Div(
+                                    id='purchase-history-table', 
+                                    children=[],
+                                    style={
+                                        'height': '45vh',       # 調整為45vh
+                                        'overflow-y': 'auto',   # 垂直滾動
+                                        'overflow-x': 'hidden', # 隱藏水平滾動
+                                        'border': 'none',
+                                        'background-color': '#fafafa'  # 淺色背景，讓空白區域更明顯
+                                    }
+                                ),
                                 style={
-                                    'height': '45vh',       # 調整為45vh
-                                    'overflow-y': 'auto',   # 垂直滾動
-                                    'overflow-x': 'hidden', # 隱藏水平滾動
-                                    'border': 'none',
-                                    'background-color': '#fafafa'  # 淺色背景，讓空白區域更明顯
+                                    "display": "flex",
+                                    "alignItems": "center",
+                                    "justifyContent": "center",
+                                    "position": "fixed", 
+                                    "top": "50%",          
                                 }
                             )
                         ], style={'border': '1px solid #ccc', 'margin-bottom': '15px'}),
                         html.Div([
-                            html.Div(id='current-month-spending', children='當月平均消費 $ 0', 
+                            html.Div(id='current-month-spending', children='當月消費總金額 $ 0', 
                                     style={'text-align': 'left', 'font-size': '16px', 'flex': '1'}),
                             html.Div(id='monthly-average', children='所有月份平均消費 $ 0', 
                                     style={'text-align': 'right', 'font-size': '16px', 'flex': '1', 'font-weight': 'bold'})
@@ -74,15 +85,26 @@ tab_content = html.Div([
                             ], style={'display': 'flex', 'padding': '10px', 'background-color': '#f0f0f0', 'border-bottom': '2px solid #ddd'}),
                             
                             # 可滾動的推薦產品內容區域
-                            html.Div(
-                                id='recommended-products-table', 
-                                children=[],
+                            dcc.Loading(
+                                id="loading-recommended-products-table",
+                                type="dot",
+                                children=html.Div(
+                                    id='recommended-products-table', 
+                                    children=[],
+                                    style={
+                                        'height': '45vh',      # 調整為45vh，與歷史紀錄一致
+                                        'overflow-y': 'auto',   # 垂直滾動
+                                        'overflow-x': 'hidden', # 隱藏水平滾動
+                                        'border': 'none',
+                                        'background-color': '#fafafa'  # 淺色背景，讓空白區域更明顯
+                                    }
+                                ),
                                 style={
-                                    'height': '45vh',      # 調整為45vh，與歷史紀錄一致
-                                    'overflow-y': 'auto',   # 垂直滾動
-                                    'overflow-x': 'hidden', # 隱藏水平滾動
-                                    'border': 'none',
-                                    'background-color': '#fafafa'  # 淺色背景，讓空白區域更明顯
+                                    "display": "flex",
+                                    "alignItems": "center",
+                                    "justifyContent": "center",
+                                    "position": "fixed", 
+                                    "top": "50%",          
                                 }
                             )
                         ], style={'border': '1px solid #ccc'})
@@ -144,7 +166,7 @@ def update_month_options(selected_customer_id):
 )
 def update_customer_info_and_history(selected_customer_id, selected_month):
     if not selected_customer_id:
-        return [], '當月平均消費 $ 0', '所有月份平均消費 $ 0'
+        return [], '當月消費總金額 $ 0', '所有月份平均消費 $ 0'
     
     try:
         # 調用 API 獲取歷史購買記錄
@@ -154,7 +176,7 @@ def update_customer_info_and_history(selected_customer_id, selected_month):
         monthly_response = requests.get(f"http://127.0.0.1:8000/get_customer_monthly_spending/{selected_customer_id}")
         
         table_rows = []
-        current_month_text = '當月平均消費 $ 0'
+        current_month_text = '當月消費總金額 $ 0'
         monthly_average_text = '所有月份平均消費 $ 0'
         
         # 處理歷史購買記錄
@@ -202,18 +224,18 @@ def update_customer_info_and_history(selected_customer_id, selected_month):
                     # 如果選擇了特定月份，顯示該月的消費
                     current_month_data = next((item for item in monthly_data if item['month'] == selected_month), None)
                     if current_month_data:
-                        current_month_text = f'當月平均消費 $ {current_month_data["total_amount"]:,.0f}'
+                        current_month_text = f'當月消費總金額 $ {current_month_data["total_amount"]:,.0f}'
                 else:
                     # 如果選擇全部，顯示最新月份的消費
                     latest_month_data = max(monthly_data, key=lambda x: x['month'])
-                    current_month_text = f'當月平均消費 $ {latest_month_data["total_amount"]:,.0f}'
+                    current_month_text = f'當月消費總金額 $ {latest_month_data["total_amount"]:,.0f}'
         
         return table_rows, current_month_text, monthly_average_text
             
     except Exception as e:
         return [
             html.Div(f'載入資料時發生錯誤：{str(e)}', style={'padding': '10px', 'color': 'red'})
-        ], '當月平均消費 $ 0', '所有月份平均消費 $ 0'
+        ], '當月消費總金額 $ 0', '所有月份平均消費 $ 0'
     
 @app.callback(
     Output('recommended-products-table', 'children'),

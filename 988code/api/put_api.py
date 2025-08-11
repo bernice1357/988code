@@ -1,10 +1,19 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 import psycopg2
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+import base64
+import io
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+import fitz  # PyMuPDF
+import pandas as pd
+from PIL import Image
 
-router = APIRouter()
+router = APIRouter(prefix="/put")
 
 # put
 def update_data_to_db(sql_prompt: str, params: tuple = ()):
@@ -19,6 +28,22 @@ def update_data_to_db(sql_prompt: str, params: tuple = ()):
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
                 conn.commit()
+    except Exception as e:
+        print(f"[DB ERROR] {e}")
+        raise
+
+def query_data_from_db(sql_prompt: str, params: tuple = ()):
+    try:
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql_prompt, params)
+                return cursor.fetchall()
     except Exception as e:
         print(f"[DB ERROR] {e}")
         raise
@@ -223,3 +248,295 @@ def update_repurchase_note(id: int, update_data: RepurchaseNoteUpdate):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
+
+# RAG 知識庫處理
+def convert_file_to_pdf(file_content: bytes, filename: str) -> bytes:
+    """將不同格式的檔案轉換為A4直向的PDF"""
+    try:
+        file_extension = filename.lower().split('.')[-1]
+        
+        # 如果已經是PDF，檢查並調整格式
+        if file_extension == 'pdf':
+            # 使用PyMuPDF處理PDF
+            doc = fitz.open(stream=file_content, filetype="pdf")
+            output_doc = fitz.open()
+            
+            for page in doc:
+                # 創建A4大小的新頁面 (595, 842)
+                new_page = output_doc.new_page(width=595, height=842)
+                
+                # 獲取原頁面內容
+                page_rect = page.rect
+                target_rect = fitz.Rect(0, 0, 595, 842)
+                
+                # 計算縮放比例，保持長寬比
+                scale_x = target_rect.width / page_rect.width
+                scale_y = target_rect.height / page_rect.height
+                scale = min(scale_x, scale_y)
+                
+                # 計算居中位置
+                scaled_width = page_rect.width * scale
+                scaled_height = page_rect.height * scale
+                x_offset = (target_rect.width - scaled_width) / 2
+                y_offset = (target_rect.height - scaled_height) / 2
+                
+                # 設置變換矩陣
+                mat = fitz.Matrix(scale, scale).pretranslate(x_offset, y_offset)
+                new_page.show_pdf_page(target_rect, doc, page.number, mat)
+            
+            doc.close()
+            return output_doc.tobytes()
+        
+        # 處理Excel檔案
+        elif file_extension in ['xls', 'xlsx']:
+            # 讀取Excel檔案
+            df = pd.read_excel(io.BytesIO(file_content))
+            
+            # 創建PDF
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = []
+            
+            # 添加標題
+            title = Paragraph(f"<b>{filename}</b>", styles['Title'])
+            story.append(title)
+            story.append(Spacer(1, 0.2*inch))
+            
+            # 轉換DataFrame為文字內容
+            content_text = df.to_string(index=False)
+            # 分行處理，避免單行過長
+            lines = content_text.split('\n')
+            for line in lines[:50]:  # 限制行數避免檔案過大
+                if line.strip():
+                    para = Paragraph(line, styles['Normal'])
+                    story.append(para)
+            
+            doc.build(story)
+            return buffer.getvalue()
+        
+        # 處理Word檔案 (簡化處理)
+        elif file_extension in ['doc', 'docx']:
+            # 創建簡單的PDF，顯示檔案名稱
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = []
+            
+            title = Paragraph(f"<b>{filename}</b>", styles['Title'])
+            story.append(title)
+            story.append(Spacer(1, 0.5*inch))
+            
+            content = Paragraph("Word檔案內容已上傳，請使用專門的文件檢視器開啟。", styles['Normal'])
+            story.append(content)
+            
+            doc.build(story)
+            return buffer.getvalue()
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {file_extension}")
+            
+    except Exception as e:
+        print(f"[ERROR] 檔案轉換失敗: {e}")
+        raise HTTPException(status_code=500, detail="檔案轉換失敗")
+
+class RAGKnowledgeBase(BaseModel):
+    title: str
+    text_content: Optional[str] = None
+    files: Optional[List[dict]] = None  # 包含檔名和base64內容
+    delete_file_index: Optional[int] = None  # 要刪除的檔案索引
+
+@router.put("/rag/save_knowledge")
+def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
+    """儲存RAG知識庫內容，包含文字和檔案"""
+    try:
+        # 準備PDF檔案數據
+        pdf_files = []
+        
+        if knowledge_data.files:
+            for file_info in knowledge_data.files:
+                filename = file_info.get('filename')
+                file_content = base64.b64decode(file_info.get('content', ''))
+                
+                # 轉換為A4 PDF
+                pdf_content = convert_file_to_pdf(file_content, filename)
+                pdf_files.append({
+                    'filename': filename,
+                    'pdf_content': pdf_content
+                })
+        
+        # 檢查是否已存在該標題的記錄
+        check_sql = "SELECT COUNT(*) FROM rag WHERE title = %s"
+        result = query_data_from_db(check_sql, (knowledge_data.title,))
+        exists = result[0][0] > 0
+        
+        if exists:
+            # 更新現有記錄
+            if knowledge_data.delete_file_index is not None:
+                # 刪除指定索引的檔案
+                get_existing_sql = "SELECT file_content, file_name FROM rag WHERE title = %s"
+                existing_data = query_data_from_db(get_existing_sql, (knowledge_data.title,))
+                
+                if existing_data and existing_data[0]:
+                    existing_file_content = list(existing_data[0][0]) if existing_data[0][0] else []
+                    existing_file_names = list(existing_data[0][1]) if existing_data[0][1] else []
+                    
+                    # 刪除指定索引的檔案
+                    if 0 <= knowledge_data.delete_file_index < len(existing_file_names):
+                        del existing_file_content[knowledge_data.delete_file_index]
+                        del existing_file_names[knowledge_data.delete_file_index]
+                        
+                        sql = """
+                        UPDATE rag 
+                        SET text_content = %s, file_content = %s, file_name = %s
+                        WHERE title = %s
+                        """
+                        params = (
+                            [knowledge_data.text_content] if knowledge_data.text_content else [],
+                            existing_file_content,
+                            existing_file_names,
+                            knowledge_data.title
+                        )
+                        update_data_to_db(sql, params)
+            elif pdf_files:
+                # 先獲取現有的檔案內容
+                get_existing_sql = "SELECT file_content, file_name FROM rag WHERE title = %s"
+                existing_data = query_data_from_db(get_existing_sql, (knowledge_data.title,))
+                
+                existing_file_content = existing_data[0][0] if existing_data and existing_data[0][0] else []
+                existing_file_names = existing_data[0][1] if existing_data and existing_data[0][1] else []
+                
+                # 累積新檔案到現有檔案中
+                new_file_content = list(existing_file_content) if existing_file_content else []
+                new_file_names = list(existing_file_names) if existing_file_names else []
+                
+                for file_info in pdf_files:
+                    # 檢查是否已經存在相同檔名，如果存在就跳過
+                    if file_info['filename'] not in new_file_names:
+                        new_file_content.append(file_info['pdf_content'].hex())
+                        new_file_names.append(file_info['filename'])
+                
+                sql = """
+                UPDATE rag 
+                SET text_content = %s, file_content = %s, file_name = %s
+                WHERE title = %s
+                """
+                params = (
+                    [knowledge_data.text_content] if knowledge_data.text_content else [],
+                    new_file_content,
+                    new_file_names,
+                    knowledge_data.title
+                )
+                update_data_to_db(sql, params)
+            elif knowledge_data.files is None:
+                # 如果files明確為None，清除檔案內容
+                sql = """
+                UPDATE rag 
+                SET text_content = %s, file_content = NULL, file_name = NULL
+                WHERE title = %s
+                """
+                params = ([knowledge_data.text_content] if knowledge_data.text_content else [], knowledge_data.title)
+                update_data_to_db(sql, params)
+            else:
+                # 只更新文字內容，不動檔案
+                sql = """
+                UPDATE rag 
+                SET text_content = %s
+                WHERE title = %s
+                """
+                params = ([knowledge_data.text_content] if knowledge_data.text_content else [], knowledge_data.title)
+                update_data_to_db(sql, params)
+        else:
+            # 新增記錄
+            if pdf_files:
+                # 儲存所有檔案到陣列中
+                file_contents = []
+                file_names = []
+                
+                for file_info in pdf_files:
+                    file_contents.append(file_info['pdf_content'].hex())
+                    file_names.append(file_info['filename'])
+                
+                sql = """
+                INSERT INTO rag (title, text_content, file_content, file_name)
+                VALUES (%s, %s, %s, %s)
+                """
+                params = (
+                    knowledge_data.title,
+                    [knowledge_data.text_content] if knowledge_data.text_content else [],
+                    file_contents,
+                    file_names
+                )
+                update_data_to_db(sql, params)
+            else:
+                # 只有文字內容的記錄
+                sql = """
+                INSERT INTO rag (title, text_content)
+                VALUES (%s, %s)
+                """
+                params = (
+                    knowledge_data.title,
+                    [knowledge_data.text_content] if knowledge_data.text_content else []
+                )
+                update_data_to_db(sql, params)
+        
+        return {
+            "message": "知識庫儲存成功",
+            "title": knowledge_data.title,
+            "files_processed": len(pdf_files) if pdf_files else 0
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] RAG儲存失敗: {e}")
+        raise HTTPException(status_code=500, detail=f"知識庫儲存失敗: {str(e)}")
+
+@router.put("/rag/delete_knowledge/{title}")
+def delete_rag_knowledge(title: str):
+    """刪除RAG知識庫條目"""
+    try:
+        sql = "DELETE FROM rag WHERE title = %s"
+        params = (title,)
+        
+        update_data_to_db(sql, params)
+        
+        return {
+            "message": "知識庫條目刪除成功",
+            "title": title
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] RAG刪除失敗: {e}")
+        raise HTTPException(status_code=500, detail="知識庫條目刪除失敗")
+
+class RAGTitleUpdate(BaseModel):
+    old_title: str
+    new_title: str
+
+@router.put("/rag/update_title")
+def update_rag_title(update_data: RAGTitleUpdate):
+    """更新RAG知識庫條目標題"""
+    try:
+        # 檢查新標題是否已存在
+        check_sql = "SELECT COUNT(*) FROM rag WHERE title = %s AND title != %s"
+        result = query_data_from_db(check_sql, (update_data.new_title, update_data.old_title))
+        
+        if result[0][0] > 0:
+            raise HTTPException(status_code=400, detail="新標題已存在，請使用其他標題")
+        
+        # 更新標題
+        sql = "UPDATE rag SET title = %s WHERE title = %s"
+        params = (update_data.new_title, update_data.old_title)
+        
+        update_data_to_db(sql, params)
+        
+        return {
+            "message": "標題更新成功",
+            "old_title": update_data.old_title,
+            "new_title": update_data.new_title
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] RAG標題更新失敗: {e}")
+        raise HTTPException(status_code=500, detail="標題更新失敗")

@@ -52,3 +52,56 @@ input[type="month"], input[type="date"] {
     width: 160px !important;
     padding: 12px 12px;
 }
+
+/* Modal 置中樣式 */
+.modal {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: fixed !important;
+}
+
+.modal.show {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: fixed !important;
+}
+
+.modal-dialog {
+    margin: 0 !important;
+    position: relative !important;
+    transform: none !important;
+}
+
+.modal-dialog.modal-xl {
+    margin: 0 !important;
+}
+
+/* Dropdown 文字靠左對齊 */
+.Select-control .Select-value-label,
+.Select-control .Select-placeholder {
+    text-align: left !important;
+}
+
+.dropdown .Select-control {
+    text-align: left !important;
+}
+
+div[id*="status-dropdown"] .Select-control {
+    text-align: left !important;
+}
+
+div[id*="status-dropdown"] .Select-value-label {
+    text-align: left !important;
+}

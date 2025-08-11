@@ -53,9 +53,20 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         html.Div(id="button-group-container", style={"display": "none"})
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "20px"}),
 
-    html.Div([
-        html.Div(id="repurchase-table-container"),
-    ],style={"marginTop": "10px"}),
+    dcc.Loading(
+        id="loading-repurchase-table",
+        type="dot",
+        children=html.Div([
+            html.Div(id="repurchase-table-container"),
+        ],style={"marginTop": "10px"}),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
 
 ])
 

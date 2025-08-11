@@ -1,12 +1,11 @@
 from .common import *
 from dash import ALL, callback_context
+import global_vars
 
 tab_content = html.Div([
     dcc.Store(id="page-loaded-inactive", data=True),
     dcc.Store(id="inactive-customers-data", data=[]),
     dcc.Store(id="filtered-inactive-data", data=[]),
-    # 新增：用於存儲天數設定的 Store（支持本地存儲）
-    dcc.Store(id="inactive-days-storage", storage_type='local'),
     
     dbc.Row([
         dbc.Col([
@@ -51,7 +50,18 @@ tab_content = html.Div([
         ], style={"display": "flex", "justifyContent": "flex-end"})
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
-    html.Div(id="inactive-customer-table-container"),
+    dcc.Loading(
+        id="loading-inactive-customer-table",
+        type="dot",
+        children=html.Div(id="inactive-customer-table-container"),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
     
     # 處理確認 Modal
     dbc.Modal(
@@ -63,19 +73,6 @@ tab_content = html.Div([
             dbc.ModalHeader("確認處理不活躍客戶", style={"fontWeight": "bold", "fontSize": "24px"}),
             dbc.ModalBody([
                 html.Div(id="selected-customers-info", style={"marginBottom": "20px"}),
-                dbc.Row([
-                    dbc.Label("處理人員", width=3),
-                    dbc.Col(dbc.Input(
-                        id="modal-processor-name",
-                        type="text",
-                        placeholder="輸入處理人員姓名",
-                        value="系統管理員"
-                    ), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("處理時間", width=3),
-                    dbc.Col(html.Div(id="process-datetime", style={"padding": "8px", "backgroundColor": "#f8f9fa", "border": "1px solid #ced4da", "borderRadius": "4px"}), width=9)
-                ], className="mb-3"),
             ]),
             dbc.ModalFooter([
                 dbc.Button("取消", id="modal-cancel-btn", color="secondary", className="me-2"),
@@ -88,27 +85,26 @@ tab_content = html.Div([
     error_toast("inactive_customers", message=""),
 ], className="mt-3")
 
-# 新增：從本地存儲載入天數設定
+# 從全域變數載入天數設定
 @app.callback(
     Output("inactive-days-input", "value"),
-    Input("inactive-days-storage", "data"),
+    Input("page-loaded-inactive", "data"),
     prevent_initial_call=False
 )
-def load_saved_days(stored_days):
-    if stored_days:
-        return stored_days
-    return None
+def load_saved_days(page_loaded):
+    return global_vars.get_inactive_days()
 
-# 新增：保存天數設定到本地存儲
+# 保存天數設定到全域變數
 @app.callback(
-    Output("inactive-days-storage", "data"),
+    Output("inactive-days-input", "value", allow_duplicate=True),
     Input("save-days-btn", "n_clicks"),
     State("inactive-days-input", "value"),
     prevent_initial_call=True
 )
-def save_days_to_storage(n_clicks, days_value):
+def save_days_to_global(n_clicks, days_value):
     if n_clicks and days_value:
-        return days_value
+        if global_vars.set_inactive_days(days_value):
+            return days_value
     return dash.no_update
 
 # 載入不活躍客戶資料的 callback
@@ -164,9 +160,10 @@ def filter_inactive_data(inactive_data, save_clicks, min_days):
         if '最後訂單日期' in df.columns:
             df['最後訂單日期'] = pd.to_datetime(df['最後訂單日期']).dt.strftime('%Y-%m-%d')
         
-        # 天數篩選
-        if min_days:
-            df = df[df['不活躍天數'] >= min_days]
+        # 使用全域變數的天數設定進行篩選
+        current_days = global_vars.get_inactive_days()
+        if current_days:
+            df = df[df['不活躍天數'] >= current_days]
         
         # 只保留需要的欄位
         columns_to_keep = ['客戶名稱', '最後訂單日期', '最後訂購商品', '不活躍天數', '狀態']
@@ -230,20 +227,8 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
     # 重置索引，讓按鈕index從0開始連續
     df = df.reset_index(drop=True)
     
-    # 用 html.Div 包裝 custom_table 並添加滾動樣式
-    return html.Div(
-        children=[
-            custom_table(df, show_checkbox=show_checkbox, show_button=False)
-        ],
-        style={
-            "maxHeight": "40vh",     # # 螢幕高度的40%
-            "overflowY": "hidden",      # 垂直滾動
-            "overflowX": "auto",      # 水平滾動
-            "border": "1px solid #dee2e6",    # 邊框
-            "borderRadius": "0.375rem",       # 圓角
-            "backgroundColor": "white"        # 背景色
-        }
-    )
+    # 使用 custom_table 的新 table_height 參數
+    return custom_table(df, show_checkbox=show_checkbox, show_button=False, table_height="47vh")
 
 # 顯示確認已處理按鈕
 @app.callback(
@@ -264,19 +249,21 @@ def show_confirm_button(checkbox_values):
 # 顯示處理確認 Modal
 @app.callback(
     [Output('process-confirm-modal', 'is_open'),
-     Output('selected-customers-info', 'children'),
-     Output('process-datetime', 'children')],
+     Output('selected-customers-info', 'children')],
     [Input('inactive_customers_confirm_btn', 'n_clicks'),
      Input('modal-cancel-btn', 'n_clicks')],
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-inactive-data", "data"),
+     State("btn-all-customers", "n_clicks"),
+     State("btn-unprocessed-customers", "n_clicks"),
+     State("btn-processed-customers", "n_clicks"),
      State('process-confirm-modal', 'is_open')],
     prevent_initial_call=True
 )
-def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, is_open):
+def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed, is_open):
     ctx = callback_context
     if not ctx.triggered:
-        return False, "", ""
+        return False, ""
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
@@ -289,24 +276,35 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
         
         if selected_indices and filtered_data:
             df = pd.DataFrame(filtered_data)
+            
+            # 應用與表格顯示相同的篩選邏輯
+            ctx_button = None
+            if btn_unprocessed and (not btn_all or btn_unprocessed > (btn_all or 0)) and (not btn_processed or btn_unprocessed > (btn_processed or 0)):
+                df = df[df['狀態'] == '未處理']
+                ctx_button = 'btn-unprocessed-customers'
+            elif btn_processed and (not btn_all or btn_processed > (btn_all or 0)) and (not btn_unprocessed or btn_processed > (btn_unprocessed or 0)):
+                df = df[df['狀態'] == '已處理']
+                ctx_button = 'btn-processed-customers'
+            
+            # 重置索引，確保與表格一致
+            df = df.reset_index(drop=True)
+            
             selected_customers = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
             
             # 顯示選中的客戶
             customer_info = html.Div([
-                html.H6(f"將處理以下 {len(selected_customers)} 位客戶：", style={"marginBottom": "10px"}),
-                html.Ul([html.Li(customer) for customer in selected_customers])
+                html.H6(f"將處理以下 {len(selected_customers)} 位客戶：", style={"marginBottom": "10px", "fontSize": "16px", "color": "#17a2b8", "textAlign": "left"}),
+                html.Div([
+                    html.Ul([html.Li(customer) for customer in selected_customers], style={"textAlign": "left", "listStyleType": "disc", "paddingLeft": "20px"})
+                ], style={"display": "flex", "justifyContent": "center"})
             ])
             
-            # 顯示當前時間
-            from datetime import datetime
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            return True, customer_info, current_time
+            return True, customer_info
     
     elif button_id == 'modal-cancel-btn':
-        return False, "", ""
+        return False, ""
     
-    return is_open, dash.no_update, dash.no_update
+    return is_open, dash.no_update
 
 # 處理確認已處理的邏輯
 @app.callback(
@@ -319,10 +317,12 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
     Input('modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-inactive-data", "data"),
-     State("modal-processor-name", "value")],
+     State("btn-all-customers", "n_clicks"),
+     State("btn-unprocessed-customers", "n_clicks"),
+     State("btn-processed-customers", "n_clicks")],
     prevent_initial_call=True
 )
-def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, processor_name):
+def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed):
     if not modal_confirm_clicks:
         return False, "", False, "", dash.no_update, dash.no_update
     
@@ -338,12 +338,21 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, proc
     try:
         df = pd.DataFrame(filtered_data)
         
+        # 應用與表格顯示相同的篩選邏輯
+        if btn_unprocessed and (not btn_all or btn_unprocessed > (btn_all or 0)) and (not btn_processed or btn_unprocessed > (btn_processed or 0)):
+            df = df[df['狀態'] == '未處理']
+        elif btn_processed and (not btn_all or btn_processed > (btn_all or 0)) and (not btn_unprocessed or btn_processed > (btn_unprocessed or 0)):
+            df = df[df['狀態'] == '已處理']
+        
+        # 重置索引，確保與表格一致
+        df = df.reset_index(drop=True)
+        
         customer_names = [df.iloc[index]['客戶名稱'] for index in selected_indices if index < len(df)]
 
         update_data = {
             "customer_names": customer_names,
             "processed": True,
-            "processed_by": processor_name or "系統管理員"
+            "processed_by": "系統管理員"
         }
 
         response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)

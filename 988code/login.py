@@ -10,40 +10,123 @@ layout = html.Div([
     html.Div(id='hidden-role', style={'display': 'none'}),
     # 主要容器
     html.Div([
-        # 左側背景區域
+        # 左側背景區域 - 現代化設計
         html.Div([
+            # 彩色條塊和球體裝飾
             html.Div([
-                html.H1("The important thing is not to stop questioning.", 
+                # 紫色條塊 - 左邊1/3
+                html.Div(style={
+                    "width": "200px",
+                    "height": "40vh",
+                    "background": "linear-gradient(180deg, #4703b7 0%, #3d0399 100%)",
+                    "position": "absolute",
+                    "left": "calc((100% - 600px) / 2)",
+                    "top": "0px"
+                }),
+                # 紫色球體
+                html.Div(style={
+                    "width": "200px",
+                    "height": "200px",
+                    "borderRadius": "50%",
+                    "background": "radial-gradient(circle at 25% 25%, #E5CCFF, #7209B7 40%, #4703b7 70%, #3d0399 100%)",
+                    "position": "absolute",
+                    "left": "calc((100% - 600px) / 2)",
+                    "top": "calc(40vh - 100px)",
+                    "boxShadow": "0 25px 50px rgba(71, 3, 183, 0.5), inset -10px -10px 20px rgba(61, 3, 153, 0.3), inset 10px 10px 20px rgba(255, 255, 255, 0.2)",
+                    "zIndex": "2"
+                }),
+                
+                # 藍色條塊 - 中間1/3
+                html.Div(style={
+                    "width": "200px",
+                    "height": "60vh",
+                    "background": "linear-gradient(180deg, #0464f3 0%, #0344c4 100%)",
+                    "position": "absolute",
+                    "left": "calc(((100% - 600px) / 2) + 200px)",
+                    "top": "0px"
+                }),
+                # 藍色球體
+                html.Div(style={
+                    "width": "200px",
+                    "height": "200px",
+                    "borderRadius": "50%",
+                    "background": "radial-gradient(circle at 25% 25%, #B3D9FF, #0464f3 40%, #0344c4 70%, #022e9a 100%)",
+                    "position": "absolute",
+                    "left": "calc(((100% - 600px) / 2) + 200px)",
+                    "top": "calc(60vh - 100px)",
+                    "boxShadow": "0 25px 50px rgba(4, 100, 243, 0.5), inset -10px -10px 20px rgba(2, 46, 154, 0.3), inset 10px 10px 20px rgba(255, 255, 255, 0.2)",
+                    "zIndex": "2"
+                }),
+                
+                # 綠色條塊 - 右邊1/3
+                html.Div(style={
+                    "width": "200px",
+                    "height": "30vh", 
+                    "background": "linear-gradient(180deg, #83e100 0%, #6bb800 100%)",
+                    "position": "absolute",
+                    "left": "calc(((100% - 600px) / 2) + 400px)",
+                    "top": "0px"
+                }),
+                # 綠色球體
+                html.Div(style={
+                    "width": "200px",
+                    "height": "200px",
+                    "borderRadius": "50%",
+                    "background": "radial-gradient(circle at 25% 25%, #E8FFB3, #9EE433 40%, #83e100 70%, #6bb800 100%)",
+                    "position": "absolute",
+                    "left": "calc(((100% - 600px) / 2) + 400px)",
+                    "top": "calc(30vh - 100px)",
+                    "boxShadow": "0 25px 50px rgba(131, 225, 0, 0.5), inset -10px -10px 20px rgba(107, 184, 0, 0.3), inset 10px 10px 20px rgba(255, 255, 255, 0.2)",
+                    "zIndex": "2"
+                })
+            ], style={
+                "position": "absolute",
+                "top": "0",
+                "left": "0",
+                "width": "100%",
+                "height": "100%"
+            }),
+            
+            # 文字內容
+            html.Div([
+                html.H1("988廚房", 
                     style={
                         "color": "white", 
-                        "fontSize": "2.5rem", 
+                        "fontSize": "3rem", 
                         "fontWeight": "bold",
                         "lineHeight": "1.1",
-                        "marginBottom": "1rem"
+                        "marginBottom": "0.5rem",
+                        "textShadow": "0 2px 10px rgba(0,0,0,0.3)"
                     }),
-                html.P("—— Albert Einstein",
+                html.H2("智慧管理系統",
                     style={
-                        "color": "rgba(255,255,255,0.8)", 
-                        "fontSize": "1rem",
-                        "lineHeight": "1.5"
+                        "color": "white", 
+                        "fontSize": "2rem", 
+                        "fontWeight": "300",
+                        "lineHeight": "1.2",
+                        "marginBottom": "1rem",
+                        "textShadow": "0 2px 10px rgba(0,0,0,0.3)"
+                    }),
+                html.P("專業的B2B管理解決方案，讓您的業務更智慧、更高效",
+                    style={
+                        "color": "rgba(255,255,255,0.9)", 
+                        "fontSize": "1.1rem",
+                        "lineHeight": "1.5",
+                        "textShadow": "0 1px 5px rgba(0,0,0,0.3)"
                     })
             ], style={
                 "position": "absolute",
-                "bottom": "3rem",
+                "bottom": "4rem",
                 "left": "3rem",
-                "right": "3rem"
+                "right": "3rem",
+                "zIndex": "2"
             })
         ], style={
             "width": "50%",
             "height": "100vh",
-            "background": "linear-gradient(135deg, rgba(41,100,138,0.8) 0%, rgba(58,124,168,0.7) 30%, rgba(79,172,254,0.6) 60%, rgba(255,215,0,0.5) 100%)",
+            "background": "#1F2937",
             "position": "relative",
-            "backgroundImage": "url('/assets/images/milad-fakurian-oU-qoEjNnHM-unsplash.jpg')",
-            "backgroundSize": "cover",
-            "backgroundPosition": "center",
-            "backgroundRepeat": "no-repeat",
-            "backgroundSize": "cover",
-            "backgroundPosition": "center"
+            "overflow": "hidden"
         }),
         
         # 右側登入區域
@@ -163,9 +246,6 @@ layout = html.Div([
     # Toast 通知
     success_toast("login", message=""),
     error_toast("login", message=""),
-    
-    # 用來觸發設定 localStorage 的 Store
-    # dcc.Store(id='login_status', storage_type='local'),
     
 ], style={"margin": "0", "padding": "0"})
 

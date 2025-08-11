@@ -16,7 +16,7 @@ def update_breadcrumb(pathname):
         ]
     elif pathname == "/rag":
         return [
-            {"label": "RAG數據管理", "href": "/rag", "active": True}
+            {"label": "RAG 數據管理", "href": "/rag", "active": True}
         ]
     elif pathname == "/sales_analysis":
         return [
@@ -64,6 +64,10 @@ def update_breadcrumb(pathname):
     elif pathname == "/scheduling_settings":
         return [
             {"label": "排程設定", "href": "/scheduling_settings", "active": True}
+        ]
+    elif pathname == "/import_data":
+        return [
+            {"label": "ERP 資料匯入", "href": "/import_data", "active": True}
         ]
     else:
         return [

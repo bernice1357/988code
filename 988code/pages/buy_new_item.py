@@ -4,6 +4,9 @@ from callbacks.export_callback import create_export_callback, add_download_compo
 import requests
 import pandas as pd
 from datetime import datetime, date
+import dash
+
+# TODO 照時間排序
 
 # offcanvas
 product_input_fields = [
@@ -32,6 +35,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="buy_new_item-data", data=[]),
     dcc.Store(id="buy_new_item-current-table-data", data=[]),  # 儲存當前表格顯示的資料
     dcc.Store(id="buy_new_item-date-validation", data={"is_valid": True, "message": ""}),  # 新增日期驗證狀態
+    dcc.Store(id="buy_new_item-sort-state", data={"column": "購買時間", "ascending": False}),  # 排序狀態存儲
     add_download_component("buy_new_item"),  # 加入下載元件
 
     # 篩選條件區
@@ -42,7 +46,18 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     product_components["offcanvas"],
 
-    html.Div(id="buy_new_item-table-container", style={"marginTop": "20px"}),
+    dcc.Loading(
+        id="loading-buy-new-item-table",
+        type="dot",
+        children=html.Div(id="buy_new_item-table-container", style={"marginTop": "20px"}),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
     error_toast("buy_new_item"),
 ])
 
@@ -157,10 +172,11 @@ def load_customer_options(data):
     [Input("buy_new_item-data", "data"),
      Input("buy_new_item-date-picker-start", "value"),
      Input("buy_new_item-date-picker-end", "value"),
-     Input("buy_new_item-customer-id", "value")],
+     Input("buy_new_item-customer-id", "value"),
+     Input("buy_new_item-sort-state", "data")],
     prevent_initial_call=False
 )
-def display_filtered_table(data, start_date, end_date, customer_id):
+def display_filtered_table(data, start_date, end_date, customer_id, sort_state):
     
     if not data:
         return html.Div("暫無資料"), [], False, ""
@@ -205,12 +221,60 @@ def display_filtered_table(data, start_date, end_date, customer_id):
         before_filter = len(filtered_df)
         filtered_df = filtered_df[filtered_df['客戶 ID'] == customer_id]
     
+    # 排序處理
+    if sort_state and sort_state.get("column") in filtered_df.columns:
+        sort_column = sort_state["column"]
+        ascending = sort_state.get("ascending", True)
+        
+        # 如果是購買時間欄位，需要轉換為datetime進行排序
+        if sort_column == "購買時間":
+            filtered_df['購買時間_sort'] = pd.to_datetime(filtered_df['購買時間'])
+            filtered_df = filtered_df.sort_values('購買時間_sort', ascending=ascending)
+            filtered_df = filtered_df.drop(columns=['購買時間_sort'])
+        else:
+            filtered_df = filtered_df.sort_values(sort_column, ascending=ascending)
+    
     # 重置索引，讓按鈕index從0開始連續
     filtered_df = filtered_df.reset_index(drop=True)
     
     # 儲存當前表格資料供匯出使用
     current_table_data = filtered_df.to_dict('records')
     
-    table_component = custom_table(filtered_df)
+    # 呼叫 custom_table 並指定可排序的欄位
+    table_component = custom_table(filtered_df, sortable_columns=["客戶 ID", "購買時間"], sort_state=sort_state)
     
     return table_component, current_table_data, False, ""
+
+# 處理排序按鈕點擊
+@app.callback(
+    Output("buy_new_item-sort-state", "data"),
+    [Input({"type": "sort-button", "column": "客戶 ID"}, "n_clicks"),
+     Input({"type": "sort-button", "column": "購買時間"}, "n_clicks")],
+    State("buy_new_item-sort-state", "data"),
+    prevent_initial_call=True
+)
+def handle_sort_button_click(customer_id_clicks, purchase_time_clicks, current_sort_state):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return current_sort_state
+    
+    # 判斷是哪個按鈕被點擊
+    triggered_prop = ctx.triggered[0]["prop_id"]
+    if "客戶 ID" in triggered_prop:
+        clicked_column = "客戶 ID"
+    elif "購買時間" in triggered_prop:
+        clicked_column = "購買時間"
+    else:
+        return current_sort_state
+    
+    # 如果點擊的是同一欄位，則切換排序方向
+    if current_sort_state.get("column") == clicked_column:
+        new_ascending = not current_sort_state.get("ascending", True)
+    else:
+        # 如果點擊不同欄位，則預設為升序
+        new_ascending = True
+    
+    return {
+        "column": clicked_column,
+        "ascending": new_ascending
+    }

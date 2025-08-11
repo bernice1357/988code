@@ -6,46 +6,62 @@ from dash import ALL
 
 tab_content = html.Div([
     html.Div([
-        dbc.Input(
-            type="month",
-            value="2025-07",
-            id="area-start-date",
-            style={"width": "140px", "display": "inline-block", "marginRight": "10px"}
-        ),
-        html.Span("→", style={"marginRight": "10px", "fontSize": "30px"}),
-        dbc.Input(
-            type="month",
-            value="2025-07",
-            id="area-end-date",
-            style={"width": "140px", "display": "inline-block", "marginRight": "20px"}
-        ),
-        
         dbc.Button(
-            "+新增地區",
-            id="area-add-button",
-            color="info",
-            style={"marginLeft": "15px"}
+            "選擇分析目標",
+            id="area-filter-settings-button",
+            color="primary",
+            style={"marginRight": "20px"},
+            outline=True
         ),
-        html.Div(id="area-badges-container", children=[], style={"display": "flex", "alignItems": "center", "marginLeft": "10px", "flexWrap": "wrap", "gap": "5px"}),
-        html.Div(id="area-confirm-button-container", style={"display": "flex", "alignItems": "center", "marginLeft": "auto"})
-    ], style={"display": "flex", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
-    
-    html.Div([
-        dbc.Popover([
-            dcc.Dropdown(
-                id="area-dropdown",
-                placeholder="請選擇地區",
-                style={"marginBottom": "10px"}
-            ),
-            dbc.Button("新增", id="area-confirm-add-area", color="primary", size="sm")
-        ], id="area-popover-form", target="area-add-button", placement="bottom-start", trigger="click", hide_arrow=True),
-        
         dbc.Button(
             "生成圖表",
             id="area-generate-chart-button",
             color="success",
-            style={"marginTop": "15px", "marginBottom": "15px"}
-        ),
+            outline=True
+        )
+    ], style={"display": "flex", "alignItems": "center", "justifyContent": "space-between", "marginBottom": "20px", "marginTop": "30px"}),
+    
+    html.Div([
+        dbc.Popover([
+            html.Div([
+                html.H6("日期範圍", style={"marginBottom": "10px", "fontWeight": "bold"}),
+                html.Div([
+                    dbc.Input(
+                        type="month",
+                        value="2025-07",
+                        id="area-start-date",
+                        style={"width": "115px", "marginRight": "10px"}
+                    ),
+                    html.Span("→", style={"marginRight": "15px", "marginLeft": "5px", "fontSize": "20px"}),
+                    dbc.Input(
+                        type="month",
+                        value="2025-07",
+                        id="area-end-date",
+                        style={"width": "115px"}
+                    )
+                ], style={"display": "flex", "alignItems": "center", "marginBottom": "20px"}),
+                
+                html.Hr(),
+                
+                html.H6("新增地區", style={"marginBottom": "10px", "fontWeight": "bold"}),
+                html.Div([
+                    dcc.Dropdown(
+                        id="area-dropdown",
+                        placeholder="請選擇地區",
+                        style={"width": "300px", "marginRight": "10px"}
+                    ),
+                    dbc.Button("新增", id="area-confirm-add-area", color="primary", size="sm", style={"width": "60px"})
+                ], style={"display": "flex", "alignItems": "center", "marginBottom": "15px"}),
+                
+                html.Hr(),
+                
+                html.H6("已選地區", style={"marginBottom": "10px", "fontWeight": "bold"}),
+                html.Div(id="area-badges-container", children=[], style={"display": "flex", "flexWrap": "wrap", "gap": "5px", "minHeight": "30px", "maxWidth": "100%", "overflow": "hidden"})
+            ], style={"maxWidth": "550px", "padding": "15px"})
+        ], id="area-filter-settings-popover", target="area-filter-settings-button", placement="bottom-start", trigger="click", hide_arrow=False, style={
+            "maxWidth": "600px",
+            "padding": "0px"
+        }),
         
         html.Div([
             html.H4("銷售分析圖表", style={"textAlign": "center", "marginBottom": "20px"}),
@@ -61,22 +77,36 @@ tab_content = html.Div([
     
 ], className="mt-3")
 
-# 載入地區選項
+# 載入地區選項並排除已選項目
 @app.callback(
     Output("area-dropdown", "options"),
-    Input("area-add-button", "n_clicks")
+    [Input("area-filter-settings-button", "n_clicks"),
+     Input("area-badges-container", "children")]
 )
-def update_dropdown(_):
+def update_dropdown(n_clicks, current_badges):
+    # 提取已選項目的文字
+    selected_items = []
+    if current_badges:
+        for badge in current_badges:
+            if badge and 'props' in badge and 'children' in badge['props']:
+                children = badge['props']['children']
+                if isinstance(children, list) and len(children) > 0:
+                    span_content = children[0]
+                    if 'props' in span_content and 'children' in span_content['props']:
+                        selected_items.append(span_content['props']['children'])
+    
     response = requests.get("http://127.0.0.1:8000/get_region")
     if response.status_code == 200:
         data = response.json()
-        options = [{"label": item["region"], "value": item["region"]} for item in data]
+        options = [{"label": item["region"], "value": item["region"]} 
+                  for item in data if item["region"] not in selected_items]
     else:
         options = []
     return options
     
 @app.callback(
-    Output('area-badges-container', 'children'),
+    [Output('area-badges-container', 'children'),
+     Output('area-dropdown', 'value')],
     Input('area-confirm-add-area', 'n_clicks'),
     [Input({'type': 'area-badge-close', 'index': ALL}, 'n_clicks')],
     State('area-dropdown', 'value'),
@@ -87,7 +117,7 @@ def update_badges(n_clicks, close_clicks, dropdown_value, current_badges):
     ctx = dash.callback_context
     
     if not ctx.triggered:
-        return current_badges or []
+        return current_badges or [], dash.no_update
     
     # 獲取觸發的按鈕
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -129,17 +159,23 @@ def update_badges(n_clicks, close_clicks, dropdown_value, current_badges):
             current_badges = []
         
         current_badges.append(new_badge)
-        return current_badges
+        return current_badges, None  # 清空 dropdown 選中值
     
     elif 'area-badge-close' in button_id:
         # 刪除對應的Badge
         if current_badges:
             clicked_badge_id = eval(button_id)['index']
             updated_badges = []
-            for i, badge in enumerate(current_badges):
-                badge_id = f"badge_{i}"
-                if badge_id != clicked_badge_id:
+            for badge in current_badges:
+                # 檢查這個 badge 的關閉按鈕 ID 是否匹配
+                if (badge and 'props' in badge and 'children' in badge['props'] and
+                    isinstance(badge['props']['children'], list) and len(badge['props']['children']) > 1):
+                    close_button = badge['props']['children'][1]
+                    if ('props' in close_button and 'id' in close_button['props'] and
+                        close_button['props']['id']['index'] != clicked_badge_id):
+                        updated_badges.append(badge)
+                else:
                     updated_badges.append(badge)
-            return updated_badges
+            return updated_badges, dash.no_update
     
-    return current_badges or []
+    return current_badges or [], dash.no_update

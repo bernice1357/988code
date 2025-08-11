@@ -1,5 +1,6 @@
 from .common import *
 from dash import ALL, callback_context
+import global_vars
 
 def get_sales_change_data():
     """從API獲取滯銷品資料"""
@@ -155,8 +156,6 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-sales", data=True),
     dcc.Store(id="sales-change-data", data=[]),
     dcc.Store(id="filtered-sales-data", data=[]),
-    # 新增：用於存儲變化比例設定的 Store（支持本地存儲）
-    dcc.Store(id="sales-threshold-storage", storage_type='local'),
     
     dbc.Row([
         dbc.Col([
@@ -241,18 +240,36 @@ tab_content = html.Div([
     ], style={"display": "flex", "justifyContent": "flex-end"})
 ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
-    html.Div(id="sales-table-container"),
+    dcc.Loading(
+        id="loading-sales-table",
+        type="dot",
+        children=html.Div(id="sales-table-container"),
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "position": "fixed", 
+            "top": "50%",          
+        }
+    ),
     
-    # 向下拉式詳情區域
-    html.Div(id="product-detail-dropdown", style={
-        "marginTop": "15px",
-        "border": "2px solid #007bff",
-        "borderRadius": "8px",
-        "backgroundColor": "#f8f9fa",
-        "padding": "20px",
-        "display": "none",
-        "boxShadow": "0 4px 6px rgba(0, 123, 255, 0.1)"
-    }),
+    # 商品詳情 Modal
+    dbc.Modal(
+        id="product-detail-modal",
+        is_open=False,
+        centered=True,
+        size="lg",
+        style={"fontSize": "16px"},
+        children=[
+            dbc.ModalHeader([
+                dbc.ModalTitle(id="product-detail-modal-title")
+            ]),
+            dbc.ModalBody(id="product-detail-modal-body"),
+            dbc.ModalFooter([
+                dbc.Button("關閉", id="close-product-detail-modal", color="secondary")
+            ])
+        ]
+    ),
     
     # 處理確認 Modal
     dbc.Modal(
@@ -289,27 +306,26 @@ tab_content = html.Div([
     error_toast("sales_change", message=""),
 ], className="mt-3")
 
-# 新增：從本地存儲載入變化比例設定
+# 從全域變數載入變化比例設定
 @app.callback(
     Output("sales-threshold-input", "value"),
-    Input("sales-threshold-storage", "data"),
+    Input("page-loaded-sales", "data"),
     prevent_initial_call=False
 )
-def load_saved_threshold(stored_threshold):
-    if stored_threshold:
-        return stored_threshold
-    return 50  # 預設值
+def load_saved_threshold(page_loaded):
+    return global_vars.get_sales_threshold()
 
-# 新增：保存變化比例設定到本地存儲
+# 保存變化比例設定到全域變數
 @app.callback(
-    Output("sales-threshold-storage", "data"),
+    Output("sales-threshold-input", "value", allow_duplicate=True),
     Input("save-threshold-btn", "n_clicks"),
     State("sales-threshold-input", "value"),
     prevent_initial_call=True
 )
-def save_threshold_to_storage(n_clicks, threshold_value):
+def save_threshold_to_global(n_clicks, threshold_value):
     if n_clicks and threshold_value:
-        return threshold_value
+        if global_vars.set_sales_threshold(threshold_value):
+            return threshold_value
     return dash.no_update
 
 # 載入滯銷品資料的 callback
@@ -336,9 +352,10 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
     if not sales_data:
         return []
     
-    # 如果點擊了儲存按鈕且有閾值，使用閾值篩選的 API
-    if threshold:
-        df_threshold = get_sales_change_data_by_threshold(threshold)
+    # 使用全域變數的閾值進行篩選
+    current_threshold = global_vars.get_sales_threshold()
+    if current_threshold:
+        df_threshold = get_sales_change_data_by_threshold(current_threshold)
         if not df_threshold.empty:
             sales_data = df_threshold.to_dict('records')
     
@@ -458,25 +475,14 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
         if df_display.empty:
             return html.Div("暫無資料")
         
-        # 使用原本的 custom_table 函數
-        table = custom_table(
+        # 使用 custom_table 的新 table_height 參數
+        return custom_table(
             df_display, 
             show_checkbox=show_checkbox, 
             show_button=True,
             button_text="詳情",
-            button_id_type="sales_detail_button"
-        )
-        
-        return html.Div(
-            children=[table],
-            style={
-                "maxHeight": "40vh",              # 螢幕高度的40%
-                "overflowY": "hidden",              # 垂直滾動
-                "overflowX": "auto",              # 水平滾動
-                "border": "1px solid #dee2e6",    # 邊框
-                "borderRadius": "0.375rem",       # 圓角
-                "backgroundColor": "white"        # 背景色
-            }
+            button_id_type="sales_detail_button",
+            table_height="47vh"
         )
     
     except Exception as e:
@@ -498,37 +504,42 @@ def show_sales_confirm_button(checkbox_values):
     else:
         return html.Div()
 
-# 顯示向下拉式詳情
+# 顯示商品詳情 Modal
 @app.callback(
-    [Output('product-detail-dropdown', 'style'),
-     Output('product-detail-dropdown', 'children')],
-    [Input({'type': 'sales_detail_button', 'index': ALL}, 'n_clicks')],
+    [Output('product-detail-modal', 'is_open'),
+     Output('product-detail-modal-title', 'children'),
+     Output('product-detail-modal-body', 'children')],
+    [Input({'type': 'sales_detail_button', 'index': ALL}, 'n_clicks'),
+     Input('close-product-detail-modal', 'n_clicks')],
     [State("filtered-sales-data", "data"),
      State("btn-all-products", "n_clicks"),
      State("btn-unprocessed-products", "n_clicks"),
-     State("btn-processed-products", "n_clicks")],
+     State("btn-processed-products", "n_clicks"),
+     State('product-detail-modal', 'is_open')],
     prevent_initial_call=True
 )
-def toggle_product_detail_dropdown(detail_clicks, filtered_data, btn_all, btn_unprocessed, btn_processed):
-    if not any(detail_clicks) or not filtered_data:
-        return {"display": "none"}, ""
-    
-    # 找到被點擊的按鈕索引
+def toggle_product_detail_modal(detail_clicks, close_clicks, filtered_data, btn_all, btn_unprocessed, btn_processed, is_open):
     ctx = callback_context
     if not ctx.triggered:
-        return {"display": "none"}, ""
-
-    # 從觸發的 prop_id 中解析按鈕索引
-    triggered_prop_id = ctx.triggered[0]['prop_id']
-    import json
-    try:
-        json_part = triggered_prop_id.split('.')[0]
-        button_info = json.loads(json_part)
-        button_index = button_info['index']
-    except:
-        return {"display": "none"}, ""
+        return False, "", ""
     
-    if button_index is not None:
+    trigger_id = ctx.triggered[0]['prop_id']
+    
+    # 關閉 modal
+    if 'close-product-detail-modal' in trigger_id:
+        return False, "", ""
+    
+    # 打開 modal - 詳情按鈕被點擊
+    if 'sales_detail_button' in trigger_id and any(detail_clicks) and filtered_data:
+        # 從觸發的 prop_id 中解析按鈕索引
+        import json
+        try:
+            json_part = trigger_id.split('.')[0]
+            button_info = json.loads(json_part)
+            button_index = button_info['index']
+        except:
+            return False, "", ""
+        
         # 重新篩選資料，確保 index 對應正確
         df = pd.DataFrame(filtered_data)
         
@@ -548,77 +559,45 @@ def toggle_product_detail_dropdown(detail_clicks, filtered_data, btn_all, btn_un
             if pd.isna(original_value):
                 percentage_color = "#000"
             elif original_value > 0:
-                percentage_color = "#28a745"  # 綠色
+                percentage_color = "#28a745"  # 綠色  
             elif original_value < 0:
                 percentage_color = "#dc3545"  # 紅色
             else:
                 percentage_color = "#000"     # 黑色
             
-            # 商品詳情內容
-            detail_content = html.Div([
-                dbc.Row([
-                    dbc.Col([
-                        html.H5(f"{row_data['商品名稱']}", style={"color": "#2c3e50", "marginBottom": "20px"}),
-                        dbc.Row([
-                            dbc.Col([
-                                html.P([html.Strong("上月銷量: "), f"{row_data['上月銷量']}箱"]),
-                                html.P([html.Strong("本月銷量: "), f"{row_data['本月銷量']}箱"]),
-                            ], width=6),
-                            dbc.Col([
-                                html.P([html.Strong("變化比例: "), 
-                                        html.Span(row_data['變化比例'], 
-                                                 style={"color": percentage_color, "fontWeight": "bold"})]),
-                                html.P([html.Strong("目前庫存: "), f"{row_data['目前庫存']}箱"]),
-                            ], width=6)
-                        ])
-                    ], width=8),
-                    dbc.Col([
-                        html.H6("推薦客戶", style={"marginBottom": "15px"}),
-                        html.Div([
-                            html.Div([
-                                html.P([
-                                    html.Strong(f"客戶 {i}: "),
-                                    row_data.get(f'推薦客戶{i}', '未設定'),
-                                    html.Br(),
-                                    html.Small(f"電話: {row_data.get(f'推薦客戶{i}電話', '未設定')}", 
-                                                style={"color": "#666"})
-                                ], style={"marginBottom": "10px"})
-                                for i in [1, 2, 3] 
-                                if row_data.get(f'推薦客戶{i}', '未設定') != '未設定'
-                            ]) if any(row_data.get(f'推薦客戶{i}', '未設定') != '未設定' for i in [1, 2, 3])
-                            else html.P("暫無推薦客戶", style={"color": "#666", "fontStyle": "italic"})
-                        ])
-                    ], width=4)
-                ]),
-                html.Hr(),
+            # Modal 標題
+            modal_title = f"{row_data['商品名稱']} - 推薦客戶"
+            
+            # Modal 內容 - 只顯示推薦客戶
+            modal_body = html.Div([
                 html.Div([
-                    dbc.Button("收起詳情", id="close-detail-btn", color="primary", size="sm", outline=True)
-                ], style={"textAlign": "right", "marginTop": "10px"})
+                    html.Div([
+                        html.P([
+                            html.Strong(f"客戶 {i}: "),
+                            row_data.get(f'推薦客戶{i}', '未設定'),
+                            html.Br(),
+                            html.Small(f"電話: {row_data.get(f'推薦客戶{i}電話', '未設定')}", 
+                                        style={"color": "#666"})
+                        ], style={"marginBottom": "15px", "padding": "10px", "backgroundColor": "#f8f9fa", "borderRadius": "5px"})
+                        for i in [1, 2, 3] 
+                        if row_data.get(f'推薦客戶{i}', '未設定') != '未設定'
+                    ]) if any(row_data.get(f'推薦客戶{i}', '未設定') != '未設定' for i in [1, 2, 3])
+                    else html.Div([
+                        html.P("暫無推薦客戶", style={
+                            "color": "#666", 
+                            "fontStyle": "italic", 
+                            "textAlign": "center",
+                            "padding": "20px",
+                            "backgroundColor": "#f8f9fa",
+                            "borderRadius": "5px"
+                        })
+                    ])
+                ])
             ])
             
-            return {
-                "marginTop": "15px",
-                "border": "2px solid #007bff",           # 更明顯的藍色邊框
-                "borderRadius": "8px",
-                "backgroundColor": "#f8f9fa",
-                "padding": "20px",
-                "display": "block",
-                "boxShadow": "0 4px 6px rgba(0, 123, 255, 0.1)",  # 藍色陰影
-                "animation": "fadeIn 0.3s ease-in-out"   # 淡入動畫效果
-            }, detail_content
+            return True, modal_title, modal_body
     
-    return {"display": "none"}, ""
-
-# 收起詳情
-@app.callback(
-    Output('product-detail-dropdown', 'style', allow_duplicate=True),
-    Input('close-detail-btn', 'n_clicks'),
-    prevent_initial_call=True
-)
-def close_detail_dropdown(close_clicks):
-    if close_clicks:
-        return {"display": "none"}
-    return dash.no_update
+    return False, "", ""
 
 # 顯示處理確認 Modal
 @app.callback(
