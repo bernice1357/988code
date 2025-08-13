@@ -16,7 +16,7 @@ def update_breadcrumb(pathname):
         ]
     elif pathname == "/rag":
         return [
-            {"label": "RAG 數據管理", "href": "/rag", "active": True}
+            {"label": "知識庫數據管理", "href": "/rag", "active": True}
         ]
     elif pathname == "/sales_analysis":
         return [

@@ -339,7 +339,6 @@ def get_rag_titles():
 # 獲取指定RAG條目的內容
 @router.get("/get_rag_content/{title}")
 def get_rag_content(title: str):
-    print(f"[API] get_rag_content 被呼叫: {title}")
     try:
         query = "SELECT title, text_content, file_content, file_name FROM rag WHERE title = %s"
         

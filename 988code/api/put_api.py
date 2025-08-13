@@ -7,13 +7,241 @@ import base64
 import io
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
 import fitz  # PyMuPDF
 import pandas as pd
+import numpy as np
 from PIL import Image
+import openpyxl
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 
 router = APIRouter(prefix="/put")
+
+def word_to_pdf_win32com(file_content, filename):
+    """使用 win32com 將 Word 轉換為 PDF（最佳格式保留）"""
+    try:
+        import win32com.client
+        import tempfile
+        import os
+        
+        # 建立臨時 Word 檔案
+        suffix = '.docx' if filename.lower().endswith('.docx') else '.doc'
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_word:
+            temp_word_path = temp_word.name
+            temp_word.write(file_content)
+            temp_word.flush()
+            
+        # 建立臨時 PDF 檔案路徑
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+            temp_pdf_path = temp_pdf.name
+            
+        print(f"使用 win32com 轉換 Word: {filename}")
+        print(f"臨時 Word: {temp_word_path}")
+        print(f"臨時 PDF: {temp_pdf_path}")
+        
+        try:
+            # 創建 Word 應用程序對象
+            word = win32com.client.Dispatch("Word.Application")
+            word.Visible = False
+            word.DisplayAlerts = 0  # 不顯示警告
+            
+            # 打開 Word 文件
+            doc = word.Documents.Open(os.path.abspath(temp_word_path))
+            
+            # 導出為 PDF (17 = wdExportFormatPDF)
+            doc.ExportAsFixedFormat(
+                OutputFileName=os.path.abspath(temp_pdf_path),
+                ExportFormat=17,  # wdExportFormatPDF
+                OpenAfterExport=False,
+                OptimizeFor=0,  # wdExportOptimizeForSizeOnly
+                BitmapMissingFonts=True,
+                DocStructureTags=True,
+                CreateBookmarks=False,
+                UseDocStructureTags=True
+            )
+            
+            # 關閉文件和應用程序
+            doc.Close()
+            word.Quit()
+            
+            # 讀取生成的 PDF
+            with open(temp_pdf_path, 'rb') as pdf_file:
+                pdf_bytes = pdf_file.read()
+            
+            print(f"win32com Word 轉換成功，PDF 大小: {len(pdf_bytes)} bytes")
+            
+            # 清理臨時檔案
+            try:
+                os.unlink(temp_word_path)
+                os.unlink(temp_pdf_path)
+            except:
+                pass
+            
+            return pdf_bytes
+            
+        except Exception as word_error:
+            print(f"Word 應用程式轉換失敗: {word_error}")
+            # 確保清理 Word 程序
+            try:
+                word.Quit()
+            except:
+                pass
+            
+            # 清理臨時檔案
+            try:
+                os.unlink(temp_word_path)
+                os.unlink(temp_pdf_path)
+            except:
+                pass
+            
+            return None
+            
+    except ImportError:
+        print("win32com 不可用，跳過 Word 轉換")
+        return None
+    except Exception as e:
+        print(f"win32com Word 轉換錯誤: {e}")
+        return None
+
+def word_to_pdf_docx(file_content, filename, has_chinese_font):
+    """使用 python-docx 讀取 Word 內容並轉換為 PDF"""
+    try:
+        from docx import Document
+        
+        # 讀取 Word 文件
+        doc = Document(io.BytesIO(file_content))
+        
+        # 創建 PDF
+        buffer = io.BytesIO()
+        pdf_doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                  topMargin=0.75*inch, bottomMargin=0.75*inch,
+                                  leftMargin=0.75*inch, rightMargin=0.75*inch)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # 設定樣式
+        if has_chinese_font:
+            title_style = ParagraphStyle(
+                'DocxTitle',
+                parent=styles['Title'],
+                fontName='ChineseFont',
+                fontSize=16,
+                spaceAfter=20,
+                alignment=1
+            )
+            normal_style = ParagraphStyle(
+                'DocxNormal',
+                parent=styles['Normal'],
+                fontName='ChineseFont',
+                fontSize=12,
+                leading=16,
+                spaceAfter=12
+            )
+        else:
+            title_style = styles['Title']
+            normal_style = styles['Normal']
+        
+        
+        # 讀取所有段落
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                # 簡單處理粗體文字
+                text = paragraph.text
+                if paragraph.runs:
+                    formatted_text = ""
+                    for run in paragraph.runs:
+                        if run.bold:
+                            formatted_text += f"<b>{run.text}</b>"
+                        elif run.italic:
+                            formatted_text += f"<i>{run.text}</i>"
+                        else:
+                            formatted_text += run.text
+                    text = formatted_text
+                
+                para = Paragraph(text, normal_style)
+                story.append(para)
+        
+        # 讀取表格
+        for table in doc.tables:
+            table_data = []
+            for row in table.rows:
+                row_data = []
+                for cell in row.cells:
+                    row_data.append(cell.text.strip())
+                table_data.append(row_data)
+            
+            if table_data:
+                # 創建 PDF 表格
+                pdf_table = Table(table_data)
+                if has_chinese_font:
+                    table_style = TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, -1), 'ChineseFont'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ])
+                else:
+                    table_style = TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ])
+                
+                pdf_table.setStyle(table_style)
+                story.append(pdf_table)
+                story.append(Spacer(1, 12))
+        
+        pdf_doc.build(story)
+        return buffer.getvalue()
+        
+    except ImportError:
+        print("python-docx 套件未安裝")
+        return None
+    except Exception as e:
+        print(f"python-docx 轉換失敗: {e}")
+        return None
+
+def create_word_placeholder_pdf(filename, has_chinese_font):
+    """創建 Word 檔案的佔位符 PDF"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    
+    # 使用中文字體樣式
+    if has_chinese_font:
+        word_style = ParagraphStyle(
+            'WordStyle',
+            parent=styles['Normal'],
+            fontName='ChineseFont',
+            fontSize=10,
+            leading=14,
+        )
+        word_title_style = ParagraphStyle(
+            'WordTitleStyle',
+            parent=styles['Title'],
+            fontName='ChineseFont',
+            fontSize=16,
+            leading=20,
+        )
+    else:
+        word_style = styles['Normal']
+        word_title_style = styles['Title']
+    
+    story = []
+    
+    content = Paragraph("Word檔案內容已上傳，但無法轉換。請安裝必要套件或檢查檔案格式。", word_style)
+    story.append(content)
+    
+    doc.build(story)
+    return buffer.getvalue()
 
 # put
 def update_data_to_db(sql_prompt: str, params: tuple = ()):
@@ -250,9 +478,39 @@ def update_repurchase_note(id: int, update_data: RepurchaseNoteUpdate):
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
 
 # RAG 知識庫處理
+def setup_chinese_font():
+    """設定中文字體支援"""
+    try:
+        # 嘗試註冊系統中文字體
+        # Windows 系統字體路徑
+        font_paths = [
+            r"C:\Windows\Fonts\msjh.ttc",  # 微軟正黑體
+            r"C:\Windows\Fonts\SimHei.ttf",  # 黑體
+            r"C:\Windows\Fonts\simsun.ttc",  # 新細明體
+        ]
+        
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    if font_path.endswith('.ttc'):
+                        # TTC 字體需要指定子字體索引
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path, subfontIndex=0))
+                    else:
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                    return True
+                except:
+                    continue
+        
+        # 如果系統字體都找不到，使用 DejaVu 字體
+        return False
+    except:
+        return False
+
 def convert_file_to_pdf(file_content: bytes, filename: str) -> bytes:
     """將不同格式的檔案轉換為A4直向的PDF"""
     try:
+        # 設定中文字體
+        has_chinese_font = setup_chinese_font()
         file_extension = filename.lower().split('.')[-1]
         
         # 如果已經是PDF，檢查並調整格式
@@ -289,56 +547,228 @@ def convert_file_to_pdf(file_content: bytes, filename: str) -> bytes:
         
         # 處理Excel檔案
         elif file_extension in ['xls', 'xlsx']:
-            # 讀取Excel檔案
-            df = pd.read_excel(io.BytesIO(file_content))
-            
-            # 創建PDF
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4)
-            styles = getSampleStyleSheet()
-            story = []
-            
-            # 添加標題
-            title = Paragraph(f"<b>{filename}</b>", styles['Title'])
-            story.append(title)
-            story.append(Spacer(1, 0.2*inch))
-            
-            # 轉換DataFrame為文字內容
-            content_text = df.to_string(index=False)
-            # 分行處理，避免單行過長
-            lines = content_text.split('\n')
-            for line in lines[:50]:  # 限制行數避免檔案過大
-                if line.strip():
-                    para = Paragraph(line, styles['Normal'])
-                    story.append(para)
-            
-            doc.build(story)
-            return buffer.getvalue()
+            try:
+                # 根據檔案格式選擇不同的讀取方式
+                if file_extension == 'xlsx':
+                    # 使用 openpyxl 讀取 .xlsx 檔案
+                    workbook = openpyxl.load_workbook(io.BytesIO(file_content))
+                    all_sheets_data = {}
+                    
+                    # 讀取所有工作表
+                    for sheet_name in workbook.sheetnames:
+                        worksheet = workbook[sheet_name]
+                        sheet_data = []
+                        max_col = worksheet.max_column
+                        max_row = worksheet.max_row
+                        
+                        # 讀取資料並轉換為字串
+                        for row in range(1, max_row + 1):
+                            row_data = []
+                            for col in range(1, max_col + 1):
+                                cell_value = worksheet.cell(row=row, column=col).value
+                                if cell_value is None:
+                                    cell_value = ""
+                                row_data.append(str(cell_value))
+                            sheet_data.append(row_data)
+                        
+                        all_sheets_data[sheet_name] = sheet_data
+                        
+                else:
+                    # 使用 pandas 讀取 .xls 檔案
+                    all_sheets = pd.read_excel(io.BytesIO(file_content), sheet_name=None)
+                    all_sheets_data = {}
+                    
+                    for sheet_name, df in all_sheets.items():
+                        if not df.empty:
+                            # 將 DataFrame 轉換為二維列表，包含標題
+                            sheet_data = []
+                            # 添加列標題（轉換為字串）
+                            column_names = [str(col) for col in df.columns.tolist()]
+                            sheet_data.append(column_names)
+                            # 添加資料行
+                            for _, row in df.iterrows():
+                                row_data = []
+                                for val in row:
+                                    if pd.isna(val):
+                                        row_data.append("")
+                                    else:
+                                        row_data.append(str(val))
+                                sheet_data.append(row_data)
+                            all_sheets_data[sheet_name] = sheet_data
+                        else:
+                            all_sheets_data[sheet_name] = []
+                
+                # 創建PDF
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                      topMargin=0.5*inch, bottomMargin=0.5*inch,
+                                      leftMargin=0.5*inch, rightMargin=0.5*inch)
+                story = []
+                styles = getSampleStyleSheet()
+                
+                # 根據是否有中文字體創建樣式
+                if has_chinese_font:
+                    title_style = ParagraphStyle(
+                        'CustomTitle',
+                        parent=styles['Heading1'],
+                        fontName='ChineseFont',
+                        fontSize=16,
+                        spaceAfter=30,
+                        alignment=1  # 置中
+                    )
+                else:
+                    title_style = ParagraphStyle(
+                        'CustomTitle',
+                        parent=styles['Heading1'],
+                        fontSize=16,
+                        spaceAfter=30,
+                        alignment=1  # 置中
+                    )
+                
+                
+                # 處理所有工作表
+                for sheet_name, data in all_sheets_data.items():
+                    
+                    if data:
+                        # 建立表格
+                        table = Table(data)
+                        
+                        # 自動調整大小以適應頁面
+                        available_width = A4[0] - 2 * 0.5 * inch  # 扣除邊距
+                        col_count = len(data[0]) if data else 1
+                        col_width = available_width / col_count
+                        table._argW = [col_width] * col_count
+                        
+                        # 設定表格樣式
+                        if has_chinese_font:
+                            table_style = TableStyle([
+                                # 標題行樣式
+                                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'ChineseFont'),
+                                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                                
+                                # 資料行樣式
+                                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                                ('FONTNAME', (0, 1), (-1, -1), 'ChineseFont'),
+                                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                                
+                                # 邊框
+                                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                                
+                                # 交替行背景色
+                                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+                            ])
+                        else:
+                            table_style = TableStyle([
+                                # 標題行樣式
+                                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                                
+                                # 資料行樣式
+                                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                                
+                                # 邊框
+                                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                                
+                                # 交替行背景色
+                                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+                            ])
+                        
+                        table.setStyle(table_style)
+                        story.append(table)
+                    else:
+                        # 如果工作表沒有資料
+                        if has_chinese_font:
+                            empty_style = ParagraphStyle(
+                                'EmptyStyle',
+                                parent=styles['Normal'],
+                                fontName='ChineseFont'
+                            )
+                        else:
+                            empty_style = styles['Normal']
+                        
+                        empty_para = Paragraph("此工作表無資料", empty_style)
+                        story.append(empty_para)
+                    
+                    # 工作表之間的間距
+                    story.append(Spacer(1, 20))
+                
+                doc.build(story)
+                return buffer.getvalue()
+                
+            except Exception as excel_error:
+                print(f"[ERROR] Excel檔案讀取失敗: {excel_error}")
+                # 如果Excel讀取失敗，創建一個包含錯誤訊息的PDF
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=A4)
+                styles = getSampleStyleSheet()
+                
+                # 使用中文字體樣式
+                if has_chinese_font:
+                    error_style = ParagraphStyle(
+                        'ErrorStyle',
+                        parent=styles['Normal'],
+                        fontName='ChineseFont',
+                        fontSize=10,
+                        leading=14,
+                    )
+                    error_title_style = ParagraphStyle(
+                        'ErrorTitleStyle',
+                        parent=styles['Title'],
+                        fontName='ChineseFont',
+                        fontSize=16,
+                        leading=20,
+                    )
+                else:
+                    error_style = styles['Normal']
+                    error_title_style = styles['Title']
+                
+                story = []
+                
+                
+                error_content = Paragraph(f"檔案讀取失敗：{str(excel_error)}", error_style)
+                story.append(error_content)
+                story.append(Spacer(1, 0.2*inch))
+                
+                suggestion = Paragraph("建議：請檢查檔案格式是否正確，或嘗試另存為新的Excel檔案。", error_style)
+                story.append(suggestion)
+                
+                doc.build(story)
+                return buffer.getvalue()
         
-        # 處理Word檔案 (簡化處理)
-        elif file_extension in ['doc', 'docx']:
-            # 創建簡單的PDF，顯示檔案名稱
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4)
-            styles = getSampleStyleSheet()
-            story = []
-            
-            title = Paragraph(f"<b>{filename}</b>", styles['Title'])
-            story.append(title)
-            story.append(Spacer(1, 0.5*inch))
-            
-            content = Paragraph("Word檔案內容已上傳，請使用專門的文件檢視器開啟。", styles['Normal'])
-            story.append(content)
-            
-            doc.build(story)
-            return buffer.getvalue()
+        # 處理Word檔案
+        elif file_extension == 'docx':
+            try:
+                # .docx 使用 python-docx
+                pdf_content = word_to_pdf_docx(file_content, filename, has_chinese_font)
+                if pdf_content:
+                    return pdf_content
+                
+                # 如果失敗，返回佔位符 PDF
+                return create_word_placeholder_pdf(filename, has_chinese_font)
+                
+            except Exception as word_error:
+                print(f"[ERROR] Word 檔案處理失敗: {word_error}")
+                return create_word_placeholder_pdf(filename, has_chinese_font)
         
         else:
-            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {file_extension}")
+            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {file_extension}。支援的格式: pdf, xls, xlsx, docx")
             
     except Exception as e:
         print(f"[ERROR] 檔案轉換失敗: {e}")
-        raise HTTPException(status_code=500, detail="檔案轉換失敗")
+        error_detail = f"資料轉換失敗：{str(e)}"
+        if "Excel" in str(e) or "openpyxl" in str(e) or "xlrd" in str(e):
+            error_detail = f"Excel檔案讀取失敗：{str(e)}。請檢查檔案是否損壞或格式是否正確。"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 class RAGKnowledgeBase(BaseModel):
     title: str
@@ -356,10 +786,37 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
         if knowledge_data.files:
             for file_info in knowledge_data.files:
                 filename = file_info.get('filename')
-                file_content = base64.b64decode(file_info.get('content', ''))
+                base64_content = file_info.get('content', '')
+                frontend_converted = file_info.get('frontend_converted', False)
                 
-                # 轉換為A4 PDF
-                pdf_content = convert_file_to_pdf(file_content, filename)
+                print(f"[DEBUG] 處理檔案: {filename}, 前端已轉換: {frontend_converted}")
+                print(f"[DEBUG] base64_content 前100個字元: {base64_content[:100]}")
+                
+                # 解碼檔案內容 - 檢查是否有 data URL 前綴
+                if base64_content.startswith('data:'):
+                    # 移除 data URL 前綴
+                    base64_data = base64_content.split(',', 1)[1]
+                    print(f"[DEBUG] 移除前綴後的 base64 前50個字元: {base64_data[:50]}")
+                else:
+                    base64_data = base64_content
+                
+                file_content = base64.b64decode(base64_data)
+                
+                # 如果是前端已轉換的檔案，直接使用內容
+                if frontend_converted:
+                    print(f"[DEBUG] 使用前端已轉換的內容: {filename}")
+                    print(f"[DEBUG] 前端轉換內容大小: {len(file_content)} bytes")
+                    pdf_content = file_content
+                else:
+                    # 非前端轉換的檔案，使用後端轉換
+                    print(f"[DEBUG] 使用後端轉換: {filename}")
+                    pdf_content = convert_file_to_pdf(file_content, filename)
+                
+                # 計算內容雜湊用於除錯
+                import hashlib
+                content_hash = hashlib.md5(pdf_content).hexdigest()[:8]
+                print(f"[DEBUG] PDF 內容雜湊: {content_hash}, 大小: {len(pdf_content)} bytes")
+                
                 pdf_files.append({
                     'filename': filename,
                     'pdf_content': pdf_content
@@ -413,7 +870,12 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
                 for file_info in pdf_files:
                     # 檢查是否已經存在相同檔名，如果存在就跳過
                     if file_info['filename'] not in new_file_names:
-                        new_file_content.append(file_info['pdf_content'].hex())
+                        hex_content = file_info['pdf_content'].hex()
+                        print(f"[DEBUG] 準備更新 DB - 檔案: {file_info['filename']}")
+                        print(f"[DEBUG] hex 內容長度: {len(hex_content)} 字元")
+                        print(f"[DEBUG] hex 前20字元: {hex_content[:20]}")
+                        print(f"[DEBUG] hex 後20字元: {hex_content[-20:]}")
+                        new_file_content.append(hex_content)
                         new_file_names.append(file_info['filename'])
                 
                 sql = """

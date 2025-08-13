@@ -1,1 +1,3 @@
 *.pyc
+excel_pdf/
+__pycache__/
