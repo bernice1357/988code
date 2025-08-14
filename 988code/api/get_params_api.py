@@ -246,3 +246,4 @@ def get_sales_change_data_by_threshold(threshold: float):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    

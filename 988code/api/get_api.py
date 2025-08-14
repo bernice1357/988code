@@ -373,3 +373,40 @@ def get_rag_content(title: str):
                     }
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 得到每月銷量預測資料
+@router.get("/get_monthly_sales_predictions")
+def get_monthly_sales_predictions():
+    print("[API] get_monthly_sales_predictions 被呼叫")
+    try:
+        query = """
+        SELECT 
+            product_id,
+            product_name,
+            subcategory,
+            prediction_level,
+            prediction_value,
+            volatility_group,
+            month_minus_3,
+            month_minus_2,
+            month_minus_1,
+            cv_value,
+            allocation_ratio,
+            prediction_method,
+            batch_id,
+            created_at,
+            updated_at
+        FROM monthly_sales_predictions
+        ORDER BY subcategory, product_id
+        """
+        df = get_data_from_db(query)
+        result = df.to_dict(orient="records")
+        print(f"[API] 返回 {len(result)} 筆資料")
+        if result:
+            print(f"[API] 第一筆資料: {result[0]}")
+        return result
+    except Exception as e:
+        print(f"[API ERROR] get_monthly_sales_predictions: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
