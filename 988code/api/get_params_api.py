@@ -247,3 +247,66 @@ def get_sales_change_data_by_threshold(threshold: float):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
     
+# 根據客戶ID獲取配送計劃
+@router.get("/get_delivery_schedule_by_customer/{customer_id}")
+def get_delivery_schedule_by_customer(customer_id: str):
+    try:
+        query = """
+        SELECT customer_id, customer_name, product_name, status, quantity, 
+               delivery_date, created_at, updated_at
+        FROM delivery_schedule
+        WHERE customer_id = %s
+        ORDER BY delivery_date DESC
+        """
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據產品名稱獲取配送計劃
+@router.get("/get_delivery_schedule_by_product/{product_name}")
+def get_delivery_schedule_by_product(product_name: str):
+    try:
+        query = """
+        SELECT customer_id, customer_name, product_name, status, quantity, 
+               delivery_date, created_at, updated_at
+        FROM delivery_schedule
+        WHERE product_name = %s
+        ORDER BY delivery_date DESC, customer_id
+        """
+        df = get_data_from_db_with_params(query, (product_name,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據狀態獲取配送計劃
+@router.get("/get_delivery_schedule_by_status/{status}")
+def get_delivery_schedule_by_status(status: str):
+    try:
+        query = """
+        SELECT customer_id, customer_name, product_name, status, quantity, 
+               delivery_date, created_at, updated_at
+        FROM delivery_schedule
+        WHERE status = %s
+        ORDER BY delivery_date DESC, customer_id
+        """
+        df = get_data_from_db_with_params(query, (status,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 獲取指定日期範圍的配送計劃
+@router.get("/get_delivery_schedule_by_date_range/{start_date}/{end_date}")
+def get_delivery_schedule_by_date_range(start_date: str, end_date: str):
+    try:
+        query = """
+        SELECT customer_id, customer_name, product_name, status, quantity, 
+               delivery_date, created_at, updated_at
+        FROM delivery_schedule
+        WHERE DATE(delivery_date) BETWEEN %s AND %s
+        ORDER BY delivery_date ASC, customer_id
+        """
+        df = get_data_from_db_with_params(query, (start_date, end_date))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

@@ -410,3 +410,282 @@ def get_monthly_sales_predictions():
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 獲取每日配送預測資料 - 適配現有表結構
+@router.get("/get_delivery_schedule")
+def get_delivery_schedule():
+    print("[API] get_delivery_schedule 被呼叫")
+    try:
+        query = """
+        SELECT ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+               ds.created_at, ds.updated_at, ds.scheduled_at,
+               COALESCE(ot.customer_id, 'N/A') as customer_id,
+               COALESCE(ot.customer_name, '未知客戶') as customer_name,
+               COALESCE(ot.product_name, '未知產品') as product_name
+        FROM delivery_schedule ds
+        LEFT JOIN order_transactions ot ON ds.source_order_id::text = ot.id::text
+        ORDER BY ds.delivery_date DESC, ds.id
+        """
+        df = get_data_from_db(query)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據日期篩選配送預測 - 適配現有表結構
+@router.get("/get_delivery_schedule_by_date/{delivery_date}")
+def get_delivery_schedule_by_date(delivery_date: str):
+    print(f"[API] get_delivery_schedule_by_date 被呼叫，日期：{delivery_date}")
+    try:
+        query = """
+        SELECT ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+               ds.created_at, ds.updated_at, ds.scheduled_at,
+               COALESCE(ot.customer_id, 'N/A') as customer_id,
+               COALESCE(ot.customer_name, '未知客戶') as customer_name,
+               COALESCE(ot.product_name, '未知產品') as product_name
+        FROM delivery_schedule ds
+        LEFT JOIN order_transactions ot ON ds.source_order_id::text = ot.id::text
+        WHERE DATE(ds.delivery_date) = %s
+        ORDER BY ds.id
+        """
+        # 使用參數化查詢
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (delivery_date,))
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                df = pd.DataFrame(rows, columns=columns)
+        
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule_by_date: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據類別篩選配送預測 - 適配現有表結構
+@router.get("/get_delivery_schedule_by_category/{category}")
+def get_delivery_schedule_by_category(category: str):
+    print(f"[API] get_delivery_schedule_by_category 被呼叫，類別：{category}")
+    try:
+        if category == "全部類別":
+            query = """
+            SELECT ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+                   ds.created_at, ds.updated_at, ds.scheduled_at,
+                   COALESCE(ot.customer_id, 'N/A') as customer_id,
+                   COALESCE(ot.customer_name, '未知客戶') as customer_name,
+                   COALESCE(ot.product_name, '未知產品') as product_name,
+                   COALESCE(pm.category, '未知類別') as category
+            FROM delivery_schedule ds
+            LEFT JOIN order_transactions ot ON ds.source_order_id::text = ot.id::text
+            LEFT JOIN product_master pm ON ot.product_name = pm.name_zh
+            ORDER BY ds.delivery_date DESC, ds.id
+            """
+            df = get_data_from_db(query)
+        else:
+            query = """
+            SELECT ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+                   ds.created_at, ds.updated_at, ds.scheduled_at,
+                   COALESCE(ot.customer_id, 'N/A') as customer_id,
+                   COALESCE(ot.customer_name, '未知客戶') as customer_name,
+                   COALESCE(ot.product_name, '未知產品') as product_name,
+                   pm.category
+            FROM delivery_schedule ds
+            LEFT JOIN order_transactions ot ON ds.source_order_id::text = ot.id::text
+            LEFT JOIN product_master pm ON ot.product_name = pm.name_zh
+            WHERE pm.category = %s
+            ORDER BY ds.delivery_date DESC, ds.id
+            """
+            with psycopg2.connect(
+                dbname='988',
+                user='n8n',
+                password='1234',
+                host='26.210.160.206',
+                port='5433'
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, (category,))
+                    rows = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    df = pd.DataFrame(rows, columns=columns)
+        
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule_by_category: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據日期和類別同時篩選 - 適配現有表結構
+@router.get("/get_delivery_schedule_filtered")
+def get_delivery_schedule_filtered(delivery_date: str = None, category: str = None):
+    print(f"[API] get_delivery_schedule_filtered 被呼叫，日期：{delivery_date}，類別：{category}")
+    try:
+        # 修復後的查詢，簡化 JOIN 邏輯
+        base_query = """
+        SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+               ds.created_at, ds.updated_at, ds.scheduled_at,
+               ds.customer_id,
+               ds.customer_name,
+               ds.product_name
+        FROM delivery_schedule ds
+        WHERE 1=1
+        """
+        
+        params = []
+        
+        if delivery_date:
+            base_query += " AND DATE(ds.delivery_date) = %s"
+            params.append(delivery_date)
+        
+        # 如果需要根據類別篩選，需要 JOIN product_master 表
+        if category and category != "全部類別":
+            base_query = """
+            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+                   ds.created_at, ds.updated_at, ds.scheduled_at,
+                   ds.customer_id,
+                   ds.customer_name,
+                   ds.product_name,
+                   pm.category
+            FROM delivery_schedule ds
+            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
+            WHERE 1=1
+            """
+            
+            if delivery_date:
+                base_query += " AND DATE(ds.delivery_date) = %s"
+            
+            base_query += " AND pm.category = %s"
+            params.append(category)
+        
+        base_query += " ORDER BY ds.delivery_date DESC, ds.id"
+        
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(base_query, tuple(params))
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                df = pd.DataFrame(rows, columns=columns)
+        
+        print(f"[API] 查詢成功，返回 {len(df)} 筆資料")
+        return df.to_dict(orient="records")
+        
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule_filtered: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"資料庫查詢失敗: {str(e)}")
+
+
+# 同時修復其他相關的 delivery_schedule API 函數
+
+# 獲取每日配送預測資料 - 適配現有表結構
+@router.get("/get_delivery_schedule")
+def get_delivery_schedule():
+    print("[API] get_delivery_schedule 被呼叫")
+    try:
+        query = """
+        SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+               ds.created_at, ds.updated_at, ds.scheduled_at,
+               ds.customer_id,
+               ds.customer_name,
+               ds.product_name
+        FROM delivery_schedule ds
+        ORDER BY ds.delivery_date DESC, ds.id
+        """
+        df = get_data_from_db(query)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據日期篩選配送預測 - 適配現有表結構
+@router.get("/get_delivery_schedule_by_date/{delivery_date}")
+def get_delivery_schedule_by_date(delivery_date: str):
+    print(f"[API] get_delivery_schedule_by_date 被呼叫，日期：{delivery_date}")
+    try:
+        query = """
+        SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+               ds.created_at, ds.updated_at, ds.scheduled_at,
+               ds.customer_id,
+               ds.customer_name,
+               ds.product_name
+        FROM delivery_schedule ds
+        WHERE DATE(ds.delivery_date) = %s
+        ORDER BY ds.id
+        """
+        # 使用參數化查詢
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (delivery_date,))
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                df = pd.DataFrame(rows, columns=columns)
+        
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule_by_date: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據類別篩選配送預測 - 適配現有表結構
+@router.get("/get_delivery_schedule_by_category/{category}")
+def get_delivery_schedule_by_category(category: str):
+    print(f"[API] get_delivery_schedule_by_category 被呼叫，類別：{category}")
+    try:
+        if category == "全部類別":
+            query = """
+            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+                   ds.created_at, ds.updated_at, ds.scheduled_at,
+                   ds.customer_id,
+                   ds.customer_name,
+                   ds.product_name,
+                   COALESCE(pm.category, '未知類別') as category
+            FROM delivery_schedule ds
+            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
+            ORDER BY ds.delivery_date DESC, ds.id
+            """
+            df = get_data_from_db(query)
+        else:
+            query = """
+            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
+                   ds.created_at, ds.updated_at, ds.scheduled_at,
+                   ds.customer_id,
+                   ds.customer_name,
+                   ds.product_name,
+                   pm.category
+            FROM delivery_schedule ds
+            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
+            WHERE pm.category = %s
+            ORDER BY ds.delivery_date DESC, ds.id
+            """
+            with psycopg2.connect(
+                dbname='988',
+                user='n8n',
+                password='1234',
+                host='26.210.160.206',
+                port='5433'
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, (category,))
+                    rows = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    df = pd.DataFrame(rows, columns=columns)
+        
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[API ERROR] get_delivery_schedule_by_category: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
