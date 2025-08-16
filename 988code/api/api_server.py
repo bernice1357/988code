@@ -27,10 +27,3 @@ app.include_router(role_router)
 app.include_router(import_data_router)
 app.include_router(schedule_router)
 
-@app.get("/")
-async def root():
-    return {"message": "988 API Server is running", "status": "healthy"}
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok", "timestamp": "2025-08-16"}
