@@ -394,7 +394,7 @@ def update_inactive_customer(customer_name: str, update_data: InactiveCustomerUp
 
 # 批量更新不活躍客戶處理狀態
 class BatchInactiveCustomerUpdate(BaseModel):
-    customer_names: list[str]
+    customer_names: List[str]
     processed: bool = True
     processed_by: Optional[str] = None
 
@@ -1040,7 +1040,7 @@ def update_delivery_schedule(record_id: int, update_data: DeliveryScheduleUpdate
 
 # 批量更新配送狀態
 @router.put("/delivery_schedule/batch_update_status")
-def batch_update_delivery_status(record_ids: list[int], new_status: str):
+def batch_update_delivery_status(record_ids: List[int], new_status: str):
     try:
         placeholders = ",".join(["%s"] * len(record_ids))
         sql = f"""
