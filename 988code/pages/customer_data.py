@@ -3,7 +3,67 @@ from components.offcanvas import create_search_offcanvas, register_offcanvas_cal
 from callbacks.export_callback import create_export_callback, add_download_component
 from dash import ALL, callback_context
 
-# TODO MODAL可以改 Id 、名稱、地址、送貨時間、備註
+# 配送日轉換函數
+def convert_delivery_schedule_to_chinese(schedule_str):
+    """
+    將數字配送日轉換為中文字
+    
+    Parameters:
+    - schedule_str: 逗號分隔的數字字符串 (例如: "1,3,5")
+    
+    Returns:
+    - 逗號分隔的中文字符串 (例如: "一,三,五")
+    """
+    if not schedule_str or schedule_str.strip() == "":
+        return ""
+    
+    number_to_chinese = {
+        "1": "一", "2": "二", "3": "三", "4": "四",
+        "5": "五", "6": "六", "7": "日"
+    }
+    
+    try:
+        # 分割數字並轉換為中文
+        numbers = [num.strip() for num in schedule_str.split(',') if num.strip()]
+        chinese_days = [number_to_chinese.get(num, num) for num in numbers]
+        return ','.join(chinese_days)
+    except:
+        return schedule_str
+
+def convert_delivery_schedule_to_numbers(chinese_str):
+    """
+    將中文配送日轉換為數字
+    
+    Parameters:
+    - chinese_str: 逗號分隔的中文字符串或列表 (例如: "一,三,五" 或 ["一", "三", "五"])
+    
+    Returns:
+    - 逗號分隔的數字字符串 (例如: "1,3,5")
+    """
+    if not chinese_str:
+        return ""
+    
+    chinese_to_number = {
+        "一": "1", "二": "2", "三": "3", "四": "4",
+        "五": "5", "六": "6", "日": "7"
+    }
+    
+    try:
+        # 處理列表格式 (來自 checklist)
+        if isinstance(chinese_str, list):
+            chinese_days = chinese_str
+        else:
+            # 處理字符串格式
+            chinese_days = [day.strip() for day in chinese_str.split(',') if day.strip()]
+        
+        # 按照順序排列數字
+        day_order = ["1", "2", "3", "4", "5", "6", "7"]
+        numbers = [chinese_to_number.get(day, day) for day in chinese_days]
+        # 按照星期順序排列
+        sorted_numbers = [num for num in day_order if num in numbers]
+        return ','.join(sorted_numbers)
+    except:
+        return ""
 
 # offcanvas
 product_input_fields = [
@@ -28,12 +88,13 @@ search_customers = create_search_offcanvas(
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="customer-data", data=[]),
+    dcc.Store(id="user-role-store"),
     dcc.Store(id="current-table-data", data=[]),
     add_download_component("customer_data"),  # 加入下載元件
     # 篩選條件區
     html.Div([
         search_customers["trigger_button"],
-        dbc.Button("匯出列表資料", id="customer_data-export-button", n_clicks=0, outline=True, color="info")
+        dbc.Button("匯出列表資料", id="customer_data-export-button", n_clicks=0, outline=True, color="primary")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     search_customers["offcanvas"],
     dcc.Loading(
@@ -99,9 +160,11 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     ),
     success_toast("customer_data", message=""),
     error_toast("customer_data", message=""),
+    warning_toast("customer_data", message=""),
 ])
 
 register_offcanvas_callback(app, "customer_data")
+
 
 # 註冊匯出功能 - 使用當前表格資料
 create_export_callback(app, "customer_data", "current-table-data", "客戶資料")
@@ -189,6 +252,10 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
             "notes": "備註"
         })
     
+    # 轉換配送日數字為中文字
+    if "每週配送日" in df.columns:
+        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
+    
     if selected_customer_id:
         df = df[df['客戶ID'] == selected_customer_id]
     
@@ -259,6 +326,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
         row_data = df.iloc[button_index]
         
         # 處理每週配送日的資料格式
+        # 注意：這裡的 row_data 來自顯示表格，已經是中文格式
         delivery_schedule = row_data['每週配送日']
         if isinstance(delivery_schedule, str) and delivery_schedule:
             delivery_schedule_list = [day.strip() for day in delivery_schedule.split(',')]
@@ -280,6 +348,8 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     Output('customer_data-success-toast', 'children'),
     Output('customer_data-error-toast', 'is_open', allow_duplicate=True),
     Output('customer_data-error-toast', 'children', allow_duplicate=True),
+    Output('customer_data-warning-toast', 'is_open'),
+    Output('customer_data-warning-toast', 'children'),
     Input('input-customer-save', 'n_clicks'),
     State('input-customer-name', 'value'),
     State('input-customer-id', 'value'),
@@ -290,11 +360,12 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State("customer-data", "data"),
     State("customer_data-customer-id", "value"),
     State("customer_data-customer-name", "value"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name):
+def save_customer_data(save_clicks, customer_name, customer_id, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name, user_role):
     if not save_clicks:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     ctx = callback_context
     button_index = None
@@ -305,7 +376,7 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
             break
     
     if button_index is None:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     # 重新篩選資料，確保 index 對應正確
     df = pd.DataFrame(customer_data)
@@ -333,15 +404,8 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
     row_data = df.iloc[button_index]
     original_id = row_data['客戶ID']
     
-    # 處理多選框的值，將列表轉換為字串並按順序排列
-    if isinstance(delivery_schedule, list):
-        # 定義順序
-        day_order = ["一", "二", "三", "四", "五", "六", "日"]
-        # 按照順序排列
-        sorted_days = [day for day in day_order if day in delivery_schedule]
-        delivery_schedule_str = ','.join(sorted_days)
-    else:
-        delivery_schedule_str = delivery_schedule or ""
+    # 處理多選框的值，將中文轉換為數字再存入資料庫
+    delivery_schedule_str = convert_delivery_schedule_to_numbers(delivery_schedule)
     
     update_data = {
         "customer_name": customer_name,
@@ -352,13 +416,17 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
     }
     
     try:
+        # 使用從 localStorage 取得的真實角色
+        update_data["user_role"] = user_role or "viewer"
         response = requests.put(f"http://127.0.0.1:8000/customer/{original_id}", json=update_data)
         if response.status_code == 200:
-            return False, True, "客戶資料更新成功！", False, ""
+            return False, True, "客戶資料更新成功！", False, "", False, ""
+        elif response.status_code == 403:
+            return dash.no_update, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
         else:
-            return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}"
+            return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}", False, ""
     except Exception as e:
-        return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}"
+        return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}", False, ""
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),

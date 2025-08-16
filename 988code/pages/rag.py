@@ -607,6 +607,9 @@ layout = dbc.Container([
         # Toast 通知
         success_toast("rag", message=""),
         error_toast("rag", message=""),
+        warning_toast("rag", message=""),
+        # 用戶角色存儲
+        dcc.Store(id='user-role-store'),
     
     dcc.Loading(
         id="loading-full-page",
@@ -758,12 +761,15 @@ def toggle_modal(open_click, close_click, add_click, is_open):
     Output("client-list", "children"),
     Output('rag-error-toast', 'is_open', allow_duplicate=True),
     Output('rag-error-toast', 'children', allow_duplicate=True),
+    Output('rag-warning-toast', 'is_open', allow_duplicate=True),
+    Output('rag-warning-toast', 'children', allow_duplicate=True),
     Input("add-client", "n_clicks"),
     State("new-client-name", "value"),
     State("client-list", "children"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def add_client(n_clicks, new_name, current_list):
+def add_client(n_clicks, new_name, current_list, user_role):
     if not new_name:
         raise PreventUpdate
     
@@ -777,7 +783,8 @@ def add_client(n_clicks, new_name, current_list):
         
         # 呼叫API在資料庫新增記錄
         import requests
-        response = requests.put("http://127.0.0.1:8000/put/rag/save_knowledge", json=knowledge_data)
+        knowledge_data["user_role"] = user_role or "viewer"
+        response = requests.put("http://127.0.0.1:8000/rag/save_knowledge", json=knowledge_data)
         
         if response.status_code == 200:
             # 資料庫新增成功，更新UI
@@ -798,17 +805,19 @@ def add_client(n_clicks, new_name, current_list):
                 }
             )
             current_list.append(new_item)
-            return current_list, False, ""
+            return current_list, False, "", False, ""
+        elif response.status_code == 403:
+            return current_list, False, "", True, "權限不足：僅限編輯者使用此功能"
         else:
             try:
                 error_msg = response.json().get('detail', '新增失敗')
             except:
                 error_msg = f"HTTP {response.status_code}"
-            return current_list, True, f"新增失敗：{error_msg}"
+            return current_list, True, f"新增失敗：{error_msg}", False, ""
             
     except Exception as e:
         print(f"[ERROR] 新增條目失敗: {e}")
-        return current_list, True, f"新增條目失敗：{str(e)}"
+        return current_list, True, f"新增條目失敗：{str(e)}", False, ""
 
 # 儲存已上傳檔案的變數（模擬全局狀態）
 uploaded_files_store = []
@@ -1568,13 +1577,16 @@ def show_delete_confirmation_modal(n_clicks, is_open, current_content):
     Output("delete-modal", "is_open", allow_duplicate=True),
     Output("client-list", "children", allow_duplicate=True),
     Output("content-area", "children", allow_duplicate=True),
+    Output('rag-warning-toast', 'is_open', allow_duplicate=True),
+    Output('rag-warning-toast', 'children', allow_duplicate=True),
     Input("confirm-delete-modal", "n_clicks"),
     Input("cancel-delete-modal", "n_clicks"),
     State("delete-modal", "is_open"),
     State("client-list", "children"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_list):
+def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_list, user_role):
     global item_to_delete
     
     ctx = callback_context
@@ -1586,14 +1598,17 @@ def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_
     # 如果點擊取消按鈕，關閉Modal
     if 'cancel-delete-modal' in triggered_button:
         item_to_delete = None
-        return False, current_list, no_update
+        return False, current_list, no_update, False, ""
     
     # 如果點擊確認刪除按鈕
     if 'confirm-delete-modal' in triggered_button and item_to_delete:
         try:
             # 呼叫API從資料庫刪除記錄
             import requests
-            response = requests.put(f"http://127.0.0.1:8000/put/rag/delete_knowledge/{item_to_delete}")
+            response = requests.put(
+                f"http://127.0.0.1:8000/rag/delete_knowledge/{item_to_delete}",
+                params={"user_role": user_role or "viewer"}
+            )
             
             if response.status_code == 200:
                 # 資料庫刪除成功，從UI列表中移除選中的條目
@@ -1617,17 +1632,21 @@ def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_
                 ], style={"height": "100%", "display": "flex", "flexDirection": "column"})
                 
                 # 關閉Modal，更新列表，返回默認內容區域
-                return False, updated_list, default_content
+                return False, updated_list, default_content, False, ""
+            elif response.status_code == 403:
+                # 權限不足，顯示警告並關閉Modal
+                item_to_delete = None
+                return False, current_list, no_update, True, "權限不足：僅限編輯者使用此功能"
             else:
                 # 刪除失敗，保持現狀但關閉Modal
                 item_to_delete = None
-                return False, current_list, no_update
+                return False, current_list, no_update, False, ""
                 
         except Exception as e:
             print(f"[ERROR] 刪除條目失敗: {e}")
             # 發生錯誤，保持現狀但關閉Modal
             item_to_delete = None
-            return False, current_list, no_update
+            return False, current_list, no_update, False, ""
     
     raise PreventUpdate
 
@@ -1638,6 +1657,8 @@ def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_
     Output('rag-success-toast', 'children', allow_duplicate=True),
     Output('rag-error-toast', 'is_open', allow_duplicate=True),
     Output('rag-error-toast', 'children', allow_duplicate=True),
+    Output('rag-warning-toast', 'is_open', allow_duplicate=True),
+    Output('rag-warning-toast', 'children', allow_duplicate=True),
     Output("database-files-list", "children", allow_duplicate=True),
     Output("pending-files-list", "children", allow_duplicate=True),
     Output("client-list", "children", allow_duplicate=True),
@@ -1645,16 +1666,17 @@ def handle_delete_modal_buttons(confirm_clicks, cancel_clicks, is_open, current_
     State("title-input", "value"),
     State("content-input", "value"),
     State("client-list", "children"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def handle_save_button(n_clicks, title, text_content, current_list):
+def handle_save_button(n_clicks, title, text_content, current_list, user_role):
     global uploaded_files_store, current_selected_item
     
     if not n_clicks:
         raise PreventUpdate
     
     if not title:
-        return False, "", True, "請輸入標題", no_update, no_update, no_update
+        return False, "", True, "請輸入標題", False, "", no_update, no_update, no_update
     
     try:
         # 檢查標題是否有變更，如果有變更先更新標題
@@ -1666,14 +1688,17 @@ def handle_save_button(n_clicks, title, text_content, current_list):
                 "old_title": current_selected_item,
                 "new_title": title
             }
-            response = requests.put("http://127.0.0.1:8000/put/rag/update_title", json=update_data)
+            update_data["user_role"] = user_role or "viewer"
+            response = requests.put("http://127.0.0.1:8000/rag/update_title", json=update_data)
             
             if response.status_code == 200:
                 title_updated = True
                 current_selected_item = title
+            elif response.status_code == 403:
+                return False, "", False, "", True, "權限不足：僅限編輯者使用此功能", no_update, no_update, no_update
             else:
                 error_msg = response.json().get('detail', '標題更新失敗')
-                return False, "", True, f"標題更新失敗：{error_msg}", no_update, no_update, no_update
+                return False, "", True, f"標題更新失敗：{error_msg}", False, "", no_update, no_update, no_update
         
         # 準備檔案數據
         files_data = []
@@ -1711,7 +1736,8 @@ def handle_save_button(n_clicks, title, text_content, current_list):
         
         # 呼叫API儲存內容
         import requests
-        response = requests.put("http://127.0.0.1:8000/put/rag/save_knowledge", json=knowledge_data)
+        knowledge_data["user_role"] = user_role or "viewer"
+        response = requests.put("http://127.0.0.1:8000/rag/save_knowledge", json=knowledge_data)
         
         if response.status_code == 200:
             # 清空上傳檔案暫存（因為已經儲存到資料庫）
@@ -1803,26 +1829,31 @@ def handle_save_button(n_clicks, title, text_content, current_list):
             if title_updated:
                 success_msg = "標題和內容儲存成功！"
             
-            return True, success_msg, False, "", db_content, pending_content, updated_list
+            return True, success_msg, False, "", False, "", db_content, pending_content, updated_list
+        elif response.status_code == 403:
+            return False, "", False, "", True, "權限不足：僅限編輯者使用此功能", no_update, no_update, no_update
         else:
             error_msg = response.json().get('detail', '儲存失敗')
-            return False, "", True, f"儲存失敗：{error_msg}", no_update, no_update, no_update
+            return False, "", True, f"儲存失敗：{error_msg}", False, "", no_update, no_update, no_update
             
     except Exception as e:
         print(f"[ERROR] 儲存失敗: {e}")
-        return False, "", True, f"儲存失敗：{str(e)}", no_update, no_update, no_update
+        return False, "", True, f"儲存失敗：{str(e)}", False, "", no_update, no_update, no_update
 
 # 處理刪除已存在檔案
 @app.callback(
     Output('rag-success-toast', 'is_open', allow_duplicate=True),
     Output('rag-success-toast', 'children', allow_duplicate=True),
+    Output('rag-warning-toast', 'is_open', allow_duplicate=True),
+    Output('rag-warning-toast', 'children', allow_duplicate=True),
     Output("database-files-list", "children", allow_duplicate=True),
     Input({"type": "delete-existing-file-btn", "index": ALL}, "n_clicks"),
     State("title-input", "value"),
     State("content-input", "value"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def delete_existing_file(n_clicks_list, title, text_content):
+def delete_existing_file(n_clicks_list, title, text_content, user_role):
     ctx = callback_context
     if not ctx.triggered or not any(n_clicks_list) or not title:
         raise PreventUpdate
@@ -1850,7 +1881,8 @@ def delete_existing_file(n_clicks_list, title, text_content):
         }
         
         # 更新資料庫，清除file_content和file_name
-        response = requests.put("http://127.0.0.1:8000/put/rag/save_knowledge", json=knowledge_data)
+        knowledge_data["user_role"] = user_role or "viewer"
+        response = requests.put("http://127.0.0.1:8000/rag/save_knowledge", json=knowledge_data)
         
         if response.status_code == 200:
             # 重新載入檔案列表
@@ -1894,13 +1926,15 @@ def delete_existing_file(n_clicks_list, title, text_content):
                             db_files_content.append(file_item)
                     
                     db_content = dbc.ListGroup(db_files_content, flush=True) if db_files_content else html.P("無檔案", style={"color": "#6c757d", "textAlign": "center", "margin": "20px 0"})
-                    return True, "檔案刪除成功！", db_content
+                    return True, "檔案刪除成功！", False, "", db_content
                 else:
                     db_content = html.P("無檔案", style={"color": "#6c757d", "textAlign": "center", "margin": "20px 0"})
-                return True, "檔案刪除成功！", db_content
+                return True, "檔案刪除成功！", False, "", db_content
             except:
                 db_content = html.P("無檔案", style={"color": "#6c757d", "textAlign": "center", "margin": "20px 0"})
-                return True, "檔案刪除成功！", db_content
+                return True, "檔案刪除成功！", False, "", db_content
+        elif response.status_code == 403:
+            return False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update
         else:
             # 刪除失敗，保持現狀
             raise PreventUpdate

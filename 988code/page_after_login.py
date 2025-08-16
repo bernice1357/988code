@@ -1,7 +1,7 @@
 from dash import dcc, html
 from pages.common import *
 import dash_bootstrap_components as dbc
-from callbacks import main_callbacks, sidebar_callbacks, breadcrumb_callbacks
+from callbacks import category_plot_callback, area_plot_callback, main_callbacks, sidebar_callbacks, breadcrumb_callbacks
 
 sidebar = html.Div(
     [

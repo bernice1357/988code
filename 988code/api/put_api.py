@@ -20,7 +20,7 @@ import openpyxl
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib import colors
 
-router = APIRouter(prefix="/put")
+router = APIRouter()
 
 def word_to_pdf_win32com(file_content, filename):
     """使用 win32com 將 Word 轉換為 PDF（最佳格式保留）"""
@@ -276,6 +276,11 @@ def query_data_from_db(sql_prompt: str, params: tuple = ()):
         print(f"[DB ERROR] {e}")
         raise
 
+def check_editor_permission(user_role: str):
+    """檢查是否有編輯權限"""
+    if user_role != 'editor':
+        raise HTTPException(status_code=403, detail="權限不足：僅限編輯者使用此功能")
+
 class RecordUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
@@ -284,11 +289,13 @@ class RecordUpdate(BaseModel):
     status: Optional[str] = None
     confirmed_by: Optional[str] = None
     confirmed_at: Optional[datetime] = None
+    user_role: str
 
 # 更新暫存訂單
 @router.put("/temp/{id}")
 def update_temp(id: int, update_data: RecordUpdate):
-    update_fields = update_data.dict(exclude_none=True)
+    check_editor_permission(update_data.user_role)
+    update_fields = update_data.dict(exclude_none=True, exclude={'user_role'})
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
@@ -315,10 +322,12 @@ class CustomerUpdate(BaseModel):
     address: Optional[str] = None
     notes: Optional[str] = None
     delivery_schedule: Optional[str] = None  # 新增此欄位
+    user_role: str
 
 @router.put("/customer/{customer_id}")
 def update_customer(customer_id: str, update_data: CustomerUpdate):
-    update_fields = update_data.dict(exclude_none=True)
+    check_editor_permission(update_data.user_role)
+    update_fields = update_data.dict(exclude_none=True, exclude={'user_role'})
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
@@ -342,9 +351,11 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
 class ItemSubcategoryUpdate(BaseModel):
     item_id: str
     new_subcategory: str
+    user_role: str
 
 @router.put("/product_master/update_subcategory")
 def update_item_subcategory(update_data: ItemSubcategoryUpdate):
+    check_editor_permission(update_data.user_role)
     sql = "UPDATE product_master SET subcategory = %s WHERE product_id = %s"
     params = (update_data.new_subcategory, update_data.item_id)
 
@@ -365,10 +376,12 @@ class InactiveCustomerUpdate(BaseModel):
     processed: Optional[bool] = None
     processed_by: Optional[str] = None
     processed_at: Optional[datetime] = None
+    user_role: str
 
 @router.put("/inactive_customer/{customer_name}")
 def update_inactive_customer(customer_name: str, update_data: InactiveCustomerUpdate):
-    update_fields = update_data.dict(exclude_none=True)
+    check_editor_permission(update_data.user_role)
+    update_fields = update_data.dict(exclude_none=True, exclude={'user_role'})
     
     # 如果沒有提供處理時間，自動設定為當前時間
     if update_fields.get('processed') is True and 'processed_at' not in update_fields:
@@ -397,9 +410,11 @@ class BatchInactiveCustomerUpdate(BaseModel):
     customer_names: List[str]
     processed: bool = True
     processed_by: Optional[str] = None
+    user_role: str
 
 @router.put("/inactive_customers/batch_update")
 def batch_update_inactive_customers(update_data: BatchInactiveCustomerUpdate):
+    check_editor_permission(update_data.user_role)
     if not update_data.customer_names:
         raise HTTPException(status_code=400, detail="沒有提供客戶名稱列表")
     
@@ -442,7 +457,8 @@ def batch_update_inactive_customers(update_data: BatchInactiveCustomerUpdate):
         raise HTTPException(status_code=500, detail="批量更新失敗")
     
 @router.put("/update_repurchase_reminder/{id}")
-def update_reminder_sent(id: int):
+def update_reminder_sent(id: int, user_role: str):
+    check_editor_permission(user_role)
     sql = "UPDATE repurchase_reminders SET reminder_sent = %s WHERE id = %s"
     params = (True, id)
 
@@ -460,9 +476,11 @@ def update_reminder_sent(id: int):
 # 更新repurchase_note
 class RepurchaseNoteUpdate(BaseModel):
     repurchase_note: str
+    user_role: str
 
 @router.put("/update_repurchase_note/{id}")
 def update_repurchase_note(id: int, update_data: RepurchaseNoteUpdate):
+    check_editor_permission(update_data.user_role)
     sql = "UPDATE repurchase_reminders SET repurchase_note = %s WHERE id = %s"
     params = (update_data.repurchase_note, id)
 
@@ -775,10 +793,12 @@ class RAGKnowledgeBase(BaseModel):
     text_content: Optional[str] = None
     files: Optional[List[dict]] = None  # 包含檔名和base64內容
     delete_file_index: Optional[int] = None  # 要刪除的檔案索引
+    user_role: str
 
 @router.put("/rag/save_knowledge")
 def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
     """儲存RAG知識庫內容，包含文字和檔案"""
+    check_editor_permission(knowledge_data.user_role)
     try:
         # 準備PDF檔案數據
         pdf_files = []
@@ -953,8 +973,9 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
         raise HTTPException(status_code=500, detail=f"知識庫儲存失敗: {str(e)}")
 
 @router.put("/rag/delete_knowledge/{title}")
-def delete_rag_knowledge(title: str):
+def delete_rag_knowledge(title: str, user_role: str):
     """刪除RAG知識庫條目"""
+    check_editor_permission(user_role)
     try:
         sql = "DELETE FROM rag WHERE title = %s"
         params = (title,)
@@ -973,10 +994,12 @@ def delete_rag_knowledge(title: str):
 class RAGTitleUpdate(BaseModel):
     old_title: str
     new_title: str
+    user_role: str
 
 @router.put("/rag/update_title")
 def update_rag_title(update_data: RAGTitleUpdate):
     """更新RAG知識庫條目標題"""
+    check_editor_permission(update_data.user_role)
     try:
         # 檢查新標題是否已存在
         check_sql = "SELECT COUNT(*) FROM rag WHERE title = %s AND title != %s"

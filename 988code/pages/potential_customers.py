@@ -24,7 +24,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ], style={"width": "auto", "marginRight": "10px"}),
             dbc.Button("送出", id="submit-button", color="primary", className="me-2"),
             html.Div([
-                dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="info", outline=True)
+                dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="primary", outline=True)
             ], style={"marginLeft": "auto"})
         ], className="d-flex align-items-center")
     ], className="mb-3"),

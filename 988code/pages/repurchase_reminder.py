@@ -3,6 +3,9 @@ import requests
 from datetime import datetime
 from dash import callback_context, ALL
 from dash.exceptions import PreventUpdate
+from components.toast import warning_toast
+
+# TODO update_repurchase_note再測試
 
 # 設定回購提醒天數
 REPURCHASE_DAYS = 7
@@ -11,8 +14,10 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     dcc.Store(id='customer-data-store'),
     dcc.Store(id='current-edit-index'),
+    dcc.Store(id='user-role-store'),
     success_toast("repurchase_reminder"),
     error_toast("repurchase_reminder"),
+    warning_toast("repurchase_reminder"),
 
     # 編輯備註的Modal
     dbc.Modal([
@@ -41,7 +46,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ], style={"width": "auto", "marginRight": "10px"}),
             dbc.Button("確認", id="confirm-days-button", color="primary", className="me-2"),
             html.Div([
-                dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="info", outline=True)
+                dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="primary", outline=True)
             ], style={"marginLeft": "auto"})
         ], className="d-flex align-items-center")
     ], className="mb-3"),
@@ -69,6 +74,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     ),
 
 ])
+
 
 # 頁面初始化callback
 @app.callback(
@@ -263,14 +269,17 @@ def show_confirm_button(checkbox_values):
      Output("repurchase_reminder-success-toast", "is_open", allow_duplicate=True),
      Output("repurchase_reminder-success-toast", "children", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True)],
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
+     Output("repurchase_reminder-warning-toast", "is_open", allow_duplicate=True),
+     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True)],
     [Input("confirm-reminded-button", "n_clicks")],
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("customer-data-store", "data"),
-     State("repurchase-days-input", "value")],
+     State("repurchase-days-input", "value"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input):
+def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input, user_role):
     if n_clicks is None or n_clicks == 0:
         raise PreventUpdate
     
@@ -293,10 +302,20 @@ def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input):
                 selected_ids.append(int(df.iloc[index]['id']))
         
         # 發送PUT API請求更新提醒狀態
+        has_permission_error = False
         for id in selected_ids:
-            response = requests.put(f"http://127.0.0.1:8000/update_repurchase_reminder/{id}")
-            if response.status_code != 200:
+            response = requests.put(
+                f"http://127.0.0.1:8000/update_repurchase_reminder/{id}",
+                params={"user_role": user_role or "viewer"}
+            )
+            if response.status_code == 403:
+                has_permission_error = True
+                break
+            elif response.status_code != 200:
                 print(f"更新ID {id} 失敗: {response.status_code}")
+        
+        if has_permission_error:
+            return html.Div(), stored_data, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
         
         # 重新載入資料
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -323,16 +342,16 @@ def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input):
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), True, "訂單狀態更改為已確認", False, ""
+            return table_component, df.to_dict('records'), True, "訂單狀態更改為已確認", False, "", False, ""
         else:
-            return html.Div(), stored_data, False, "", True, f"無法重新載入資料，API code: {response.status_code}"
+            return html.Div(), stored_data, False, "", True, f"無法重新載入資料，API code: {response.status_code}", False, ""
             
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
         # 返回錯誤訊息但保持原有資料
-        return html.Div(f"更新失敗: {str(e)}", style={"color": "red"}), stored_data, False, "", True, f"更新失敗: {str(e)}"
+        return html.Div(f"更新失敗: {str(e)}", style={"color": "red"}), stored_data, False, "", True, f"更新失敗: {str(e)}", False, ""
 
 # 處理編輯備註按鈕點擊，打開Modal
 @app.callback(
@@ -397,21 +416,24 @@ def handle_edit_note_modal(edit_clicks, cancel_clicks, save_clicks, stored_data,
      Output("repurchase_reminder-success-toast", "is_open", allow_duplicate=True),
      Output("repurchase_reminder-success-toast", "children", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True)],
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
+     Output("repurchase_reminder-warning-toast", "is_open", allow_duplicate=True),
+     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True)],
     [Input("save-edit-button", "n_clicks")],
     [State("edit-note-textarea", "value"),
      State("customer-data-store", "data"),
      State("current-edit-index", "data"),
-     State("repurchase-days-input", "value")],
+     State("repurchase-days-input", "value"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_input):
+def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_input, user_role):
     if save_clicks is None or save_clicks == 0:
         raise PreventUpdate
     
     try:
         if edit_index is None or not stored_data:
-            return html.Div(), stored_data, False, False, "", True, "無法找到要編輯的資料"
+            return html.Div(), stored_data, False, False, "", True, "無法找到要編輯的資料", False, ""
         
         df = pd.DataFrame(stored_data)
         customer_id = df.iloc[edit_index]['id']
@@ -419,11 +441,16 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
         # 調用API更新備註
         response = requests.put(
             f"http://127.0.0.1:8000/update_repurchase_note/{customer_id}", 
-            json={"repurchase_note": textarea_value or ""}
+            json={
+                "repurchase_note": textarea_value or "",
+                "user_role": user_role or "viewer"
+            }
         )
         
-        if response.status_code != 200:
-            return html.Div(), stored_data, False, False, "", True, f"API更新失敗: {response.status_code}"
+        if response.status_code == 403:
+            return html.Div(), stored_data, False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
+        elif response.status_code != 200:
+            return html.Div(), stored_data, False, False, "", True, f"API更新失敗: {response.status_code}", False, ""
         
         # 重新載入資料
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -449,12 +476,12 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), False, True, "備註已更新", False, ""
+            return table_component, df.to_dict('records'), False, True, "備註已更新", False, "", False, ""
         else:
-            return html.Div(), stored_data, False, False, "", True, f"無法重新載入資料: {response.status_code}"
+            return html.Div(), stored_data, False, False, "", True, f"無法重新載入資料: {response.status_code}", False, ""
         
     except Exception as e:
         print(f"Exception in save_note_edit: {e}")
         import traceback
         traceback.print_exc()
-        return html.Div(), stored_data, False, False, "", True, f"儲存失敗: {str(e)}"
+        return html.Div(), stored_data, False, False, "", True, f"儲存失敗: {str(e)}", False, ""

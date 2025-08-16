@@ -816,12 +816,15 @@ def update_progress(session_data):
      Output("import_data-success-toast", "is_open"),
      Output("import_data-success-toast", "children"),
      Output("import_data-error-toast", "is_open"),
-     Output("import_data-error-toast", "children")],
+     Output("import_data-error-toast", "children"),
+     Output("import_data-warning-toast", "is_open"),
+     Output("import_data-warning-toast", "children")],
     [Input("save-current-files-btn", "n_clicks")],
-    [State("import-session-store", "data")],
+    [State("import-session-store", "data"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def save_current_files(n_clicks, session_data):
+def save_current_files(n_clicks, session_data, user_role):
     global uploaded_files_store, current_data_type
     
     if n_clicks and current_data_type:
@@ -855,15 +858,18 @@ def save_current_files(n_clicks, session_data):
                             decoded_content = base64.b64decode(content_string)
                             
                             try:
-                                # 準備檔案上傳到 API
+                                # 準備檔案和表單資料上傳到 API
                                 files = {
                                     'file': (filename, decoded_content, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                                    }
+                                }
+                                data = {
+                                    'user_role': user_role or 'viewer'
+                                }
                                 
                                 # 呼叫 API 處理檔案
                                 api_url = f"{API_BASE_URL}/import/sales"
                                 logger.info(f"正在處理檔案: {filename}")
-                                response = requests.post(api_url, files=files, timeout=300)  # 5分鐘超時
+                                response = requests.post(api_url, files=files, data=data, timeout=300)  # 5分鐘超時
                                 
                                 logger.info(f"API 回應狀態碼: {response.status_code}")
                                 logger.info(f"API 回應內容: {response.text}")
@@ -892,6 +898,10 @@ def save_current_files(n_clicks, session_data):
                                         logger.error(f"檔案 {filename} 處理失敗: {error_msg}")
                                         # 設置錯誤狀態
                                         session_data['status'] = 'error'
+                                elif response.status_code == 403:
+                                    # 權限不足錯誤 - 直接返回 warning toast
+                                    return ("匯入上傳檔案", True, {"display": "none"}, session_data, 
+                                           False, "", False, "", True, "權限不足：僅限編輯者使用此功能")
                                 else:
                                     try:
                                         error_detail = response.json().get('detail', '未知錯誤')
@@ -924,26 +934,26 @@ def save_current_files(n_clicks, session_data):
                         # 檢查是否有錯誤訊息
                         error_files = [result for result in processing_results if any(keyword in result for keyword in ['錯誤', '失敗', '跳過'])]
                         if error_files:
-                            error_message = f"❌ 檔案處理失敗！\n\n詳細錯誤:\n" + "\n".join(error_files)
-                            return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message
+                            error_message = error_files
+                            return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message, False, ""
                         else:
                             success_message = f"已上傳 {len(current_files)} 個銷貨資料檔案，但未處理任何記錄。請檢查檔案格式或內容。"
                         
                 except Exception as e:
                     error_message = f"處理銷貨資料時發生錯誤: {str(e)}"
-                    return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message
+                    return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message, False, ""
                 
                 # 銷貨資料處理完成，返回成功訊息
-                return "匯入上傳檔案", False, {"display": "none"}, session_data, True, success_message, False, ""
+                return "匯入上傳檔案", False, {"display": "none"}, session_data, True, success_message, False, "", False, ""
             else:
                 # 其他資料類型的一般處理
                 success_message = f"成功匯入 {len(current_files)} 個{type_name}檔案"
-                return "匯入上傳檔案", False, {"display": "none"}, session_data, True, success_message, False, ""
+                return "匯入上傳檔案", False, {"display": "none"}, session_data, True, success_message, False, "", False, ""
         else:
             # 沒有檔案，顯示錯誤 toast
             error_message = "沒有檔案可匯入，請先上傳檔案"
-            return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message
+            return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message, False, ""
     else:
         # 沒有選擇資料類型，顯示錯誤 toast
         error_message = "請先選擇資料類型"
-        return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message
+        return "匯入上傳檔案", False, {"display": "none"}, session_data, False, "", True, error_message, False, ""

@@ -40,7 +40,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             inventory_components["trigger_button"]
         ], className="d-flex align-items-center"),
         html.Div([
-            dbc.Button("匯出列表資料", id="product_inventory-export-button", n_clicks=0, color="info", outline=True)
+            dbc.Button("匯出列表資料", id="product_inventory-export-button", n_clicks=0, color="primary", outline=True)
         ], className="d-flex align-items-center")
     ], className="mb-3 d-flex justify-content-between align-items-center"),
     inventory_components["offcanvas"],
@@ -70,6 +70,11 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ], className="ms-auto d-flex")
         ], id="modal-footer"),
     ], id="group-items-modal", is_open=False, size="xl", centered=True, className="", style={"--bs-modal-bg": "white"}),
+    
+    success_toast("product_inventory", message=""),
+    error_toast("product_inventory", message=""),
+    warning_toast("product_inventory", message=""),
+    dcc.Store(id='user-role-store'),
 ])
 
 register_offcanvas_callback(app, "product_inventory")
@@ -409,20 +414,27 @@ def toggle_management_mode(n_clicks, current_mode):
 
 # 處理儲存變更
 @app.callback(
-    Output("group-items-modal", "is_open", allow_duplicate=True),
+    [Output("group-items-modal", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "children", allow_duplicate=True),
+     Output("product_inventory-error-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-error-toast", "children", allow_duplicate=True),
+     Output("product_inventory-warning-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-warning-toast", "children", allow_duplicate=True)],
     Input("save-changes-button", "n_clicks"),
     [State({"type": "subcategory-change-dropdown", "index": ALL}, "value"),
      State({"type": "new-subcategory-input", "index": ALL}, "value"),
      State("modal-table-data", "data"),
-     State("inventory-modal-title", "children")],
+     State("inventory-modal-title", "children"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_title):
+def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_title, user_role):
     if not n_clicks or n_clicks == 0:
-        return dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     if not modal_title or "商品群組：" not in modal_title:
-        return dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     original_subcategory = modal_title.replace("商品群組：", "")
     
@@ -450,7 +462,8 @@ def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_tit
                     
                     update_payload = {
                         "item_id": item_id,
-                        "new_subcategory": new_subcategory
+                        "new_subcategory": new_subcategory,
+                        "user_role": user_role or "viewer"
                     }
                     
                     response = requests.put(
@@ -461,20 +474,24 @@ def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_tit
                     if response.status_code == 200:
                         success_count += 1
                         print(f"成功更新品項 {item_id} 的商品群組: {original_subcategory} -> {new_subcategory}")
+                    elif response.status_code == 403:
+                        return False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
                     else:
                         print(f"更新品項 {item_id} 失敗: {response.text}")
         
         if total_updates > 0:
-            print(f"共完成 {success_count}/{total_updates} 項品項更新")
+            success_msg = f"共完成 {success_count}/{total_updates} 項品項更新"
+            print(success_msg)
+            return False, True, success_msg, False, "", False, ""
         else:
-            print("沒有發現需要更新的品項")
-        
-        # 關閉 modal，讓使用者回到主表格看到更新
-        return False
+            info_msg = "沒有發現需要更新的品項"
+            print(info_msg)
+            return False, True, info_msg, False, "", False, ""
         
     except Exception as e:
-        print(f"儲存變更時發生錯誤: {e}")
-        return dash.no_update
+        error_msg = f"儲存變更時發生錯誤: {e}"
+        print(error_msg)
+        return False, False, "", True, error_msg, False, ""
 
 # 處理下拉選單變更，顯示/隱藏新商品群組輸入框
 @app.callback(
