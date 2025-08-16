@@ -105,3 +105,7 @@ div[id*="status-dropdown"] .Select-control {
 div[id*="status-dropdown"] .Select-value-label {
     text-align: left !important;
 }
+
+.Select-menu-outer {
+    z-index: 10000000 !important;
+}

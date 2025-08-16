@@ -66,21 +66,20 @@ tab_content = html.Div([
                 html.H6("已選產品", style={"marginBottom": "10px", "fontWeight": "bold"}),
                 html.Div(id="item-badges-container", children=[], style={"display": "flex", "flexWrap": "wrap", "gap": "5px", "minHeight": "30px", "maxWidth": "100%", "overflow": "hidden"})
             ], style={"maxWidth": "550px", "padding": "15px"})
-        ], id="filter-settings-popover", target="filter-settings-button", placement="bottom-start", trigger="click", hide_arrow=False
+        ], id="filter-settings-popover", target="filter-settings-button", placement="bottom-start", trigger="legacy", hide_arrow=False
         , style={
             "maxWidth": "600px",
             "padding": "0px"
         }),
         
         html.Div([
-            html.H4("銷售分析圖表", style={"textAlign": "center", "marginBottom": "20px"}),
-            html.Div(id="item-selected-items-container", children=[], style={"marginTop": "20px"})
+            html.Div(id="item-selected-items-container", children=[], style={"marginTop": "5px"})
         ], style={
             "border": "1px solid #ddd",
             "borderRadius": "8px",
             "padding": "20px",
             "marginTop": "10px",
-            "height": "60vh"
+            "height": "66vh"
         })
     ], style={"position": "relative"}),
     
@@ -173,7 +172,10 @@ def update_badges(n_clicks, close_clicks, radio_value, dropdown_value, current_b
                     "marginLeft": "4px"
                 }
             )
-        ], style={
+        ], 
+        id={'type': 'item-badge', 'index': badge_id},
+        **{'data-product-type': radio_value, 'data-product-name': dropdown_value},
+        style={
             "display": "inline-flex",
             "alignItems": "center",
             "fontSize": "0.9rem",

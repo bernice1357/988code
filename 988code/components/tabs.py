@@ -32,11 +32,11 @@ def create_tabs(tab_configs):
                     "background-color": "transparent",
                     "border": "none",
                     "border-radius": "0",
-                    "border-bottom": "3px solid #cc5500",
+                    "border-bottom": "3px solid black",
                     "margin-bottom": "-3px"
                 },
                 active_label_style={
-                    "color": "#cc5500",
+                    "color": "black",
                     "font-weight": "bold"
                 }
             )

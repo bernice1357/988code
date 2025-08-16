@@ -146,6 +146,8 @@ orders = get_orders()
 layout = dbc.Container([
     success_toast("new_orders", message="訂單已確認"),
     error_toast("new_orders", message=""),
+    warning_toast("new_orders", message=""),
+    dcc.Store(id='user-role-store'),
     dcc.Interval(
         id='interval-component',
         interval=30*1000,  # 30秒更新一次
@@ -292,12 +294,15 @@ def close_delete_modal(n_clicks):
      Output("new_orders-success-toast", "is_open", allow_duplicate=True),
      Output("new_orders-success-toast", "children", allow_duplicate=True),
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "children", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True)],
     [Input("submit-delete", "n_clicks")],
-    [State("delete-modal-body", "children")],
+    [State("delete-modal-body", "children"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def confirm_delete(n_clicks, modal_body):
+def confirm_delete(n_clicks, modal_body, user_role):
     if n_clicks:
         orders = get_orders()
         # 從modal body取得order資訊並找到order_id
@@ -320,21 +325,24 @@ def confirm_delete(n_clicks, modal_body):
             
             # 呼叫API更新資料
             try:
+                update_data["user_role"] = user_role or "viewer"
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單刪除成功")
                     orders = get_orders()
                     updated_orders = [dbc.Col(make_card_item(order), width=4) for order in orders]
-                    return False, True, "訂單已刪除，請查看已刪除頁面", False, updated_orders
+                    return False, True, "訂單已刪除，請查看已刪除頁面", False, False, "", updated_orders
+                elif response.status_code == 403:
+                    return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
                 else:
                     print(f"API 錯誤，狀態碼：{response.status_code}")
-                    return False, False, dash.no_update, True, dash.no_update
+                    return False, False, dash.no_update, True, False, "", dash.no_update
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
-                return False, False, dash.no_update, True, dash.no_update
+                return False, False, dash.no_update, True, False, "", dash.no_update
         
-        return False, False, dash.no_update, True, dash.no_update
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return False, False, dash.no_update, True, False, "", dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
     [Output("confirm-modal", "is_open"),
@@ -400,15 +408,18 @@ def close_modal(n_clicks):
      Output("new_orders-success-toast", "is_open", allow_duplicate=True),
      Output("new_orders-success-toast", "children", allow_duplicate=True),
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "children", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True)],
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
      State("purchase-record", "value"),
-     State("modal-header", "children")],
+     State("modal-header", "children"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_header):
+def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_header, user_role):
     if n_clicks:
         orders = get_orders()
         # 從 modal header 取得 order_id 和原始訂單資料
@@ -437,19 +448,22 @@ def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_
             
             # 呼叫API更新資料
             try:
+                update_data["user_role"] = user_role or "viewer"
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單確認成功")
                     orders = get_orders()
                     updated_orders = [dbc.Col(make_card_item(order), width=4) for order in orders]
-                    return False, True, "訂單已確認，請查看已確認頁面", False, updated_orders
+                    return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders
+                elif response.status_code == 403:
+                    return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
                 else:
                     print(f"API 錯誤，狀態碼：{response.status_code}")
-                    return False, False, dash.no_update, True, dash.no_update
+                    return False, False, dash.no_update, True, False, "", dash.no_update
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
-                return False, False, dash.no_update, True, dash.no_update
+                return False, False, dash.no_update, True, False, "", dash.no_update
         
-        return False, False, dash.no_update, True, dash.no_update
+        return False, False, dash.no_update, True, False, "", dash.no_update
     
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update

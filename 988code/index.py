@@ -13,6 +13,8 @@ app.layout = html.Div([
     html.Div(id='index-page-content'),
     # 添加 Store 來存儲登入狀態
     dcc.Store(id='login_status', storage_type='local'),
+    # 全域用戶角色存儲
+    dcc.Store(id='user-role-store'),
 ])
 
 index_content = html.Div([
@@ -342,6 +344,20 @@ def display_index_page(pathname, login_status):
         else:
             # 登入無效或過期，清除 localStorage 並回到首頁
             return index_content, '/', None
+
+# 全域 clientside callback：從 login_status 提取 role 到 user-role-store
+app.clientside_callback(
+    """
+    function(login_status) {
+        if (login_status && login_status.role) {
+            return login_status.role;
+        }
+        return null;
+    }
+    """,
+    Output('user-role-store', 'data'),
+    Input('login_status', 'data')
+)
 
 if __name__ == '__main__':
     app.run(debug=True)

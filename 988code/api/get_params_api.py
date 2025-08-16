@@ -82,7 +82,7 @@ def get_subcategory_items(subcategory: str):
 @router.get("/get_subcategories_of_category/{category}")
 def get_subcategories(category: str):
     try:
-        query = "SELECT DISTINCT subcategory FROM product_master WHERE category = %s"
+        query = "SELECT DISTINCT subcategory FROM product_master WHERE category = %s AND is_active = 'active'"
         df = get_data_from_db_with_params(query, (category,))
         subcategories = df['subcategory'].tolist()
         return {"subcategories": subcategories}

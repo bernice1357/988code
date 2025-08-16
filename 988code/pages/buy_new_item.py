@@ -41,7 +41,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     # 篩選條件區
     html.Div([
         product_components["trigger_button"],
-        dbc.Button("匯出列表資料", id="buy_new_item-export-button", n_clicks=0, color="info", outline=True)
+        dbc.Button("匯出列表資料", id="buy_new_item-export-button", n_clicks=0, color="primary", outline=True)
     ], className="mb-3 d-flex justify-content-between align-items-center"),
 
     product_components["offcanvas"],

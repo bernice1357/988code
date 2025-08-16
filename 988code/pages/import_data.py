@@ -1,11 +1,12 @@
 import dash_bootstrap_components as dbc
 from dash import dcc, html
-from components.toast import success_toast, error_toast
+from components.toast import success_toast, error_toast, warning_toast
 
 layout = html.Div([
     # Toast 通知
     success_toast("import_data", message=""),
     error_toast("import_data", message=""),
+    warning_toast("import_data", message=""),
     
     # 進度更新觸發器（隱藏）
     dcc.Interval(
@@ -17,6 +18,7 @@ layout = html.Div([
     
     # 存儲匯入會話狀態
     dcc.Store(id='import-session-store', data={'session_id': 0, 'total_records': 0, 'status': 'waiting', 'deleted_count': 0, 'inserted_count': 0}),
+    dcc.Store(id='user-role-store'),
     
     # 全螢幕載入遮罩
     html.Div([
