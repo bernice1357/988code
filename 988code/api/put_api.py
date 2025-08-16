@@ -407,7 +407,7 @@ def update_inactive_customer(customer_name: str, update_data: InactiveCustomerUp
 
 # 批量更新不活躍客戶處理狀態
 class BatchInactiveCustomerUpdate(BaseModel):
-    customer_names: list[str]
+    customer_names: List[str]
     processed: bool = True
     processed_by: Optional[str] = None
     user_role: str
@@ -1025,3 +1025,60 @@ def update_rag_title(update_data: RAGTitleUpdate):
     except Exception as e:
         print(f"[ERROR] RAG標題更新失敗: {e}")
         raise HTTPException(status_code=500, detail="標題更新失敗")
+    
+class DeliveryScheduleUpdate(BaseModel):
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    product_name: Optional[str] = None
+    status: Optional[str] = None
+    quantity: Optional[int] = None
+    delivery_date: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+# 配送計劃管理 - 更新資料
+@router.put("/delivery_schedule/{record_id}")
+def update_delivery_schedule(record_id: int, update_data: DeliveryScheduleUpdate):
+    update_fields = update_data.dict(exclude_none=True)
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
+    
+    # 自動更新 updated_at 欄位
+    update_fields['updated_at'] = datetime.now()
+    
+    set_clause = ", ".join([f"{key} = %s" for key in update_fields])
+    sql = f"UPDATE delivery_schedule SET {set_clause} WHERE id = %s"
+    params = tuple(update_fields.values()) + (record_id,)
+    
+    try:
+        update_data_to_db(sql, params)
+        return {
+            "message": "配送計劃更新成功",
+            "id": record_id,
+            "updated_fields": update_fields
+        }
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫更新失敗")
+
+# 批量更新配送狀態
+@router.put("/delivery_schedule/batch_update_status")
+def batch_update_delivery_status(record_ids: List[int], new_status: str):
+    try:
+        placeholders = ",".join(["%s"] * len(record_ids))
+        sql = f"""
+        UPDATE delivery_schedule 
+        SET status = %s, updated_at = %s 
+        WHERE id IN ({placeholders})
+        """
+        params = [new_status, datetime.now()] + record_ids
+        
+        update_data_to_db(sql, tuple(params))
+        return {
+            "message": f"批量更新 {len(record_ids)} 筆配送狀態成功",
+            "updated_count": len(record_ids),
+            "new_status": new_status
+        }
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="批量更新失敗")
