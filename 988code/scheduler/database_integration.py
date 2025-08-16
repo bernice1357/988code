@@ -236,37 +236,39 @@ class DatabaseIntegration:
                 
                 for prediction in predictions:
                     try:
-                        # 處理空值
-                        product_id = prediction.get('product_id', '') or ''
-                        
-                        cur.execute("""
-                            INSERT INTO prophet_predictions (
-                                customer_id, product_id, prediction_date, will_purchase_anything,
-                                purchase_probability, estimated_quantity, confidence_level,
-                                original_segment, prediction_batch_id, created_at
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                            ON CONFLICT (customer_id, product_id, prediction_date)
-                            DO UPDATE SET
-                                will_purchase_anything = EXCLUDED.will_purchase_anything,
-                                purchase_probability = EXCLUDED.purchase_probability,
-                                estimated_quantity = EXCLUDED.estimated_quantity,
-                                confidence_level = EXCLUDED.confidence_level,
-                                prediction_batch_id = EXCLUDED.prediction_batch_id,
-                                updated_at = NOW()
-                            WHERE prophet_predictions.prediction_status = 'active';
-                        """, (
-                            prediction['customer_id'],
-                            product_id,
-                            prediction['prediction_date'],
-                            prediction['will_purchase_anything'],
-                            prediction.get('purchase_probability', 0),
-                            prediction.get('estimated_quantity', 0),
-                            prediction.get('confidence_level', 'unknown'),
-                            prediction.get('original_segment', ''),
-                            batch_id
-                        ))
-                        
-                        imported_count += 1
+                        # 只處理會購買的預測記錄 - 只上傳will_purchase_anything=True的記錄
+                        if prediction.get('will_purchase_anything', False):
+                            # 處理空值
+                            product_id = prediction.get('product_id', '') or ''
+                            
+                            cur.execute("""
+                                INSERT INTO prophet_predictions (
+                                    customer_id, product_id, prediction_date, will_purchase_anything,
+                                    purchase_probability, estimated_quantity, confidence_level,
+                                    original_segment, prediction_batch_id, created_at
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                                ON CONFLICT (customer_id, product_id, prediction_date)
+                                DO UPDATE SET
+                                    will_purchase_anything = EXCLUDED.will_purchase_anything,
+                                    purchase_probability = EXCLUDED.purchase_probability,
+                                    estimated_quantity = EXCLUDED.estimated_quantity,
+                                    confidence_level = EXCLUDED.confidence_level,
+                                    prediction_batch_id = EXCLUDED.prediction_batch_id,
+                                    updated_at = NOW()
+                                WHERE prophet_predictions.prediction_status = 'active';
+                            """, (
+                                prediction['customer_id'],
+                                product_id,
+                                prediction['prediction_date'],
+                                prediction['will_purchase_anything'],
+                                prediction.get('purchase_probability', 0),
+                                prediction.get('estimated_quantity', 0),
+                                prediction.get('confidence_level', 'unknown'),
+                                prediction.get('original_segment', ''),
+                                batch_id
+                            ))
+                            
+                            imported_count += 1
                         
                     except Exception as e:
                         error_count += 1
