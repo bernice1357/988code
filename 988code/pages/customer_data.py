@@ -313,6 +313,10 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
             "notes": "備註"
         })
     
+    # 轉換配送日數字為中文字 (與顯示邏輯保持一致)
+    if "每週配送日" in df.columns:
+        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
+    
     if selected_customer_id:
         df = df[df['客戶ID'] == selected_customer_id]
     
