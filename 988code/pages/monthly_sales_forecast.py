@@ -31,7 +31,7 @@ tab_content = html.Div([
                         options=[{"label": "全部類別", "value": "全部類別"}],
                         value="全部類別",
                         id="monthly-category-select",
-                        style={"width": "120px", "display": "inline-block", "marginRight": "20px"}
+                        style={"width": "auto", "display": "inline-block", "marginRight": "20px"}
                     )
                 ], style={"display": "inline-block", "marginRight": "30px"}),
                 
