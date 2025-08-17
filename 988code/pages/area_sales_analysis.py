@@ -66,7 +66,6 @@ tab_content = html.Div([
                 ], style={"display": "flex", "alignItems": "center", "marginBottom": "15px"}),
                 
                 html.Hr(),
-                
                 html.H6("已選地區", style={"marginBottom": "10px", "fontWeight": "bold"}),
                 html.Div(id="area-badges-container", children=[], style={"display": "flex", "flexWrap": "wrap", "gap": "5px", "minHeight": "30px", "maxWidth": "100%", "overflow": "hidden"})
             ], style={"maxWidth": "550px", "padding": "15px"})
