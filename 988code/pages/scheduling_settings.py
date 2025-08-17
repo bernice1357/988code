@@ -2,6 +2,14 @@ from pages.common import *
 import requests
 import json
 from datetime import datetime, timezone, timedelta
+import threading
+import sys
+import os
+
+# Add scheduler path to system path
+scheduler_path = os.path.join(os.path.dirname(__file__), '..', 'scheduler')
+if scheduler_path not in sys.path:
+    sys.path.append(scheduler_path)
 
 # TODO 這邊每個排程都要有cookie
 
@@ -241,6 +249,11 @@ def toggle_schedule_category(category, value):
                                json={"category": category, "enabled": value})
         if response.status_code == 200:
             print(f"Schedule {category} {'enabled' if value else 'disabled'}")
+            
+            # If enabled, run tasks in background
+            if value:
+                run_schedule_tasks_in_background(category)
+            
             return value
         else:
             print(f"Toggle schedule failed: HTTP {response.status_code}")
@@ -248,3 +261,38 @@ def toggle_schedule_category(category, value):
     except Exception as e:
         print(f"Toggle schedule failed: {e}")
         return not value
+
+def run_schedule_tasks_in_background(category):
+    """Run schedule tasks in background"""
+    def execute_tasks():
+        try:
+            from task_executor import execute_task
+            
+            # Task mapping for each category
+            task_mapping = {
+                'restock': ['prophet_training', 'daily_prediction', 'trigger_health_check'],
+                'sales': ['sales_change_check', 'monthly_prediction', 'monthly_sales_reset'],
+                'recommendation': ['weekly_recommendation'],
+                'customer_management': ['inactive_customer_check', 'repurchase_reminder']
+            }
+            
+            tasks_to_run = task_mapping.get(category, [])
+            
+            for task_id in tasks_to_run:
+                try:
+                    print(f"Executing task: {task_id}")
+                    result = execute_task(task_id)
+                    if result.get('success'):
+                        print(f"Task {task_id} completed successfully")
+                    else:
+                        print(f"Task {task_id} failed: {result.get('message')}")
+                except Exception as e:
+                    print(f"Task {task_id} error: {e}")
+                    
+        except Exception as e:
+            print(f"Background task execution failed: {e}")
+    
+    # Run in new thread to avoid blocking
+    thread = threading.Thread(target=execute_tasks, daemon=True)
+    thread.start()
+    print(f"Started {category} tasks in background")

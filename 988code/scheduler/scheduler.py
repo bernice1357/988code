@@ -5,15 +5,36 @@
 """
 
 import os
+import sys
 import time
 import logging
 import schedule
 import pytz
 from datetime import datetime, timedelta
+
+# Add predict_product_main to path for database modules and hybrid system
+predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'predict_product_main'))
+if predict_main_path not in sys.path:
+    sys.path.insert(0, predict_main_path)
+
 # 新的目錄結構導入
 from database_integration import DatabaseIntegration
 from task_executor import execute_task
 from config import DatabaseConfig, SchedulerConfig, LoggingConfig, get_db_config
+
+# Import database modules from predict_product_main
+from hybrid_cv_optimized_system import HybridCVOptimizedSystem
+from monthly_prediction_db import MonthlyPredictionDB
+from recommendation_db import RecommendationDB
+from inactive_customer_db import InactiveCustomerDB
+from repurchase_reminder_db import RepurchaseReminderDB
+from sales_change_db import SalesChangeDB
+
+# Import tasks
+from tasks.trigger_health import TriggerHealthMonitor
+from tasks.inactive_customer import InactiveCustomerManager
+from tasks.repurchase_reminder import RepurchaseReminder
+from tasks.sales_change import SalesChangeManager
 
 # 原始任務模組導入 (需要時才導入)
 try:
