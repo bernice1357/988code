@@ -91,6 +91,7 @@ class TaskExecutor:
         """執行 Prophet 模型訓練"""
         try:
             from tasks.prophet_system import ProphetPredictionSystem
+            # ProphetPredictionSystem doesn't accept db_config parameter
             system = ProphetPredictionSystem()
             return system.saturday_model_training()
         except Exception as e:
@@ -102,10 +103,8 @@ class TaskExecutor:
         try:
             from tasks.prophet_system import ProphetPredictionSystem
             
-            # Use unified config
-            db_config = get_db_config()
-            
-            system = ProphetPredictionSystem(db_config)
+            # ProphetPredictionSystem doesn't accept db_config parameter
+            system = ProphetPredictionSystem()
             
             # Load trained models first
             if not system.load_latest_models():

@@ -476,9 +476,20 @@ class ProphetPredictionSystem:
     def load_latest_models(self):
         """載入最新的Prophet模型"""
         try:
-            model_file = 'model_backups/prophet_models_latest.pkl'
+            # Try multiple possible paths for the model file
+            possible_paths = [
+                'model_backups/prophet_models_latest.pkl',
+                '../model_backups/prophet_models_latest.pkl',
+                os.path.join(os.path.dirname(__file__), '..', '..', 'model_backups', 'prophet_models_latest.pkl')
+            ]
             
-            if not os.path.exists(model_file):
+            model_file = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    model_file = path
+                    break
+            
+            if not model_file:
                 self.logger.error("找不到最新的模型文件")
                 return False
             
