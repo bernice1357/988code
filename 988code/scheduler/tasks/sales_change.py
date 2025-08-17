@@ -2,6 +2,14 @@ import psycopg2
 from psycopg2 import Error
 import logging
 from datetime import datetime, timedelta
+import sys
+import os
+
+# Add predict_product_main to path for database modules
+predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
+if predict_main_path not in sys.path:
+    sys.path.insert(0, predict_main_path)
+
 from sales_change_db import SalesChangeDB
 
 class SalesChangeManager:

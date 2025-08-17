@@ -11,19 +11,54 @@ import os
 
 # 添加 scheduler 模組到路徑
 scheduler_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scheduler')
-sys.path.append(scheduler_path)
+scheduler_path = os.path.abspath(scheduler_path)
+sys.path.insert(0, scheduler_path)
 
-# 暂时禁用复杂的导入来解决段错误问题
+# 使用子進程執行以避免segfault
+import subprocess
+
+def run_task(task_id: str) -> dict:
+    """在子進程中執行任務，避免記憶體衝突"""
+    try:
+        # 構建Python命令
+        python_code = f"""
+import sys
+import json
+import os
+
+# 添加scheduler路徑
+scheduler_path = r'C:\\Users\\user\\Desktop\\988\\988code\\988code\\scheduler'
+sys.path.insert(0, scheduler_path)
+
 try:
-    # from task_executor import execute_task as run_task
-    # from simple_scheduler import simple_scheduler as integrated_scheduler
-    logging.info("Scheduler imports temporarily disabled to avoid segfault")
-    run_task = None
-    integrated_scheduler = None
-except ImportError as e:
-    logging.error(f"Cannot import scheduler modules: {e}")
-    run_task = None
-    integrated_scheduler = None
+    from task_executor import execute_task
+    result = execute_task('{task_id}')
+    print(json.dumps(result))
+except Exception as e:
+    print(json.dumps({{'success': False, 'error': str(e)}}))
+"""
+        
+        # 執行子進程
+        result = subprocess.run(
+            ["python", "-c", python_code],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5分鐘超時
+        )
+        
+        if result.returncode == 0 and result.stdout:
+            return json.loads(result.stdout)
+        else:
+            error_msg = result.stderr if result.stderr else "Unknown error"
+            return {"success": False, "error": error_msg}
+            
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Task execution timeout"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# 保留原來的變數名稱相容性
+integrated_scheduler = None  # 這個暫時不實作
 
 router = APIRouter()
 
@@ -292,24 +327,19 @@ def execute_task(request: TaskExecuteRequest):
                 """, (request.task_id, task_config["name"], category, "running", "手動執行開始"))
                 conn.commit()
         
-        # 調用實際的任務執行邏輯
-        if run_task:
-            try:
-                execution_result = run_task(request.task_id)
-                success = execution_result.get('success', False)
-                message = execution_result.get('message', f"任務 {task_config['name']} 執行完成")
-                # 如果任務執行器提供了持續時間，使用它
-                if 'duration' in execution_result:
-                    duration = execution_result['duration']
-                    end_time = start_time + timedelta(seconds=duration)
-            except Exception as e:
-                success = False
-                message = f"任務 {task_config['name']} 執行失敗: {str(e)}"
-                logging.error(f"Task execution error: {e}")
-        else:
-            # 模擬執行（如果無法導入任務執行器）
-            success = True
-            message = f"任務 {task_config['name']} 模擬執行完成（任務執行器未可用）"
+        # 使用子進程執行任務
+        try:
+            execution_result = run_task(request.task_id)
+            success = execution_result.get('success', False)
+            message = execution_result.get('message', f"任務 {task_config['name']} 執行完成")
+            # 如果任務執行器提供了持續時間，使用它
+            if 'duration' in execution_result:
+                duration = execution_result['duration']
+                end_time = start_time + timedelta(seconds=duration)
+        except Exception as e:
+            success = False
+            message = f"任務 {task_config['name']} 執行失敗: {str(e)}"
+            logging.error(f"Task execution error: {e}")
         
         # 記錄執行結果（台北時間）
         if 'end_time' not in locals():

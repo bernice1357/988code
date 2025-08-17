@@ -1,7 +1,15 @@
 from datetime import datetime, timedelta, timezone, date
 from typing import Dict, List, Optional
-from inactive_customer_db import InactiveCustomerDB
 import logging
+import sys
+import os
+
+# Add predict_product_main to path for database modules
+predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
+if predict_main_path not in sys.path:
+    sys.path.insert(0, predict_main_path)
+
+from inactive_customer_db import InactiveCustomerDB
 
 class InactiveCustomerManager:
     """

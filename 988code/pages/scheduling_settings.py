@@ -2,6 +2,17 @@ from pages.common import *
 import requests
 import json
 from datetime import datetime, timezone, timedelta
+import threading
+import sys
+import os
+
+# Add scheduler path to system path
+scheduler_path = os.path.join(os.path.dirname(__file__), '..', 'scheduler')
+if scheduler_path not in sys.path:
+    sys.path.append(scheduler_path)
+
+# Import the integrated scheduler
+from integrated_scheduler import integrated_scheduler
 
 # TODO 這邊每個排程都要有cookie
 
@@ -240,7 +251,19 @@ def toggle_schedule_category(category, value):
         response = requests.post(f'{API_BASE_URL}/schedule/toggle', 
                                json={"category": category, "enabled": value})
         if response.status_code == 200:
-            print(f"Schedule {category} {'enabled' if value else 'disabled'}")
+            status_text = 'enabled' if value else 'disabled'
+            print(f"Schedule {category} {status_text}")
+            
+            if value:
+                # Start scheduler if not running
+                start_scheduler_if_needed()
+                print(f"Schedule {category} will run at its scheduled time")
+                # Show scheduled times for user reference
+                show_schedule_times(category)
+            else:
+                # Check if we should stop the scheduler
+                check_and_stop_scheduler()
+            
             return value
         else:
             print(f"Toggle schedule failed: HTTP {response.status_code}")
@@ -248,3 +271,70 @@ def toggle_schedule_category(category, value):
     except Exception as e:
         print(f"Toggle schedule failed: {e}")
         return not value
+
+def show_schedule_times(category):
+    """Show scheduled execution times for a category"""
+    schedule_times = {
+        'restock': [
+            'Saturday 08:00 - Prophet model training',
+            'Daily 22:00 - Daily prediction',
+            'Daily 02:00 - Trigger health check'
+        ],
+        'sales': [
+            'Monthly 1st 00:30 - Sales reset',
+            'Monthly 1st 01:00 - Monthly prediction',
+            'Daily 06:00 - Sales change check'
+        ],
+        'recommendation': [
+            'Sunday 02:00 - Weekly recommendation update'
+        ],
+        'customer_management': [
+            'Daily 02:30 - Inactive customer check',
+            'Daily 04:00 - Repurchase reminder'
+        ]
+    }
+    
+    if category in schedule_times:
+        print(f"Scheduled times for {category}:")
+        for time_desc in schedule_times[category]:
+            print(f"  - {time_desc}")
+
+def start_scheduler_if_needed():
+    """Start the integrated scheduler if not already running"""
+    try:
+        if not integrated_scheduler.running:
+            print("Starting integrated scheduler in background...")
+            integrated_scheduler.start_scheduler()
+            print("Scheduler started successfully")
+            print("Tasks will execute at their scheduled times")
+        else:
+            print("Scheduler is already running")
+    except Exception as e:
+        print(f"Failed to start scheduler: {e}")
+
+def check_and_stop_scheduler():
+    """Check if any schedules are enabled, stop scheduler if none are enabled"""
+    try:
+        # Check database for any enabled schedules
+        response = requests.get(f'{API_BASE_URL}/schedule/tasks')
+        if response.status_code == 200:
+            data = response.json().get('data', {})
+            
+            # Check if any category is enabled
+            any_enabled = any(
+                category_data.get('enabled', False) 
+                for category_data in data.values()
+            )
+            
+            if not any_enabled and integrated_scheduler.running:
+                print("No schedules are enabled, stopping scheduler...")
+                integrated_scheduler.stop_scheduler()
+                print("Scheduler stopped")
+            elif any_enabled:
+                enabled_categories = [
+                    cat for cat, data in data.items() 
+                    if data.get('enabled', False)
+                ]
+                print(f"Schedules still enabled: {', '.join(enabled_categories)}")
+    except Exception as e:
+        print(f"Failed to check scheduler status: {e}")
