@@ -5,8 +5,8 @@
 
 帳密 admin/Admin123@
 
-排程設定跟新進訂單頁面不能讓viewer操作
 庫存預測要大改->庭
-補貨提醒
 銷售分析
 erp: 客戶/庫存
+product_inventory的table高度太小f
+import data還在test 資料表

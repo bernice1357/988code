@@ -7,6 +7,8 @@ from get_params_api import router as get_data_with_params_router
 from put_api import router as update_data_router
 from role_api import router as role_router
 from import_data_api import router as import_data_router
+from sales_predict_api import router as sales_predict_router
+from schedule_api import router as schedule_router
 
 app = FastAPI()
 
@@ -24,3 +26,5 @@ app.include_router(get_data_with_params_router)
 app.include_router(update_data_router)
 app.include_router(role_router)
 app.include_router(import_data_router)
+app.include_router(sales_predict_router)
+app.include_router(schedule_router)

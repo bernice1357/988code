@@ -1,6 +1,6 @@
 # TODO 要改回ORDER_TRANSACTIONS
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 import datetime
 import tempfile
@@ -20,6 +20,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def check_editor_permission(user_role: str):
+    """檢查是否有編輯權限"""
+    if user_role != 'editor':
+        raise HTTPException(status_code=403, detail="權限不足：僅限編輯者使用此功能")
 
 # 備用配置
 DEFAULT_CONFIG = {
@@ -435,11 +440,14 @@ class SalesDataUploader:
 
 # API 端點
 @router.post("/import/sales")
-async def import_sales_data(file: UploadFile = File(...)):
+async def import_sales_data(file: UploadFile = File(...), user_role: str = Form(...)):
     """
     匯入銷貨資料 API
     """
     try:
+        # 檢查權限
+        check_editor_permission(user_role)
+        
         # 檢查檔案類型
         if not file.filename.lower().endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="只支援 Excel 檔案格式")

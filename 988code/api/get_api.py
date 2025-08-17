@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Form
+from fastapi import APIRouter, HTTPException, Form, Query
 import psycopg2
 import pandas as pd
 
@@ -92,7 +92,7 @@ def get_customer_latest_transactions():
     print("[API] get_customer_latest_transactions 被呼叫")
     try:
         query = """
-        SELECT pp.customer_id, c.customer_name, pp.product_id, pp.product_name, 
+        SELECT pp.customer_id, c.customer_name, c.phone_number, pp.product_id, pp.product_name, 
                pp.prediction_date, pp.estimated_quantity, pp.confidence_level
         FROM prophet_predictions pp
         LEFT JOIN customer c ON pp.customer_id = c.customer_id
@@ -326,7 +326,6 @@ def get_product_recommendations():
 # 獲取RAG知識庫條目列表
 @router.get("/get_rag_titles")
 def get_rag_titles():
-    print("[API] get_rag_titles 被呼叫")
     try:
         query = "SELECT title FROM rag"
         df = get_data_from_db(query)
@@ -688,4 +687,42 @@ def get_delivery_schedule_by_category(category: str):
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_delivery_schedule_by_category: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到縣市列表
+@router.get("/get_county")
+def get_counties():
+    print("[API] get_counties 被呼叫")
+    try:
+        query = "SELECT DISTINCT city FROM customer WHERE city IS NOT NULL ORDER BY city"
+        df = get_data_from_db(query)
+        # 將欄位名稱從 city 改為 county 以符合前端期望
+        result = [{"county": row["city"]} for _, row in df.iterrows()]
+        return result
+    except Exception as e:
+        print(f"[API ERROR] get_counties: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 得到地區列表（根據縣市篩選）
+@router.get("/get_region")
+def get_regions(county: str = Query(..., description="縣市名稱")):
+    print(f"[API] get_regions 被呼叫，縣市: {county}")
+    try:
+        # 使用參數化查詢避免 SQL 注入
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL ORDER BY district"
+                cursor.execute(query, (county,))
+                rows = cursor.fetchall()
+                # 將結果轉換為所需格式
+                result = [{"region": row[0]} for row in rows]
+                return result
+    except Exception as e:
+        print(f"[API ERROR] get_regions: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")

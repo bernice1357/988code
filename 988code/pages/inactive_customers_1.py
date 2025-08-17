@@ -6,6 +6,7 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-inactive", data=True),
     dcc.Store(id="inactive-customers-data", data=[]),
     dcc.Store(id="filtered-inactive-data", data=[]),
+    dcc.Store(id='user-role-store'),
     
     dbc.Row([
         dbc.Col([
@@ -83,6 +84,7 @@ tab_content = html.Div([
     
     success_toast("inactive_customers", message=""),
     error_toast("inactive_customers", message=""),
+    warning_toast("inactive_customers", message=""),
 ], className="mt-3")
 
 # 從全域變數載入天數設定
@@ -312,6 +314,8 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
      Output('inactive_customers-success-toast', 'children'),
      Output('inactive_customers-error-toast', 'is_open'),
      Output('inactive_customers-error-toast', 'children'),
+     Output('inactive_customers-warning-toast', 'is_open'),
+     Output('inactive_customers-warning-toast', 'children'),
      Output("page-loaded-inactive", "data", allow_duplicate=True),
      Output('process-confirm-modal', 'is_open', allow_duplicate=True)],
     Input('modal-confirm-btn', 'n_clicks'),
@@ -319,12 +323,13 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
      State("filtered-inactive-data", "data"),
      State("btn-all-customers", "n_clicks"),
      State("btn-unprocessed-customers", "n_clicks"),
-     State("btn-processed-customers", "n_clicks")],
+     State("btn-processed-customers", "n_clicks"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed):
+def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed, user_role):
     if not modal_confirm_clicks:
-        return False, "", False, "", dash.no_update, dash.no_update
+        return False, "", False, "", False, "", dash.no_update, dash.no_update
     
     # 獲取選中的客戶
     selected_indices = []
@@ -333,7 +338,7 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
             selected_indices.extend(values)
     
     if not selected_indices or not filtered_data:
-        return False, "", True, "沒有選擇任何客戶", dash.no_update, False
+        return False, "", True, "沒有選擇任何客戶", False, "", dash.no_update, False
     
     try:
         df = pd.DataFrame(filtered_data)
@@ -352,7 +357,8 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
         update_data = {
             "customer_names": customer_names,
             "processed": True,
-            "processed_by": "系統管理員"
+            "processed_by": "系統管理員",
+            "user_role": user_role or "viewer"
         }
 
         response = requests.put("http://127.0.0.1:8000/inactive_customers/batch_update", json=update_data)
@@ -360,9 +366,11 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
         if response.status_code == 200:
             result = response.json()
             success_count = result.get('success_count', len(customer_names))
-            return True, f"成功處理 {success_count} 位客戶", False, "", True, False
+            return True, f"成功處理 {success_count} 位客戶", False, "", False, "", True, False
+        elif response.status_code == 403:
+            return False, "", False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update, False
         else:
-            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", dash.no_update, False
+            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", False, "", dash.no_update, False
         
     except Exception as e:
-        return False, "", True, f"處理失敗：{e}", dash.no_update, False
+        return False, "", True, f"處理失敗：{e}", False, "", dash.no_update, False
