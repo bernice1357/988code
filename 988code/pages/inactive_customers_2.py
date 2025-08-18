@@ -11,7 +11,7 @@ def get_sales_change_data():
         
         # 先檢查資料是否為空
         if not data:
-            print("API 返回空資料")
+            # print("API 返回空資料")
             return pd.DataFrame()
             
         df = pd.DataFrame(data)
@@ -86,7 +86,7 @@ def get_sales_change_data_by_threshold(threshold):
         
         # 先檢查資料是否為空
         if not data:
-            print("API 返回空資料")
+            # print("API 返回空資料")
             return pd.DataFrame()
             
         df = pd.DataFrame(data)
@@ -201,7 +201,7 @@ tab_content = html.Div([
                     {"label": "銷量無變化", "value": "no_change"}
                 ],
                 value="all",
-                style={"width": "150px", "marginRight": "20px"}
+                style={"width": "auto", "marginRight": "20px"}
             )
         ], style={"display": "flex", "alignItems": "center", "marginRight": "20px"}),
         html.Div([
