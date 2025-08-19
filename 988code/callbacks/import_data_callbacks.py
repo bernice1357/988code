@@ -73,9 +73,7 @@ def validate_file_columns(contents, filename, data_type):
         
         try:
             # 嘗試讀取檔案
-            if filename.lower().endswith('.csv'):
-                df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-            elif filename.lower().endswith(('.xlsx', '.xls')):
+            if filename.lower().endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(io.BytesIO(decoded))
             else:
                 return False, "不支援的檔案格式"
@@ -264,7 +262,7 @@ def update_upload_area_state(current_title):
             enabled_icon_style,
             "拖拽檔案到此處或點擊上傳",
             enabled_text_main_style,
-            "支援 CSV, Excel 檔案",
+            "支援.xlsx, .xls檔案",
             enabled_text_sub_style
         )
 
@@ -340,9 +338,9 @@ def update_upload_output(contents, filename, last_modified):
         # 檢查檔案格式
         if filename:
             extension = filename.lower().split('.')[-1] if '.' in filename else ''
-            if extension not in ['csv', 'xls', 'xlsx']:
+            if extension not in ['xls', 'xlsx']:
                 return html.Div([
-                    html.Span("不支援的檔案格式，僅支援 CSV, Excel 檔案", style={
+                    html.Span("不支援的檔案格式，僅支援.xlsx, .xls檔案", style={
                         "color": "#dc3545",
                         "fontWeight": "500",
                         "fontSize": "1rem"
@@ -350,7 +348,7 @@ def update_upload_output(contents, filename, last_modified):
                 ], style={
                     "textAlign": "center",
                     "padding": "1rem"
-                }), None, True, "不支援的檔案格式，僅支援 CSV, Excel 檔案"
+                }), None, True, "不支援的檔案格式，僅支援.xlsx, .xls檔案"
             
             # 檢查檔案欄位是否匹配 (暫時關閉驗證)
             is_valid, validation_message = validate_file_columns(contents, filename, current_data_type)
