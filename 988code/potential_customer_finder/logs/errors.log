@@ -1,0 +1,2 @@
+[ERROR] 2025-08-18 17:52:29,540 - potential_customer_finder.organized_search_system - ERROR - 客戶整合分析失敗: Object of type Decimal is not JSON serializable
+[ERROR] 2025-08-19 16:18:14,656 - keyword_generator - ERROR - 關鍵詞生成失敗: 'DatabaseManager' object has no attribute 'get_product_details'

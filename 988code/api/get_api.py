@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Form, Query
 import psycopg2
 import pandas as pd
+from datetime import datetime
 
 router = APIRouter()
 
@@ -726,3 +727,186 @@ def get_regions(county: str = Query(..., description="縣市名稱")):
     except Exception as e:
         print(f"[API ERROR] get_regions: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 新增：潛在客戶分析 API 端點
+@router.get("/get_potential_customers_analysis/{product_name:path}")
+def get_potential_customers_analysis(product_name: str):
+    import urllib.parse
+    # URL解碼產品名稱以處理特殊字符
+    decoded_product_name = urllib.parse.unquote(product_name)
+    print(f"[API] get_potential_customers_analysis 被呼叫，產品: {decoded_product_name}")
+    try:
+        # 導入 potential_customer_finder 模組
+        import sys
+        import os
+        # 當前檔案在 988code/api/get_api.py
+        # potential_customer_finder 在 988code/potential_customer_finder/
+        api_dir = os.path.dirname(__file__)  # 988code/api
+        code_dir = os.path.dirname(api_dir)  # 988code
+        potential_finder_path = os.path.join(code_dir, 'potential_customer_finder')
+        
+        # 添加到路徑開頭，確保優先載入
+        if potential_finder_path not in sys.path:
+            sys.path.insert(0, potential_finder_path)
+        
+        print(f"[DEBUG] 添加路徑: {potential_finder_path}")
+        print(f"[DEBUG] 路徑存在: {os.path.exists(potential_finder_path)}")
+        
+        from organized_search_system import organized_complete_search
+        
+        # 執行完整的潛在客戶搜尋
+        result = organized_complete_search(decoded_product_name)
+        
+        print(f"[API] 潛在客戶分析完成，找到 {result['results_count']} 個結果")
+        return result
+        
+    except Exception as e:
+        print(f"[API ERROR] get_potential_customers_analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"潛在客戶分析失敗: {str(e)}")
+
+# 新增：獲取分析進度 API 端點
+@router.get("/get_analysis_progress/{task_id}")
+def get_analysis_progress(task_id: str = None):
+    print(f"[API] get_analysis_progress 被呼叫，任務ID: {task_id}")
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        from potential_customer_finder.progress_tracker import progress_tracker
+        
+        progress_data = progress_tracker.get_progress(task_id)
+        
+        if progress_data is None:
+            return {"status": "not_found", "message": "找不到指定的任務"}
+        
+        return progress_data
+        
+    except Exception as e:
+        print(f"[API ERROR] get_analysis_progress: {e}")
+        raise HTTPException(status_code=500, detail=f"獲取進度失敗: {str(e)}")
+
+# 新增：獲取當前分析進度 API 端點（不需要任務ID）
+@router.get("/get_current_analysis_progress")
+def get_current_analysis_progress():
+    print("[API] get_current_analysis_progress 被呼叫")
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        from potential_customer_finder.progress_tracker import progress_tracker
+        
+        progress_data = progress_tracker.get_progress()
+        
+        if progress_data is None:
+            return {"status": "no_task", "message": "目前沒有正在執行的任務"}
+        
+        return progress_data
+        
+    except Exception as e:
+        print(f"[API ERROR] get_current_analysis_progress: {e}")
+        raise HTTPException(status_code=500, detail=f"獲取進度失敗: {str(e)}")
+
+# 新增：獲取潛在客戶分析詳細結果 API 端點
+@router.get("/get_potential_customers_details")
+def get_potential_customers_details(product_name: str = Query(..., description="產品名稱")):
+    import json
+    import os
+    from pathlib import Path
+    
+    # 查詢參數會自動解碼，無需手動處理
+    print(f"[API] get_potential_customers_details 被呼叫，產品: {product_name}")
+    
+    try:
+        # 搜尋最新的整合客戶檔案
+        results_dir = Path("C:/Users/user/Desktop/988/988code/988code/customer_search_results")
+        
+        # 尋找所有相關的整合客戶檔案
+        integrated_files = []
+        for search_dir in results_dir.glob("by_date/search_*"):
+            for json_file in search_dir.glob("*integrated_customers.json"):
+                # 處理產品名稱中的特殊字符，與文件名格式匹配（與 organized_search_system.py 保持一致）
+                processed_name = (product_name
+                                 .replace('/', '_')
+                                 .replace('\\', '_') 
+                                 .replace('*', '_')
+                                 .replace('?', '_')
+                                 .replace('"', '_')
+                                 .replace('<', '_')
+                                 .replace('>', '_')
+                                 .replace('|', '_')
+                                 .replace(':', '_')
+                                 .replace('(', '_')
+                                 .replace(')', '_')
+                                 .replace('[', '_')
+                                 .replace(']', '_')
+                                 .replace('±', '_')
+                                 .replace('%', '_')
+                                 .replace(' ', '_'))
+                if processed_name in json_file.name:
+                    integrated_files.append(json_file)
+        
+        if not integrated_files:
+            # 如果沒有找到整合客戶檔案，可能是結果為 0，返回空結果
+            print(f"[API] 未找到整合客戶檔案，可能是搜尋結果為 0")
+            return {
+                "product_name": product_name,
+                "classification_stats": {
+                    "total_results": 0,
+                    "can_process_count": 0,
+                    "purchased_count": 0,
+                    "potential_count": 0,
+                    "cannot_process_count": 0
+                },
+                "can_process_customers": [],
+                "purchased_customers": [],
+                "potential_customers": [],
+                "cannot_process_customers": [],
+                "results_count": 0,
+                "analysis_timestamp": datetime.now().isoformat()
+            }
+        
+        # 選擇最新的檔案
+        latest_file = max(integrated_files, key=lambda x: x.stat().st_mtime)
+        print(f"[API] 使用整合客戶檔案: {latest_file}")
+        
+        # 讀取整合客戶結果
+        with open(latest_file, 'r', encoding='utf-8') as f:
+            integrated_data = json.load(f)
+        
+        # 整理回傳的資料，使用整合客戶格式
+        customers_list = integrated_data.get("customers", [])
+        
+        # 根據客戶類型分類 (integrated_customers.json 格式)
+        can_process_customers = [c for c in customers_list if c.get("customer_type") == "曾詢問客戶"]
+        purchased_customers = [c for c in customers_list if c.get("customer_type") == "已購買客戶"]
+        potential_customers = [c for c in customers_list if c.get("customer_type") == "潛在需求客戶"]
+        # integrated_customers.json 中所有客戶都有customer_id，沒有"無法處理"的分類
+        cannot_process_customers = []
+        
+        result = {
+            "product_name": product_name,
+            "classification_stats": {
+                "total_results": len(customers_list),
+                "can_process_count": len(can_process_customers),
+                "purchased_count": len(purchased_customers),
+                "potential_count": len(potential_customers),
+                "cannot_process_count": len(cannot_process_customers)
+            },
+            "can_process_customers": can_process_customers,
+            "purchased_customers": purchased_customers,
+            "potential_customers": potential_customers,
+            "cannot_process_customers": cannot_process_customers,
+            "results_count": len(customers_list),
+            "analysis_timestamp": integrated_data.get("analysis_timestamp", "")
+        }
+        
+        print(f"[API] 返回詳細結果，可處理客戶: {len(result['can_process_customers'])} 個")
+        return result
+        
+    except Exception as e:
+        print(f"[API ERROR] get_potential_customers_details: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"獲取詳細結果失敗: {str(e)}")
