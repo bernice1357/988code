@@ -23,12 +23,27 @@ def create_calendar_widget(selected_date=None):
     # 創建日曆格子
     cal = calendar.monthcalendar(year, month)
     
-    # 月份導航
+    # 月份導航 - 修改為可點擊的月份
     month_nav = html.Div([
         dbc.Button("‹", id="daily-prev-month-btn", color="light", size="sm", style={"marginRight": "10px"}),
-        html.Span(f"{year}年{month}月", style={"fontSize": "16px", "fontWeight": "bold"}),
+        # 將月份文字改為可點擊的下拉選單
+        dcc.Dropdown(
+            id="daily-month-selector",
+            options=[
+                {"label": f"{year}年{i}月", "value": f"{year}-{i:02d}"}
+                for i in range(1, 13)
+            ],
+            value=f"{year}-{month:02d}",
+            style={
+                "width": "200px", 
+                "display": "inline-block",
+                "fontSize": "16px",
+                "fontWeight": "bold"
+            },
+            clearable=False
+        ),
         dbc.Button("›", id="daily-next-month-btn", color="light", size="sm", style={"marginLeft": "10px"})
-    ], style={"textAlign": "center", "marginBottom": "10px"})
+    ], style={"textAlign": "center", "marginBottom": "10px", "display": "flex", "alignItems": "center", "justifyContent": "center"})
     
     # 星期標題
     weekday_headers = html.Div([
@@ -392,45 +407,64 @@ def register_daily_delivery_callbacks(app):
             
         return no_update, no_update
     
-    # 月份導航
+    # 月份導航 - 增加月份選擇器的回調
     @app.callback(
         [Output("daily-calendar-container", "children", allow_duplicate=True),
          Output("daily-selected-date", "data", allow_duplicate=True)],
         [Input("daily-prev-month-btn", "n_clicks"),
-         Input("daily-next-month-btn", "n_clicks")],
+         Input("daily-next-month-btn", "n_clicks"),
+         Input("daily-month-selector", "value")],  # 新增月份選擇器輸入
         [State("daily-selected-date", "data")],
         prevent_initial_call=True
     )
-    def navigate_month(prev_clicks, next_clicks, current_date):
+    def navigate_month(prev_clicks, next_clicks, selected_month, current_date):
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update
         
-        # 檢查觸發的按鈕
+        # 檢查觸發的組件
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
-        # 防止因為重新渲染導致的誤觸發
-        if triggered_id == 'daily-prev-month-btn':
-            if not prev_clicks or prev_clicks == 0:
-                return no_update, no_update
-        elif triggered_id == 'daily-next-month-btn':
-            if not next_clicks or next_clicks == 0:
-                return no_update, no_update
-        else:
-            return no_update, no_update
         
         try:
             current_date_obj = datetime.strptime(current_date, "%Y-%m-%d").date()
         except:
             current_date_obj = date.today()
         
-        if triggered_id == 'daily-prev-month-btn':
+        # 處理月份選擇器變更
+        if triggered_id == 'daily-month-selector':
+            if selected_month:
+                try:
+                    # 解析選擇的年月
+                    year, month = map(int, selected_month.split('-'))
+                    # 保持當前選中的日期，但如果該日期在新月份不存在，則調整為該月的最後一天
+                    try:
+                        new_date = current_date_obj.replace(year=year, month=month)
+                    except ValueError:
+                        # 如果當前日期在新月份不存在（如2月31日），則設為該月最後一天
+                        import calendar
+                        last_day = calendar.monthrange(year, month)[1]
+                        new_date = date(year, month, min(current_date_obj.day, last_day))
+                    
+                    calendar_widget = create_calendar_widget(new_date)
+                    return calendar_widget, new_date.strftime("%Y-%m-%d")
+                except ValueError:
+                    return no_update, no_update
+        
+        # 處理前一個月/下一個月按鈕
+        elif triggered_id == 'daily-prev-month-btn':
+            # 防止因為重新渲染導致的誤觸發
+            if not prev_clicks or prev_clicks == 0:
+                return no_update, no_update
             # 上一個月
             if current_date_obj.month == 1:
                 new_date = current_date_obj.replace(year=current_date_obj.year - 1, month=12, day=1)
             else:
                 new_date = current_date_obj.replace(month=current_date_obj.month - 1, day=1)
+                
         elif triggered_id == 'daily-next-month-btn':
+            # 防止因為重新渲染導致的誤觸發
+            if not next_clicks or next_clicks == 0:
+                return no_update, no_update
             # 下一個月
             if current_date_obj.month == 12:
                 new_date = current_date_obj.replace(year=current_date_obj.year + 1, month=1, day=1)
