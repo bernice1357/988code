@@ -93,10 +93,12 @@ def get_customer_latest_transactions():
     print("[API] get_customer_latest_transactions 被呼叫")
     try:
         query = """
-        SELECT pp.customer_id, c.customer_name, c.phone_number, pp.product_id, pp.product_name, 
+        SELECT pp.customer_id, c.customer_name, c.phone_number, 
+               pp.product_id, COALESCE(pm.name_zh, pp.product_name) as product_name, 
                pp.prediction_date, pp.estimated_quantity, pp.confidence_level
         FROM prophet_predictions pp
         LEFT JOIN customer c ON pp.customer_id = c.customer_id
+        LEFT JOIN product_master pm ON pp.product_id = pm.product_id
         ORDER BY pp.customer_id, pp.prediction_date
         """
         df = get_data_from_db(query)
