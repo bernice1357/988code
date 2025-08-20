@@ -493,8 +493,12 @@ def update_progress(n_intervals, modal_open, current_step_state):
                 # 如果之前已經完成分析，保持完成狀態
                 if current_step_state == "分析完成":
                     return "分析完成", 100, [html.Div("分析已完成，您可以關閉此視窗")], False, dash.no_update, dash.no_update
+                # 如果之前已經在分析中（不是初始狀態），保持當前狀態，避免跳回初始狀態
+                elif current_step_state and current_step_state not in ["等待分析開始...", "初始化中..."]:
+                    # 保持上一次的狀態，不重置
+                    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
                 else:
-                    # 真正的等待開始狀態
+                    # 真正的等待開始狀態（初次載入）
                     return "等待分析開始...", 0, [html.Div("正在啟動分析...")], True, dash.no_update, dash.no_update
             
             # 如果任務已完成，顯示完成狀態並自動關閉Modal

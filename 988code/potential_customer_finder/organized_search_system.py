@@ -338,8 +338,25 @@ def organized_complete_search(product_name: str):
         print("\n正在進行客戶整合分析...")
         progress_tracker.update_step(7, "客戶整合分析", "正在進行深度客戶整合分析...")
         
-        # 合併可以處理的客戶和已購買的客戶來進行完整的客戶整合分析
-        inquiry_customers_for_analysis = classified_results['can_process'] + classified_results['already_purchased']
+        # 合併所有找到的客戶來進行完整的客戶整合分析
+        # 包括：可以處理的客戶、已購買的客戶、無法處理的客戶（沒有customer_id但仍是潛在客戶）
+        # 為每個客戶添加來源分類標記
+        inquiry_customers_for_analysis = []
+        
+        # 添加可處理客戶（標記為 can_process）
+        for customer in classified_results['can_process']:
+            customer['source_classification'] = 'can_process'
+            inquiry_customers_for_analysis.append(customer)
+            
+        # 添加已購買客戶（標記為 already_purchased）
+        for customer in classified_results['already_purchased']:
+            customer['source_classification'] = 'already_purchased'
+            inquiry_customers_for_analysis.append(customer)
+            
+        # 添加無法處理客戶（標記為 cannot_process）
+        for customer in classified_results['cannot_process']:
+            customer['source_classification'] = 'cannot_process'
+            inquiry_customers_for_analysis.append(customer)
         
         if inquiry_customers_for_analysis:
             # 如果有客戶資料，進行完整整合分析
@@ -653,7 +670,7 @@ def generate_integrated_customer_analysis(product_name: str, all_results: List[D
         # 獲取客戶整合分析器
         integration_analyzer = get_customer_integration_analyzer()
         
-        # 執行整合分析
+        # 執行整合分析 - 傳入已經分類好的所有客戶
         analysis_result = integration_analyzer.analyze_all_customer_types(product_name, all_results)
         
         # 準備統一格式的JSON檔案名稱
