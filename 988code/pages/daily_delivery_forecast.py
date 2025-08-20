@@ -24,15 +24,22 @@ def create_calendar_widget(selected_date=None):
     cal = calendar.monthcalendar(year, month)
     
     # 月份導航 - 修改為可點擊的月份
+    # 產生多年份的月份選項（當前年份前後3年）
+    current_year = date.today().year
+    month_options = []
+    for y in range(current_year - 3, current_year + 4):
+        for m in range(1, 13):
+            month_options.append({
+                "label": f"{y}年{m}月", 
+                "value": f"{y}-{m:02d}"
+            })
+
     month_nav = html.Div([
         dbc.Button("‹", id="daily-prev-month-btn", color="light", size="sm", style={"marginRight": "10px"}),
         # 將月份文字改為可點擊的下拉選單
         dcc.Dropdown(
             id="daily-month-selector",
-            options=[
-                {"label": f"{year}年{i}月", "value": f"{year}-{i:02d}"}
-                for i in range(1, 13)
-            ],
+            options=month_options,
             value=f"{year}-{month:02d}",
             style={
                 "width": "200px", 
