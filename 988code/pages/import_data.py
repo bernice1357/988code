@@ -261,7 +261,7 @@ layout = html.Div([
                                     "color": "#666",
                                     "margin": "0"
                                 }),
-                                html.P(id="upload-text-sub", children="支援 CSV, Excel 檔案", style={
+                                html.P(id="upload-text-sub", children="支援.xlsx, .xls檔案", style={
                                     "fontSize": "0.8rem",
                                     "color": "#999",
                                     "margin": "0.5rem 0 0 0"
