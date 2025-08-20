@@ -170,7 +170,7 @@ def fetch_area_sales_data_by_groups(area_pairs, start_date, end_date):
     
     return all_data, list(areas_with_data), areas_without_data, area_type_mapping
 
-def create_area_plotly_chart(data, start_date, end_date):
+def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None, area_type_mapping=None):
     """
     創建地區 Plotly 圖表
     
@@ -178,22 +178,86 @@ def create_area_plotly_chart(data, start_date, end_date):
     - data: 銷售數據列表
     - start_date: 開始日期
     - end_date: 結束日期
+    - all_selected_areas: 所有選中的地區列表
+    - area_type_mapping: 地區類型映射
     
     Returns:
     - Plotly 圖表組件
     """
-    if not data:
+    # 即使沒有原始數據，如果有選中的地區也要生成圖表
+    if not data and not all_selected_areas:
         return html.Div([
             html.H5("沒有找到符合條件的資料", style={"textAlign": "center", "color": "#666", "marginTop": "50px"})
         ])
     
     # 轉換數據為 DataFrame
-    df = pd.DataFrame(data)
-    df['sales_month'] = pd.to_datetime(df['sales_month'])
+    df = pd.DataFrame(data) if data else pd.DataFrame()
+    if not df.empty:
+        df['sales_month'] = pd.to_datetime(df['sales_month'])
     
-    # 分析地區名稱和數量
-    unique_areas = df['filter_value'].unique()
+    # 如果有選中的地區，檢查並填補缺失的數據點
+    if all_selected_areas:
+        # 生成日期範圍
+        from datetime import datetime
+        import calendar
+        
+        # 解析開始和結束日期
+        start_dt = datetime.strptime(start_date, '%Y-%m')
+        end_dt = datetime.strptime(end_date, '%Y-%m')
+        
+        # 生成月份列表
+        months = []
+        current = start_dt
+        while current <= end_dt:
+            months.append(current.replace(day=1))
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+        
+        # 為缺失的地區-月份組合添加0值記錄
+        zero_records = []
+        
+        # 獲取現有的地區-月份組合
+        if not df.empty:
+            existing_combinations = set((row['filter_value'], row['sales_month'].replace(day=1)) 
+                                      for _, row in df.iterrows())
+        else:
+            existing_combinations = set()
+        
+        # 為所有選中的地區檢查每個月份
+        for area_name in all_selected_areas:
+            for month in months:
+                combination = (area_name, month)
+                if combination not in existing_combinations:
+                    zero_records.append({
+                        'sales_month': month,
+                        'filter_value': area_name,
+                        'total_amount': 0,
+                        'area_type': area_type_mapping.get(area_name, 'district') if area_type_mapping else 'district'
+                    })
+        
+        # 將0值記錄添加到DataFrame
+        if zero_records:
+            print(f"[DEBUG] 地區分析 - 添加 {len(zero_records)} 個0值數據點")
+            zero_df = pd.DataFrame(zero_records)
+            if df.empty:
+                df = zero_df
+            else:
+                df = pd.concat([df, zero_df], ignore_index=True)
+            df['sales_month'] = pd.to_datetime(df['sales_month'])
+        else:
+            print(f"[DEBUG] 地區分析 - 沒有需要添加的0值數據點")
+    
+    # 分析地區名稱和數量（使用更新後的數據）
+    unique_areas = df['filter_value'].unique() if not df.empty else []
     area_count = len(unique_areas)
+    
+    # 如果仍然沒有數據，返回空圖表提示
+    if df.empty:
+        return html.Div([
+            html.H5("沒有找到符合條件的資料", style={"textAlign": "center", "color": "#666", "marginTop": "50px"})
+        ])
     
     # 為每個地區添加類型前綴
     name_mapping = {}  # 帶前綴名稱 -> 原始名稱
@@ -241,18 +305,27 @@ def create_area_plotly_chart(data, start_date, end_date):
     chart_title = f"地區銷售趨勢分析 ({start_date} 至 {end_date})"
     
     # 建立折線圖（使用帶前綴的顯示名稱）
+    # 為了確保支持更多顏色，使用完整的顏色序列
+    colors = px.colors.qualitative.Plotly + px.colors.qualitative.Set1 + px.colors.qualitative.Set2
+    
     fig = px.line(
         df_display, 
         x='sales_month', 
         y='total_amount', 
         color='display_name',
         title=chart_title,
+        color_discrete_sequence=colors,  # 明確指定顏色序列
         labels={
             'sales_month': '銷售月份',
             'total_amount': '銷售金額 (元)',
             'display_name': '地區'
         }
     )
+    
+    # 添加調試信息（開發時使用）
+    print(f"[DEBUG] 地區圖表生成 - 地區數量: {area_count}")
+    print(f"[DEBUG] 地區圖表生成 - 地區列表: {list(unique_areas)}")
+    print(f"[DEBUG] 地區圖表生成 - 圖表線條數量: {len(fig.data)}")
     
     # 美化圖表，恢復原生圖例
     fig.update_layout(
@@ -355,20 +428,22 @@ def generate_area_chart(n_clicks, badges, start_date, end_date):
         # 使用新的分組查詢邏輯
         chart_data, areas_with_data, areas_without_data, area_type_mapping = fetch_area_sales_data_by_groups(area_pairs, api_start_date, api_end_date)
         
-        if not chart_data:
-            return [
-                html.Div([
-                    html.H5("沒有找到符合條件的銷售資料", 
-                           style={"textAlign": "center", "color": "#ffa500", "marginTop": "50px"}),
-                    html.P(f"時間範圍: {start_date} 至 {end_date}",
-                          style={"textAlign": "center", "color": "#666"}),
-                    html.P(f"選中地區: {', '.join([name for name, _ in area_pairs])}",
-                          style={"textAlign": "center", "color": "#666"})
-                ])
-            ]
+        # 即使沒有數據，也要生成圖表顯示0值線條
+        # if not chart_data:
+        #     return [
+        #         html.Div([
+        #             html.H5("沒有找到符合條件的銷售資料", 
+        #                    style={"textAlign": "center", "color": "#ffa500", "marginTop": "50px"}),
+        #             html.P(f"時間範圍: {start_date} 至 {end_date}",
+        #                   style={"textAlign": "center", "color": "#666"}),
+        #             html.P(f"選中地區: {', '.join([name for name, _ in area_pairs])}",
+        #                   style={"textAlign": "center", "color": "#666"})
+        #         ])
+        #     ]
         
         # 生成圖表
-        chart = create_area_plotly_chart(chart_data, start_date, end_date)
+        all_selected_area_names = [name for name, _ in area_pairs]
+        chart = create_area_plotly_chart(chart_data, start_date, end_date, all_selected_area_names, area_type_mapping)
         
         # 創建數據摘要
         df = pd.DataFrame(chart_data)

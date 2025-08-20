@@ -22,10 +22,12 @@ def extract_products_from_badges(badges):
     """
     products = []
     
+    print(f"[DEBUG] extract_products_from_badges - 輸入 badges 數量: {len(badges) if badges else 0}")
+    
     if not badges:
         return products
         
-    for badge in badges:
+    for i, badge in enumerate(badges):
         if badge and 'props' in badge:
             # 提取產品名稱
             product_name = None
@@ -41,7 +43,11 @@ def extract_products_from_badges(badges):
             
             if product_name and product_type:
                 products.append((product_name, product_type))
+                print(f"[DEBUG] extract_products_from_badges - 第 {i+1} 個產品: {product_name} ({product_type})")
+            else:
+                print(f"[DEBUG] extract_products_from_badges - 第 {i+1} 個 badge 解析失敗: name={product_name}, type={product_type}")
     
+    print(f"[DEBUG] extract_products_from_badges - 最終提取到的產品: {products}")
     return products
 
 def convert_date_to_api_format(date_value, is_end_date=False):
@@ -172,7 +178,7 @@ def fetch_sales_data_by_groups(product_pairs, start_date, end_date):
     return all_data, list(products_with_data), products_without_data, product_type_mapping
 
 
-def create_plotly_chart(data, start_date, end_date):
+def create_plotly_chart(data, start_date, end_date, all_selected_products=None, product_type_mapping=None):
     """
     創建 Plotly 圖表
     
@@ -180,22 +186,86 @@ def create_plotly_chart(data, start_date, end_date):
     - data: 銷售數據列表
     - start_date: 開始日期
     - end_date: 結束日期
+    - all_selected_products: 所有選中的產品列表
+    - product_type_mapping: 產品類型映射
     
     Returns:
     - Plotly 圖表組件
     """
-    if not data:
+    # 即使沒有原始數據，如果有選中的產品也要生成圖表
+    if not data and not all_selected_products:
         return html.Div([
             html.H5("沒有找到符合條件的資料", style={"textAlign": "center", "color": "#666", "marginTop": "50px"})
         ])
     
     # 轉換數據為 DataFrame
-    df = pd.DataFrame(data)
-    df['sales_month'] = pd.to_datetime(df['sales_month'])
+    df = pd.DataFrame(data) if data else pd.DataFrame()
+    if not df.empty:
+        df['sales_month'] = pd.to_datetime(df['sales_month'])
     
-    # 分析產品名稱和數量
-    unique_products = df['filter_value'].unique()
+    # 如果有選中的產品，檢查並填補缺失的數據點
+    if all_selected_products:
+        # 生成日期範圍
+        from datetime import datetime
+        import calendar
+        
+        # 解析開始和結束日期
+        start_dt = datetime.strptime(start_date, '%Y-%m')
+        end_dt = datetime.strptime(end_date, '%Y-%m')
+        
+        # 生成月份列表
+        months = []
+        current = start_dt
+        while current <= end_dt:
+            months.append(current.replace(day=1))
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+        
+        # 為缺失的產品-月份組合添加0值記錄
+        zero_records = []
+        
+        # 獲取現有的產品-月份組合
+        if not df.empty:
+            existing_combinations = set((row['filter_value'], row['sales_month'].replace(day=1)) 
+                                      for _, row in df.iterrows())
+        else:
+            existing_combinations = set()
+        
+        # 為所有選中的產品檢查每個月份
+        for product_name in all_selected_products:
+            for month in months:
+                combination = (product_name, month)
+                if combination not in existing_combinations:
+                    zero_records.append({
+                        'sales_month': month,
+                        'filter_value': product_name,
+                        'total_amount': 0,
+                        'product_type': product_type_mapping.get(product_name, 'item') if product_type_mapping else 'item'
+                    })
+        
+        # 將0值記錄添加到DataFrame
+        if zero_records:
+            print(f"[DEBUG] 添加 {len(zero_records)} 個0值數據點")
+            zero_df = pd.DataFrame(zero_records)
+            if df.empty:
+                df = zero_df
+            else:
+                df = pd.concat([df, zero_df], ignore_index=True)
+            df['sales_month'] = pd.to_datetime(df['sales_month'])
+        else:
+            print(f"[DEBUG] 沒有需要添加的0值數據點")
+    
+    # 分析產品名稱和數量（使用更新後的數據）
+    unique_products = df['filter_value'].unique() if not df.empty else []
     product_count = len(unique_products)
+    
+    # 如果仍然沒有數據，返回空圖表提示
+    if df.empty:
+        return html.Div([
+            html.H5("沒有找到符合條件的資料", style={"textAlign": "center", "color": "#666", "marginTop": "50px"})
+        ])
     
     # 檢查每個產品的資料點數量和數值範圍
     for product in unique_products:
@@ -248,18 +318,27 @@ def create_plotly_chart(data, start_date, end_date):
     chart_title = f"銷售分析圖表 ({start_date} 至 {end_date})"
     
     # 建立折線圖（使用帶前綴的顯示名稱）
+    # 為了確保支持更多顏色，使用完整的顏色序列
+    colors = px.colors.qualitative.Plotly + px.colors.qualitative.Set1 + px.colors.qualitative.Set2
+    
     fig = px.line(
         df_display, 
         x='sales_month', 
         y='total_amount', 
         color='display_name',
         title=chart_title,
+        color_discrete_sequence=colors,  # 明確指定顏色序列
         labels={
             'sales_month': '銷售月份',
             'total_amount': '銷售金額 (元)',
             'display_name': '產品'
         }
     )
+    
+    # 添加調試信息（開發時使用）
+    print(f"[DEBUG] 圖表生成 - 產品數量: {product_count}")
+    print(f"[DEBUG] 圖表生成 - 產品列表: {list(unique_products)}")
+    print(f"[DEBUG] 圖表生成 - 圖表線條數量: {len(fig.data)}")
     
     # 美化圖表，恢復原生圖例
     fig.update_layout(
@@ -336,6 +415,10 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
     # 檢查是否有選中的產品
     product_pairs = extract_products_from_badges(badges)
     
+    # 添加調試信息
+    print(f"[DEBUG] 生成圖表 - 選中的產品對: {product_pairs}")
+    print(f"[DEBUG] 生成圖表 - 產品數量: {len(product_pairs)}")
+    
     if not product_pairs:
         return [
             html.Div([
@@ -364,20 +447,27 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
         # 使用新的分組查詢邏輯
         chart_data, products_with_data, products_without_data, product_type_mapping = fetch_sales_data_by_groups(product_pairs, api_start_date, api_end_date)
         
-        if not chart_data:
-            return [
-                html.Div([
-                    html.H5("沒有找到符合條件的銷售資料", 
-                           style={"textAlign": "center", "color": "#ffa500", "marginTop": "50px"}),
-                    html.P(f"時間範圍: {start_date} 至 {end_date}",
-                          style={"textAlign": "center", "color": "#666"}),
-                    html.P(f"選中產品: {', '.join([name for name, _ in product_pairs])}",
-                          style={"textAlign": "center", "color": "#666"})
-                ])
-            ]
+        # 添加調試信息
+        print(f"[DEBUG] 數據獲取 - 總數據筆數: {len(chart_data)}")
+        print(f"[DEBUG] 數據獲取 - 有數據的產品: {products_with_data}")
+        print(f"[DEBUG] 數據獲取 - 無數據的產品: {products_without_data}")
+        
+        # 即使沒有數據，也要生成圖表顯示0值線條
+        # if not chart_data:
+        #     return [
+        #         html.Div([
+        #             html.H5("沒有找到符合條件的銷售資料", 
+        #                    style={"textAlign": "center", "color": "#ffa500", "marginTop": "50px"}),
+        #             html.P(f"時間範圍: {start_date} 至 {end_date}",
+        #                   style={"textAlign": "center", "color": "#666"}),
+        #             html.P(f"選中產品: {', '.join([name for name, _ in product_pairs])}",
+        #                   style={"textAlign": "center", "color": "#666"})
+        #         ])
+        #     ]
         
         # 生成圖表
-        chart = create_plotly_chart(chart_data, start_date, end_date)
+        all_selected_product_names = [name for name, _ in product_pairs]
+        chart = create_plotly_chart(chart_data, start_date, end_date, all_selected_product_names, product_type_mapping)
         
         # 創建數據摘要
         df = pd.DataFrame(chart_data)
