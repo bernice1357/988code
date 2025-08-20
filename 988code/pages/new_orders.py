@@ -148,11 +148,6 @@ layout = dbc.Container([
     error_toast("new_orders", message=""),
     warning_toast("new_orders", message=""),
     dcc.Store(id='user-role-store'),
-    dcc.Interval(
-        id='interval-component',
-        interval=30*1000,  # 30秒更新一次
-        n_intervals=0
-    ),
     html.Div([
         html.Div(),  # 空的div佔位
         dbc.ButtonGroup([
@@ -194,14 +189,6 @@ layout = dbc.Container([
     ], id="delete-modal", is_open=False)
 ], fluid=True)
 
-# 定時更新訂單
-@app.callback(
-    Output("orders-container", "children"),
-    Input('interval-component', 'n_intervals')
-)
-def update_orders(n):
-    orders = get_orders()
-    return [dbc.Col(make_card_item(order), width=4) for order in orders]
 
 # 篩選顯示訂單和更新按鈕狀態
 @app.callback(

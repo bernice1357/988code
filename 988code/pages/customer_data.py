@@ -5,15 +5,6 @@ from dash import ALL, callback_context
 
 # 配送日轉換函數
 def convert_delivery_schedule_to_chinese(schedule_str):
-    """
-    將數字配送日轉換為中文字
-    
-    Parameters:
-    - schedule_str: 逗號分隔的數字字符串 (例如: "1,3,5")
-    
-    Returns:
-    - 逗號分隔的中文字符串 (例如: "一,三,五")
-    """
     if not schedule_str or schedule_str.strip() == "":
         return ""
     
@@ -31,15 +22,6 @@ def convert_delivery_schedule_to_chinese(schedule_str):
         return schedule_str
 
 def convert_delivery_schedule_to_numbers(chinese_str):
-    """
-    將中文配送日轉換為數字
-    
-    Parameters:
-    - chinese_str: 逗號分隔的中文字符串或列表 (例如: "一,三,五" 或 ["一", "三", "五"])
-    
-    Returns:
-    - 逗號分隔的數字字符串 (例如: "1,3,5")
-    """
     if not chinese_str:
         return ""
     
@@ -273,7 +255,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
         button_text="編輯客戶資料",
         button_id_type="customer_data_button",
         show_button=True,
-        sticky_columns=['客戶ID', '客戶名稱']
+        sticky_columns=['客戶ID']
     )
     
     return table_component, current_table_data

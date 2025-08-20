@@ -254,6 +254,10 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
             else:
                 df = pd.concat([df, zero_df], ignore_index=True)
             df['sales_month'] = pd.to_datetime(df['sales_month'])
+            
+            # 排序數據以確保時間序列的連續性
+            df = df.sort_values(['filter_value', 'sales_month']).reset_index(drop=True)
+            print(f"[DEBUG] 數據已按產品名稱和時間排序")
         else:
             print(f"[DEBUG] 沒有需要添加的0值數據點")
     
@@ -287,7 +291,31 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
         type_label = type_labels.get(product_type, '未知')
         
         # 創建帶前綴的顯示名稱（用方括號包起來）
-        display_name = f"[{type_label}] {product}"
+        full_name = f"[{type_label}] {product}"
+        
+        # 智慧換行：如果名稱過長，按字符數量切割
+        if len(full_name) > 30:  # 超過15個字符就考慮換行
+            lines = []
+            current_line = ""
+            
+            # 逐字符處理
+            for char in full_name:
+                # 如果加上這個字符後會超過15個字符，就換行
+                if len(current_line + char) > 15 and current_line:
+                    lines.append(current_line)
+                    current_line = char
+                else:
+                    current_line += char
+            
+            # 加入最後一行
+            if current_line:
+                lines.append(current_line)
+            
+            # 用 <br> 連接多行
+            display_name = '<br>'.join(lines) if len(lines) > 1 else full_name
+        else:
+            display_name = full_name
+        
         name_mapping[display_name] = product
         display_names[product] = display_name
     
@@ -295,27 +323,30 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
     df_display = df.copy()
     df_display['display_name'] = df_display['filter_value'].map(display_names)
     
-    # 統一使用垂直圖例，根據產品數量調整高度
-    chart_height = max(500, 400 + product_count * 20)  # 每個產品約20px高度
-    chart_width = "100%"
+    # 圖表高度設定
+    chart_height_plotly = 500  # plotly 內部使用的固定高度
+    chart_height_css = "100%"  # CSS 樣式使用的響應式高度
+    chart_width = "100%"  # 圖表寬度與容器一致
     
-    # 垂直圖例配置：字體較小但顯示完整名稱
+    # 垂直圖例配置：調整圖表與圖例的寬度比例
     legend_config = dict(
         orientation="v",
         yanchor="top",
         y=1,
         xanchor="left", 
-        x=1.02,
+        x=1.02,  # 圖例放在圖表右側外面
         font=dict(
             size=10  # 較小的字體確保完整顯示
-        )
+        ),
+        itemwidth=30,  # 限制每個圖例項目的寬度
+        tracegroupgap=5  # 圖例項目間距
     )
     
-    # 增加右邊距給圖例預留足夠空間
-    margin_config = dict(l=0, r=200, t=40, b=0)
+    # 調整邊距：為圖例預留足夠的右邊距空間
+    margin_config = dict(l=40, r=200, t=40, b=40)
     
     # 自動生成標題，包含分析期間
-    chart_title = f"銷售分析圖表 ({start_date} 至 {end_date})"
+    chart_title = f"產品銷售分析圖表 ({start_date} 至 {end_date})"
     
     # 建立折線圖（使用帶前綴的顯示名稱）
     # 為了確保支持更多顏色，使用完整的顏色序列
@@ -346,8 +377,11 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
         yaxis_title="銷售金額 (元)",
         hovermode='x unified',
         legend=legend_config,
-        height=chart_height,
-        margin=margin_config
+        height=chart_height_plotly,
+        margin=margin_config,
+        xaxis=dict(
+            tickformat='%Y年%m月'  # 橫軸顯示中文格式：2025年01月
+        )
     )
     
     # 根據產品類型設定線條樣式
@@ -381,7 +415,7 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
     
     return dcc.Graph(
         figure=fig, 
-        style={"height": f"{chart_height}px", "width": chart_width},
+        style={"height": chart_height_css, "width": chart_width},
         config={
             'modeBarButtonsToRemove': ['select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d'],
             'displaylogo': False,
@@ -389,7 +423,7 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
             'toImageButtonOptions': {
                 'format': 'png',
                 'filename': download_filename,
-                'height': chart_height,
+                'height': chart_height_plotly,
                 'width': 1200,
                 'scale': 1
             }
@@ -471,7 +505,7 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
         
         # 創建數據摘要
         df = pd.DataFrame(chart_data)
-        total_sales = df['total_amount'].sum()
+        total_sales = df['total_amount'].sum() if not df.empty and 'total_amount' in df.columns else 0
         date_range = f"{start_date} 至 {end_date}"
         
         # 統計各產品類型數量
@@ -486,57 +520,29 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
         
         type_summary = ", ".join([f"{type_name}: {count}" for type_name, count in type_counts.items()])
         
-        # 準備 Popover 內容（資料摘要）
-        popover_content = [
-            html.P(f"產品統計: {type_summary}", style={"margin": "5px 0"}),
-        ]
+        # 創建標題和警告信息
+        title_components = []
         
-        # 如果有產品有資料，顯示銷售額
-        if products_with_data:
-            popover_content.append(
-                html.P(f"總銷售額: NT$ {total_sales:,.0f}", style={"margin": "5px 0", "fontWeight": "bold"})
-            )
-        
-        # 如果有產品沒有資料，顯示提醒
+        # 如果有產品沒有資料，顯示警告信息
         if products_without_data:
-            popover_content.extend([
-                html.Hr(style={"margin": "8px 0"}),
-                html.P("⚠️ 以下產品沒有銷售資料:", 
-                      style={"margin": "5px 0", "color": "#856404", "fontWeight": "bold", "fontSize": "12px"}),
-                html.P(f"{', '.join(products_without_data)}", 
-                      style={"margin": "2px 0", "color": "#856404", "fontStyle": "italic", "fontSize": "11px"})
-            ])
-        
-        # 創建標題列（標題 + 資料摘要按鈕）
-        title_row = html.Div([
-            html.H4("銷售分析圖表", style={"margin": "0 10px 0 0", "color": "#333"}),
-            dbc.Button(
-                html.I(className="fas fa-chart-bar"),
-                id="data-summary-popover-button",
-                color="dark",
-                size="sm",
-                outline=True,
-                style={"fontSize": "14px", "padding": "4px 8px"}
+            warning_text = f"⚠️ 以下產品沒有銷售資料：{', '.join(products_without_data)}"
+            title_components.append(
+                html.P(warning_text, style={
+                    "textAlign": "center", 
+                    "color": "#856404", 
+                    "fontWeight": "bold", 
+                    "fontSize": "14px",
+                    "marginBottom": "15px",
+                    "backgroundColor": "#fff3cd",
+                    "padding": "8px 12px",
+                    "borderRadius": "4px",
+                    "border": "1px solid #ffeaa7"
+                })
             )
-        ], style={
-            "display": "flex", 
-            "justifyContent": "center", 
-            "alignItems": "center",
-            "marginBottom": "15px",
-            "padding": "0"
-        })
         
-        # 創建 Popover
-        popover = dbc.Popover(
-            popover_content,
-            target="data-summary-popover-button",
-            trigger="legacy",
-            placement="left",
-            style={"maxWidth": "350px"},
-            hide_arrow=False
-        )
+        title_section = html.Div(title_components, style={"marginBottom": "15px"})
         
-        return [title_row, chart, popover]
+        return [title_section, chart]
         
     except Exception as e:
         return [

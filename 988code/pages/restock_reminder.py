@@ -206,23 +206,25 @@ def load_data_and_handle_errors(page_loaded):
                 
                 # 可滾動的內容區域
                 scrollable_content = html.Div([
-                    # 固定標題，為滾動條預留空間
+                    # 固定標題
                     html.Div([
                         table_header
                     ], style={
                         'position': 'sticky',
                         'top': '0',
-                        'z-index': '10',
+                        'z-index': '100',
                         'background-color': 'white',
-                        'padding-right': '17px'  # 預留滾動條寬度
+                        'border-bottom': '2px solid #ddd',
+                        'box-shadow': '0 2px 4px rgba(0,0,0,0.1)'
                     }),
                     # 滾動內容區域
                     html.Div(table_rows, style={
                         'max-height': '400px',
                         'overflow-y': 'auto',
-                        'background-color': 'white'
+                        'background-color': 'white',
+                        'border': '1px solid #ddd'
                     })
-                ], style={'background-color': 'white'})
+                ], style={'background-color': 'white', 'border': '1px solid #ddd', 'border-radius': '4px'})
                 
                 # 建立 Accordion Item with dynamic title
                 accordion_item = dbc.AccordionItem(
@@ -774,21 +776,25 @@ def update_accordion_with_search_and_selection(selected_customer_id, checkbox_st
                 
                 # 可滾動的內容區域
                 scrollable_content = html.Div([
+                    # 固定標題
                     html.Div([
                         table_header
                     ], style={
                         'position': 'sticky',
                         'top': '0',
-                        'z-index': '10',
+                        'z-index': '100',
                         'background-color': 'white',
-                        'padding-right': '17px'
+                        'border-bottom': '2px solid #ddd',
+                        'box-shadow': '0 2px 4px rgba(0,0,0,0.1)'
                     }),
+                    # 滾動內容區域
                     html.Div(table_rows, style={
                         'max-height': '400px',
                         'overflow-y': 'auto',
-                        'background-color': 'white'
+                        'background-color': 'white',
+                        'border': '1px solid #ddd'
                     })
-                ], style={'background-color': 'white'})
+                ], style={'background-color': 'white', 'border': '1px solid #ddd', 'border-radius': '4px'})
                 
                 # 建立 Accordion Item 
                 accordion_item = dbc.AccordionItem(

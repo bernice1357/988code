@@ -81,7 +81,7 @@ tab_content = html.Div([
             "borderRadius": "8px",
             "padding": "20px",
             "marginTop": "10px",
-            "height": "70vh"
+            "height": "66vh"
         })
     ], style={"position": "relative"}),
     
