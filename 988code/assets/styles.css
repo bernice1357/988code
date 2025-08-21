@@ -1,5 +1,10 @@
-/* 全局字體統一設定 */
-* {
+/* 全局字體統一設定 - 排除圖標字體 */
+*:not([class*="fa"]):not([class*="icon"]):not(i[class]) {
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* 針對特定元素設定字體，避免過於廣泛的選擇器 */
+body, p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
 

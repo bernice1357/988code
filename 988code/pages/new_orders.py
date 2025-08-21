@@ -513,10 +513,29 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
             
             # 呼叫API更新資料
             try:
-                update_data["user_role"] = user_role or "viewer"
+                update_data["user_role"] = user_role
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單確認成功")
+                    
+                    # 更新 order_transactions 表
+                    try:
+                        transaction_data = {
+                            "customer_id": customer_id,
+                            "product_id": product_id,
+                            "quantity": quantity,
+                            "unit_price": unit_price,
+                            "amount": amount,
+                            "transaction_date": original_order['created_at'],
+                            "user_role": user_role
+                        }
+                        
+                        transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                        if transaction_response.status_code != 200:
+                            print(f"order_transactions 更新失敗，狀態碼：{transaction_response.status_code}")
+                    except Exception as e:
+                        print(f"order_transactions 更新異常：{str(e)}")
+                    
                     orders = get_orders()
                     updated_orders = create_grouped_orders_layout(orders)
                     return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders

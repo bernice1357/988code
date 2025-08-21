@@ -1,7 +1,7 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
-def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='60vh', sortable_columns=None, sort_state=None):
+def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='75vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
     if sortable_columns is None:
@@ -9,18 +9,18 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
     
     # 計算每個浮空欄位的最適寬度
     def calculate_column_width(col):
-        # 計算標題寬度 (padding: 8px 12px = 24px)
-        header_width = len(str(col)) * 12 + 24
+        # 計算標題寬度 (padding: 4px 8px = 16px)
+        header_width = len(str(col)) * 12 + 16
         
         # 計算內容最大寬度
         max_content_width = 0
         for value in df[col]:
-            content_width = len(str(value)) * 10 + 24  # padding: 8px 12px = 24px
+            content_width = len(str(value)) * 12 + 16  # padding: 4px 8px = 16px
             max_content_width = max(max_content_width, content_width)
         
-        # 取標題和內容的最大值，再加上額外的空間避免超出，最小100px，最大300px
-        calculated_width = max(header_width, max_content_width) + 20  # 額外20px緩衝
-        return max(100, min(300, calculated_width))
+        # 取標題和內容的最大值，再加上5px
+        calculated_width = max(header_width, max_content_width) + 5
+        return calculated_width
     
     # 計算所有浮空欄位的寬度
     sticky_widths = {}
@@ -44,7 +44,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     style={'margin': '0px'}
                 ),
                 style={
-                    'padding': '8px 12px',
+                    'padding': '4px 8px',
                     'textAlign': 'center',
                     'fontSize': '16px',
                     'height': '50px',
@@ -65,13 +65,13 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         
         for col in                 ([col for col in df.columns if col in sticky_columns] + 
                  [col for col in df.columns if col not in sticky_columns]) if sticky_columns else df.columns:
-            # 計算cell內容的寬度
-            content_length = len(str(row[col]))
-            # 根據內容長度計算寬度，最小80px，每個字符約12px
-            cell_width = max(80, content_length * 12 + 24)  # 24px for padding
+            # 計算cell內容的寬度 - 取標題或內容的最大值再加5px
+            header_width = len(str(col)) * 12 + 16
+            content_width = len(str(row[col])) * 12 + 16
+            cell_width = max(header_width, content_width) + 5
             
             cell_style = {
-                'padding': '8px 12px',
+                'padding': '4px 8px',
                 'textAlign': 'center',
                 'border': '1px solid #ccc',
                 'fontSize': '16px',
@@ -126,7 +126,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 html.Td(
                     html.Button(button_text, **button_props),
                     style={
-                        'padding': '8px 12px',
+                        'padding': '4px 8px',
                         'textAlign': 'center',
                         'border': '1px solid #ccc',
                         'fontSize': '16px',
@@ -159,7 +159,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'backgroundColor': '#bcd1df',
                     'fontWeight': 'bold',
                     'fontSize': '16px',
-                    'padding': '8px 12px',
+                    'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
                     'width': '50px',
@@ -230,7 +230,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'backgroundColor': '#bcd1df',
                     'fontWeight': 'bold',
                     'fontSize': '16px',
-                    'padding': '8px 12px',
+                    'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
                     'whiteSpace': 'nowrap',
@@ -253,7 +253,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
     ], style={
         'overflowY': 'auto',
         'overflowX': 'auto',
-        'height': '100%',
+        'maxHeight': table_height,
+        'minHeight': table_height,
         'display': 'block',
         'position': 'relative',
         'width': '100%',  # 確保容器寬度

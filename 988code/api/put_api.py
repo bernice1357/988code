@@ -5,6 +5,8 @@ from typing import Optional, List
 from datetime import datetime
 import base64
 import io
+import random
+import string
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -291,6 +293,15 @@ class RecordUpdate(BaseModel):
     confirmed_at: Optional[datetime] = None
     user_role: str
 
+class OrderTransactionCreate(BaseModel):
+    customer_id: Optional[str] = None
+    product_id: Optional[str] = None
+    quantity: Optional[int] = None
+    unit_price: Optional[float] = None
+    amount: Optional[float] = None
+    transaction_date: Optional[str] = None
+    user_role: str
+
 # 更新暫存訂單
 @router.put("/temp/{id}")
 def update_temp(id: int, update_data: RecordUpdate):
@@ -314,6 +325,43 @@ def update_temp(id: int, update_data: RecordUpdate):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
+
+# 新增訂單交易記錄
+@router.post("/order_transactions")
+def create_order_transaction(transaction_data: OrderTransactionCreate):
+    check_editor_permission(transaction_data.user_role)
+    
+    # 生成8個字元的transaction_id（數字+小寫英文）
+    def generate_transaction_id():
+        characters = string.ascii_lowercase + string.digits
+        return ''.join(random.choice(characters) for _ in range(8))
+    
+    transaction_id = generate_transaction_id()
+    
+    sql = """
+    INSERT INTO order_transactions 
+    (transaction_id, customer_id, product_id, quantity, unit_price, amount, transaction_date, currency, document_type) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    
+    params = (
+        transaction_id,
+        transaction_data.customer_id,
+        transaction_data.product_id,
+        transaction_data.quantity,
+        transaction_data.unit_price,
+        transaction_data.amount,
+        transaction_data.transaction_date,
+        'NTD',
+        '銷貨'
+    )
+    
+    try:
+        update_data_to_db(sql, params)
+        return {"message": "交易記錄新增成功"}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="交易記錄新增失敗")
 
 # 客戶資料管理 - 更新資料
 class CustomerUpdate(BaseModel):
