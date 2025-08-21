@@ -809,14 +809,10 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
                 base64_content = file_info.get('content', '')
                 frontend_converted = file_info.get('frontend_converted', False)
                 
-                print(f"[DEBUG] 處理檔案: {filename}, 前端已轉換: {frontend_converted}")
-                print(f"[DEBUG] base64_content 前100個字元: {base64_content[:100]}")
-                
                 # 解碼檔案內容 - 檢查是否有 data URL 前綴
                 if base64_content.startswith('data:'):
                     # 移除 data URL 前綴
                     base64_data = base64_content.split(',', 1)[1]
-                    print(f"[DEBUG] 移除前綴後的 base64 前50個字元: {base64_data[:50]}")
                 else:
                     base64_data = base64_content
                 
@@ -824,18 +820,14 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
                 
                 # 如果是前端已轉換的檔案，直接使用內容
                 if frontend_converted:
-                    print(f"[DEBUG] 使用前端已轉換的內容: {filename}")
-                    print(f"[DEBUG] 前端轉換內容大小: {len(file_content)} bytes")
                     pdf_content = file_content
                 else:
                     # 非前端轉換的檔案，使用後端轉換
-                    print(f"[DEBUG] 使用後端轉換: {filename}")
                     pdf_content = convert_file_to_pdf(file_content, filename)
                 
                 # 計算內容雜湊用於除錯
                 import hashlib
                 content_hash = hashlib.md5(pdf_content).hexdigest()[:8]
-                print(f"[DEBUG] PDF 內容雜湊: {content_hash}, 大小: {len(pdf_content)} bytes")
                 
                 pdf_files.append({
                     'filename': filename,
@@ -891,10 +883,6 @@ def save_rag_knowledge(knowledge_data: RAGKnowledgeBase):
                     # 檢查是否已經存在相同檔名，如果存在就跳過
                     if file_info['filename'] not in new_file_names:
                         hex_content = file_info['pdf_content'].hex()
-                        print(f"[DEBUG] 準備更新 DB - 檔案: {file_info['filename']}")
-                        print(f"[DEBUG] hex 內容長度: {len(hex_content)} 字元")
-                        print(f"[DEBUG] hex 前20字元: {hex_content[:20]}")
-                        print(f"[DEBUG] hex 後20字元: {hex_content[-20:]}")
                         new_file_content.append(hex_content)
                         new_file_names.append(file_info['filename'])
                 

@@ -1,3 +1,13 @@
+/* 全局字體統一設定 */
+* {
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* 強制 pre 標籤也使用相同字體，而不是等寬字體 */
+pre {
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
+}
+
 .card-body .card-title, .card-body .card-text {
     color: black !important;
 }

@@ -239,7 +239,6 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
         
         # 將0值記錄添加到DataFrame
         if zero_records:
-            print(f"[DEBUG] 地區分析 - 添加 {len(zero_records)} 個0值數據點")
             zero_df = pd.DataFrame(zero_records)
             if df.empty:
                 df = zero_df
@@ -249,9 +248,6 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
             
             # 排序數據以確保時間序列的連續性
             df = df.sort_values(['filter_value', 'sales_month']).reset_index(drop=True)
-            print(f"[DEBUG] 地區數據已按地區名稱和時間排序")
-        else:
-            print(f"[DEBUG] 地區分析 - 沒有需要添加的0值數據點")
     
     # 分析地區名稱和數量（使用更新後的數據）
     unique_areas = df['filter_value'].unique() if not df.empty else []
@@ -352,11 +348,6 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
             'display_name': '地區'
         }
     )
-    
-    # 添加調試信息（開發時使用）
-    print(f"[DEBUG] 地區圖表生成 - 地區數量: {area_count}")
-    print(f"[DEBUG] 地區圖表生成 - 地區列表: {list(unique_areas)}")
-    print(f"[DEBUG] 地區圖表生成 - 圖表線條數量: {len(fig.data)}")
     
     # 美化圖表，恢復原生圖例
     fig.update_layout(

@@ -1,7 +1,7 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
-def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='77vh', sortable_columns=None, sort_state=None):
+def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='60vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
     if sortable_columns is None:
@@ -65,6 +65,11 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         
         for col in                 ([col for col in df.columns if col in sticky_columns] + 
                  [col for col in df.columns if col not in sticky_columns]) if sticky_columns else df.columns:
+            # 計算cell內容的寬度
+            content_length = len(str(row[col]))
+            # 根據內容長度計算寬度，最小80px，每個字符約12px
+            cell_width = max(80, content_length * 12 + 24)  # 24px for padding
+            
             cell_style = {
                 'padding': '8px 12px',
                 'textAlign': 'center',
@@ -72,7 +77,9 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'fontSize': '16px',
                 'height': '50px',
                 'whiteSpace': 'nowrap',
-                'backgroundColor': 'white'
+                'backgroundColor': 'white',
+                'width': f'{cell_width}px',
+                'minWidth': f'{cell_width}px'
             }
             
             
@@ -129,7 +136,9 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'right': button_right_position,
                         'zIndex': 2,
                         'backgroundColor': 'white',
-                        'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)'
+                        'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
+                        'width': f'{button_width}px',
+                        'minWidth': f'{button_width}px'
                     }
                 )
             )
@@ -208,9 +217,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'textAlign': 'center',
                         'border': '1px solid #ccc',
                         'whiteSpace': 'nowrap',
-                        'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
-                        'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
-                        'maxWidth': f'{sticky_widths[col]}px' if col in sticky_columns else 'auto',
+                        'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'max-content',
+                        'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else '80px',
                         'boxShadow': 'none'
                     }
                 ) for col in df.columns] +
@@ -226,13 +234,16 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
                     'whiteSpace': 'nowrap',
-                    'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)'
+                    'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
+                    'width': f'{button_width}px',
+                    'minWidth': f'{button_width}px'
                 })] if show_button else [])
             )
         ]),
         html.Tbody(rows)
     ], style={
-        "width": "100%",
+        "width": "max-content",  # 讓表格根據內容自動調整寬度
+        "minWidth": "100%",      # 最小寬度為容器寬度
         "borderCollapse": "collapse",
         'border': '1px solid #ccc'
     })
@@ -242,10 +253,11 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
     ], style={
         'overflowY': 'auto',
         'overflowX': 'auto',
-        'maxHeight': table_height,
-        'minHeight': table_height,
+        'height': '100%',
         'display': 'block',
         'position': 'relative',
+        'width': '100%',  # 確保容器寬度
+        'maxWidth': '100%',  # 防止容器超出父容器
     })
     
     return table_div

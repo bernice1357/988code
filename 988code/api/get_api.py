@@ -751,9 +751,6 @@ def get_potential_customers_analysis(product_name: str):
         if potential_finder_path not in sys.path:
             sys.path.insert(0, potential_finder_path)
         
-        print(f"[DEBUG] 添加路徑: {potential_finder_path}")
-        print(f"[DEBUG] 路徑存在: {os.path.exists(potential_finder_path)}")
-        
         from organized_search_system import organized_complete_search
         
         # 執行完整的潛在客戶搜尋

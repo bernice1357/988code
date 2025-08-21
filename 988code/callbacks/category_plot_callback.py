@@ -22,8 +22,6 @@ def extract_products_from_badges(badges):
     """
     products = []
     
-    print(f"[DEBUG] extract_products_from_badges - 輸入 badges 數量: {len(badges) if badges else 0}")
-    
     if not badges:
         return products
         
@@ -43,11 +41,7 @@ def extract_products_from_badges(badges):
             
             if product_name and product_type:
                 products.append((product_name, product_type))
-                print(f"[DEBUG] extract_products_from_badges - 第 {i+1} 個產品: {product_name} ({product_type})")
-            else:
-                print(f"[DEBUG] extract_products_from_badges - 第 {i+1} 個 badge 解析失敗: name={product_name}, type={product_type}")
-    
-    print(f"[DEBUG] extract_products_from_badges - 最終提取到的產品: {products}")
+
     return products
 
 def convert_date_to_api_format(date_value, is_end_date=False):
@@ -247,7 +241,6 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
         
         # 將0值記錄添加到DataFrame
         if zero_records:
-            print(f"[DEBUG] 添加 {len(zero_records)} 個0值數據點")
             zero_df = pd.DataFrame(zero_records)
             if df.empty:
                 df = zero_df
@@ -257,9 +250,6 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
             
             # 排序數據以確保時間序列的連續性
             df = df.sort_values(['filter_value', 'sales_month']).reset_index(drop=True)
-            print(f"[DEBUG] 數據已按產品名稱和時間排序")
-        else:
-            print(f"[DEBUG] 沒有需要添加的0值數據點")
     
     # 分析產品名稱和數量（使用更新後的數據）
     unique_products = df['filter_value'].unique() if not df.empty else []
@@ -366,11 +356,6 @@ def create_plotly_chart(data, start_date, end_date, all_selected_products=None, 
         }
     )
     
-    # 添加調試信息（開發時使用）
-    print(f"[DEBUG] 圖表生成 - 產品數量: {product_count}")
-    print(f"[DEBUG] 圖表生成 - 產品列表: {list(unique_products)}")
-    print(f"[DEBUG] 圖表生成 - 圖表線條數量: {len(fig.data)}")
-    
     # 美化圖表，恢復原生圖例
     fig.update_layout(
         xaxis_title="銷售月份",
@@ -449,10 +434,6 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
     # 檢查是否有選中的產品
     product_pairs = extract_products_from_badges(badges)
     
-    # 添加調試信息
-    print(f"[DEBUG] 生成圖表 - 選中的產品對: {product_pairs}")
-    print(f"[DEBUG] 生成圖表 - 產品數量: {len(product_pairs)}")
-    
     if not product_pairs:
         return [
             html.Div([
@@ -480,11 +461,6 @@ def generate_chart(n_clicks, badges, start_date, end_date, radio_value):
     try:
         # 使用新的分組查詢邏輯
         chart_data, products_with_data, products_without_data, product_type_mapping = fetch_sales_data_by_groups(product_pairs, api_start_date, api_end_date)
-        
-        # 添加調試信息
-        print(f"[DEBUG] 數據獲取 - 總數據筆數: {len(chart_data)}")
-        print(f"[DEBUG] 數據獲取 - 有數據的產品: {products_with_data}")
-        print(f"[DEBUG] 數據獲取 - 無數據的產品: {products_without_data}")
         
         # 即使沒有數據，也要生成圖表顯示0值線條
         # if not chart_data:

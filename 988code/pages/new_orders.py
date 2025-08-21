@@ -33,53 +33,14 @@ def make_card_item(order):
         except:
             customer_notes = ""
     
-    # 卡片標題：左邊顯示客戶ID
-    if order.get("customer_id"):
-        title = html.Div([
-            html.Span(order["customer_id"], style={
-                "color": "black", 
-                "fontWeight": "bold", 
-                "fontSize": "0.9rem"
-            }),
-            html.Span(" ", style={"fontSize": "0.9rem"}),
-            html.Span(order["customer_name"], style={
-                "color": "#6c757d", 
-                "fontSize": "0.9rem"
-            })
-        ], style={
-            "whiteSpace": "nowrap", 
-            "overflow": "hidden", 
-            "textOverflow": "ellipsis",
-            "paddingTop": "8px",
-            "flex": "1", 
-            "minWidth": "0"
-        })
-    else:
-        title = html.Div([
-            html.Span(
-                order["line_id"], 
-                style={
-                    "fontWeight": "bold", 
-                    "fontSize": "0.9rem", 
-                    "color": "black",
-                    "paddingTop": "8px"
-                }
-            )
-        ], style={
-            "whiteSpace": "nowrap", 
-            "overflow": "hidden", 
-            "textOverflow": "ellipsis",
-            "flex": "1", 
-            "minWidth": "0"
-        })
+    # 客戶標題已移至群組標題，這裡不再需要
     return dbc.Card([
         dbc.CardHeader([
-            title,
             html.Div([
                 dbc.Badge("新品提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"}) if order.get("is_new_product") == "true" or order.get("is_new_product") == True else None,
                 dbc.Badge("備註與歷史提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"})
-            ], style={"marginTop": "8px", "lineHeight": "1"})
-        ], style={"overflow": "hidden"}),
+            ], style={"lineHeight": "1"})
+        ], style={"overflow": "hidden", "padding": "8px 12px"}),
         dbc.CardBody([
             # 對話紀錄區塊
             html.Div([
@@ -94,7 +55,22 @@ def make_card_item(order):
                     html.Span(order.get('product_id', ''), style={"color": "black", "fontWeight": "bold", "fontSize": "0.9rem"}) if order.get('product_id') else None,
                     html.Span(" ", style={"fontSize": "0.9rem"}) if order.get('product_id') else None,
                     html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap"})
-                ], style={"whiteSpace": "pre-wrap"})
+                ], style={"whiteSpace": "pre-wrap"}),
+                # 新增數量、單價、金額資訊
+                html.Div([
+                    html.Div([
+                        html.Span("數量: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
+                        html.Span(f"{order.get('quantity', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                    ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('quantity') is not None else None,
+                    html.Div([
+                        html.Span("單價: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
+                        html.Span(f"NT$ {order.get('unit_price', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                    ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('unit_price') is not None else None,
+                    html.Div([
+                        html.Span("總金額: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
+                        html.Span(f"NT$ {order.get('amount', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                    ], style={"display": "inline-block"}) if order.get('amount') is not None else None
+                ], style={"marginTop": "8px"}) if any(order.get(field) is not None for field in ['quantity', 'unit_price', 'amount']) else None
             ], className="mb-3"),
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
             # 歷史備註區塊
@@ -105,17 +81,17 @@ def make_card_item(order):
             html.Div(style={"margin": "20px 0"}),
             # 建立時間
             html.Div([
-                html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"}),
                 html.Div([
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
                     dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
-                ]) if order.get("status") == "0" else None
+                ]) if order.get("status") == "0" else html.Div(),
+                html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"})
             ], className="d-flex justify-content-between align-items-center mt-2")
         ])
-    ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative"}, className="mb-3")
+    ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
 
-def get_modal_fields(customer_id, customer_name, purchase_record):
-    # 不管有沒有customer_id，都顯示三個欄位
+def get_modal_fields(customer_id, customer_name, purchase_record, product_id=None, quantity=None, unit_price=None, amount=None):
+    # 不管有沒有customer_id，都顯示所有欄位
     return [
         dbc.Row([
             dbc.Label("客戶 ID", width=3),
@@ -136,10 +112,99 @@ def get_modal_fields(customer_id, customer_name, purchase_record):
             ), width=9)
         ], className="mb-3"),
         dbc.Row([
+            dbc.Label("產品 ID", width=3),
+            dbc.Col(dbc.Input(
+                id="product-id", 
+                type="text",
+                value=product_id if product_id else ""
+            ), width=9)
+        ], className="mb-3"),
+        dbc.Row([
             dbc.Label("購買品項", width=3),
             dbc.Col(dbc.Input(id="purchase-record", value=purchase_record), width=9)
+        ], className="mb-3"),
+        dbc.Row([
+            dbc.Label("數量", width=3),
+            dbc.Col(dbc.Input(
+                id="quantity", 
+                type="number",
+                value=quantity if quantity else "",
+                min=0,
+                step=1
+            ), width=9)
+        ], className="mb-3"),
+        dbc.Row([
+            dbc.Label("單價", width=3),
+            dbc.Col(dbc.Input(
+                id="unit-price", 
+                type="number",
+                value=unit_price if unit_price else "",
+                min=0,
+                step=0.01
+            ), width=9)
+        ], className="mb-3"),
+        dbc.Row([
+            dbc.Label("金額", width=3),
+            dbc.Col(dbc.Input(
+                id="amount", 
+                type="number",
+                value=amount if amount else "",
+                min=0,
+                step=0.01
+            ), width=9)
         ], className="mb-3")
     ]
+
+def group_orders_by_customer(orders):
+    """按客戶名稱分組訂單"""
+    grouped = {}
+    for order in orders:
+        # 優先使用 customer_name，沒有的話用 line_id，都沒有就歸為未知客戶
+        if order.get("customer_name"):
+            customer_key = order["customer_name"]
+        elif order.get("line_id"):
+            customer_key = f"Line用戶: {order['line_id']}"
+        else:
+            customer_key = "未知客戶"
+        
+        if customer_key not in grouped:
+            grouped[customer_key] = []
+        grouped[customer_key].append(order)
+    
+    return grouped
+
+def make_customer_group(customer_key, orders, group_index):
+    """創建客戶群組Accordion"""
+    order_count = len(orders)
+    
+    # 創建包含 badge 的標題
+    title_content = html.Div([
+        html.Span(customer_key, style={"marginRight": "10px"}),
+        dbc.Badge(str(order_count), color="primary", pill=True)
+    ], className="d-flex align-items-center")
+    
+    return dbc.AccordionItem([
+        dbc.Row([
+            dbc.Col(make_card_item(order), width=12, lg=6, xl=4) 
+            for order in orders
+        ], className="g-3")
+    ], 
+    title=title_content,
+    item_id=f"customer-group-{group_index}"
+    )
+
+def create_grouped_orders_layout(orders):
+    """創建分組後的訂單layout"""
+    if not orders:
+        return html.Div("暫無訂單", className="text-center text-muted", style={"padding": "50px"})
+    
+    grouped_orders = group_orders_by_customer(orders)
+    customer_groups = []
+    
+    for group_index, (customer_key, customer_orders) in enumerate(grouped_orders.items()):
+        customer_groups.append(make_customer_group(customer_key, customer_orders, group_index))
+    
+    return dbc.Accordion(customer_groups, flush=True, always_open=False)
 
 orders = get_orders()
 
@@ -160,10 +225,11 @@ layout = dbc.Container([
     dcc.Loading(
         id="loading-orders",
         type="dot",
-        children=dbc.Row(id="orders-container", className="g-3", children=[dbc.Col(make_card_item(order), width=4) for order in orders], style={
-            "maxHeight": "80vh", 
-            "overflowY": "auto"
-        } if len(orders) > 6 else {}),
+        children=html.Div(id="orders-container", children=create_grouped_orders_layout(orders), style={
+            "maxHeight": "75vh", 
+            "overflowY": "auto",
+            "overflowX": "hidden"
+        }),
         style={
             "display": "flex",
             "alignItems": "center",
@@ -213,19 +279,19 @@ def filter_orders(all_clicks, unconfirmed_clicks, confirmed_clicks, deleted_clic
     
     if triggered_id == "filter-all":
         filtered_orders = orders
-        return [dbc.Col(make_card_item(order), width=4) for order in filtered_orders], False, True, True, True
+        return create_grouped_orders_layout(filtered_orders), False, True, True, True
     elif triggered_id == "filter-unconfirmed":
         filtered_orders = [order for order in orders if order.get("status") == "0"]
-        return [dbc.Col(make_card_item(order), width=4) for order in filtered_orders], True, False, True, True
+        return create_grouped_orders_layout(filtered_orders), True, False, True, True
     elif triggered_id == "filter-confirmed":
         filtered_orders = [order for order in orders if order.get("status") == "1"]
-        return [dbc.Col(make_card_item(order), width=4) for order in filtered_orders], True, True, False, True
+        return create_grouped_orders_layout(filtered_orders), True, True, False, True
     elif triggered_id == "filter-deleted":
         filtered_orders = [order for order in orders if order.get("status") == "2"]
-        return [dbc.Col(make_card_item(order), width=4) for order in filtered_orders], True, True, True, False
+        return create_grouped_orders_layout(filtered_orders), True, True, True, False
     else:
         filtered_orders = orders
-        return [dbc.Col(make_card_item(order), width=4) for order in filtered_orders], False, True, True, True
+        return create_grouped_orders_layout(filtered_orders), False, True, True, True
 
 # 刪除按鈕，顯示確認刪除modal
 @app.callback(
@@ -317,7 +383,7 @@ def confirm_delete(n_clicks, modal_body, user_role):
                 if response.status_code == 200:
                     print("訂單刪除成功")
                     orders = get_orders()
-                    updated_orders = [dbc.Col(make_card_item(order), width=4) for order in orders]
+                    updated_orders = create_grouped_orders_layout(orders)
                     return False, True, "訂單已刪除，請查看已刪除頁面", False, False, "", updated_orders
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
@@ -366,11 +432,15 @@ def toggle_modal(n_clicks_list, is_open):
     # 根據 order_id 找到對應的訂單資料
     order = next((o for o in orders if str(o["id"]) == str(order_id)), None)
     if order:
-        # 傳入customer_id, customer_name, purchase_record
+        # 傳入所有需要的欄位
         modal_content = get_modal_fields(
             order.get("customer_id"), 
             order.get("customer_name"), 
-            order["purchase_record"]
+            order["purchase_record"],
+            order.get("product_id"),
+            order.get("quantity"),
+            order.get("unit_price"),
+            order.get("amount")
         )
         # 設定標題
         title = f"確認訂單 - {order['customer_id'] + order['customer_name']}" if order.get("customer_id") else f"確認訂單 - {order['line_id']}"
@@ -401,12 +471,16 @@ def close_modal(n_clicks):
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("product-id", "value"),
      State("purchase-record", "value"),
+     State("quantity", "value"),
+     State("unit-price", "value"),
+     State("amount", "value"),
      State("modal-header", "children"),
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_header, user_role):
+def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
         orders = get_orders()
         # 從 modal header 取得 order_id 和原始訂單資料
@@ -426,7 +500,11 @@ def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_
             update_data = {
                 "customer_id": customer_id,
                 "customer_name": customer_name,
+                "product_id": product_id,
                 "purchase_record": purchase_record,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "amount": amount,
                 "updated_at": current_time,
                 "status": "1",
                 "confirmed_by": "user",
@@ -440,7 +518,7 @@ def submit_confirm(n_clicks, customer_id, customer_name, purchase_record, modal_
                 if response.status_code == 200:
                     print("訂單確認成功")
                     orders = get_orders()
-                    updated_orders = [dbc.Col(make_card_item(order), width=4) for order in orders]
+                    updated_orders = create_grouped_orders_layout(orders)
                     return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
