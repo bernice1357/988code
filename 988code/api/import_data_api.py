@@ -39,8 +39,9 @@ class SalesDataUploader:
         
         # 這個模組專用的表配置
         self.table_config = {
-            'order_transactions': 'test_order_transactions',
-            'product_master': 'product_master'
+            'order_transactions': 'order_transactions',
+            'product_master': 'product_master',
+            'customer': 'customer'  # 新增客戶表配置
         }
         
     def connect_database(self):
@@ -48,7 +49,7 @@ class SalesDataUploader:
         try:
             # 使用專案的實際資料庫連接參數
             self.connection = psycopg2.connect(
-                dbname='988',
+                dbname='timtest',
                 user='n8n',  
                 password='1234',
                 host='26.210.160.206',
@@ -200,6 +201,65 @@ class SalesDataUploader:
             except:
                 pass
             return True  # 出錯時保守處理，假設已存在
+
+    def check_customer_exists(self, customer_id: str) -> bool:
+        """
+        檢查客戶是否已存在
+        
+        Args:
+            customer_id (str): 客戶ID
+            
+        Returns:
+            bool: 如果已存在返回 True，否則返回 False
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                query = f"""
+                SELECT EXISTS(
+                    SELECT 1 FROM {self.table_config['customer']}
+                    WHERE customer_id = %s
+                )
+                """
+                cursor.execute(query, (customer_id,))
+                return cursor.fetchone()[0]
+                
+        except Exception as e:
+            logger.error(f"檢查客戶存在性失敗: {str(e)}")
+            # 回滾當前事務以清除錯誤狀態
+            try:
+                self.connection.rollback()
+            except:
+                pass
+            return False  # 出錯時假設不存在
+    
+    def get_missing_customers(self, data: List[Dict]) -> List[str]:
+        """
+        檢查數據中哪些客戶不存在於資料庫中
+        
+        Args:
+            data (list): 交易記錄列表
+            
+        Returns:
+            list: 不存在的客戶ID列表
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        # 提取所有唯一的客戶ID
+        unique_customer_ids = set()
+        for record in data:
+            customer_id = record.get('customer_id')
+            if customer_id and customer_id.strip():
+                unique_customer_ids.add(customer_id.strip())
+        
+        missing_customers = []
+        
+        for customer_id in unique_customer_ids:
+            if not self.check_customer_exists(customer_id):
+                missing_customers.append(customer_id)
+                logger.info(f"發現新客戶ID: {customer_id}")
+        
+        return missing_customers
     
     def parse_sales_data(self, file_path: str) -> List[Dict]:
         """
@@ -398,6 +458,55 @@ class SalesDataUploader:
             logger.error(f"數據插入失敗: {str(e)}")
             raise
     
+    def process_file_with_customer_check(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int, List[str]]:
+        """
+        處理整個流程：解析文件 -> 檢查客戶 -> 返回缺失客戶列表
+        
+        Args:
+            file_path (str): Excel 文件路徑
+            delete_month_records (bool): 是否刪除涉及月份記錄，默認為 True
+            
+        Returns:
+            tuple: (刪除記錄數, 插入記錄數, 缺失客戶列表)
+        """
+        deleted_count = 0
+        
+        try:
+            # 連接數據庫
+            if not self.connect_database():
+                raise Exception("無法連接數據庫")
+            
+            # 1. 先解析 Excel 文件
+            logger.info("解析 Excel 文件以提取月份信息...")
+            data = self.parse_sales_data(file_path)
+            
+            # 2. 檢查缺失的客戶
+            missing_customers = self.get_missing_customers(data)
+            
+            if missing_customers:
+                logger.info(f"發現 {len(missing_customers)} 個新客戶需要創建: {missing_customers}")
+                # 返回缺失客戶列表，暫不進行數據插入
+                return 0, 0, missing_customers
+            
+            # 3. 如果沒有缺失客戶，繼續原有流程
+            # 從數據中提取所有涉及的年月
+            months_to_delete = self.extract_months_from_data(data)
+            logger.info(f"Excel 中包含的月份: {sorted(list(months_to_delete))}")
+            
+            # 4. 刪除這些月份的所有記錄（如果需要）
+            if delete_month_records and months_to_delete:
+                logger.info(f"開始刪除 {len(months_to_delete)} 個月份的記錄...")
+                deleted_count = self.delete_records_by_months(months_to_delete)
+            
+            # 5. 直接插入新記錄
+            inserted_count = self.insert_all_records(data)
+            
+            return deleted_count, inserted_count, []
+            
+        finally:
+            # 關閉數據庫連接
+            self.close_connection()
+
     def process_file(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int]:
         """
         處理整個流程：解析文件 -> 刪除涉及月份記錄 -> 上傳數據庫
@@ -439,6 +548,51 @@ class SalesDataUploader:
             self.close_connection()
 
 # API 端點
+@router.post("/import/sales/check-customers")
+async def check_sales_customers(file: UploadFile = File(...), user_role: str = Form(...)):
+    """
+    檢查銷貨資料中的客戶是否存在，返回缺失的客戶列表
+    """
+    try:
+        # 檢查權限
+        check_editor_permission(user_role)
+        
+        # 檢查檔案類型
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="只支援 Excel 檔案格式")
+        
+        # 創建臨時檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # 使用 SalesDataUploader 處理檔案
+            sales_uploader = SalesDataUploader()
+            deleted_count, inserted_count, missing_customers = sales_uploader.process_file_with_customer_check(temp_file_path)
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "missing_customers": missing_customers,
+                    "message": f"檢查完成，發現 {len(missing_customers)} 個新客戶需要創建" if missing_customers else "所有客戶都已存在，可以直接匯入",
+                    "filename": file.filename
+                }
+            )
+            
+        finally:
+            # 清理臨時檔案
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+                
+    except Exception as e:
+        logger.error(f"檢查客戶失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"檢查失敗: {str(e)}")
+
 @router.post("/import/sales")
 async def import_sales_data(file: UploadFile = File(...), user_role: str = Form(...)):
     """
@@ -484,6 +638,50 @@ async def import_sales_data(file: UploadFile = File(...), user_role: str = Form(
     except Exception as e:
         logger.error(f"匯入銷貨資料失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"匯入失敗: {str(e)}")
+
+@router.post("/customer/create")
+async def create_customer(customer_data: dict):
+    """
+    創建新客戶API
+    """
+    try:
+        uploader = SalesDataUploader()
+        if not uploader.connect_database():
+            raise Exception("無法連接數據庫")
+        
+        try:
+            with uploader.connection.cursor() as cursor:
+                # 修正：移除 created_at 欄位
+                query = f"""
+                INSERT INTO {uploader.table_config['customer']}
+                (customer_id, customer_name, phone_number, address, delivery_schedule, notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(query, (
+                    customer_data['customer_id'],
+                    customer_data['customer_name'],
+                    customer_data.get('phone_number', ''),
+                    customer_data.get('address', ''),
+                    customer_data.get('delivery_schedule', ''),
+                    customer_data.get('notes', '')
+                ))
+                uploader.connection.commit()
+                
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "success": True,
+                        "message": f"客戶 {customer_data['customer_id']} 創建成功",
+                        "customer_id": customer_data['customer_id']
+                    }
+                )
+                
+        finally:
+            uploader.close_connection()
+            
+    except Exception as e:
+        logger.error(f"創建客戶失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"創建客戶失敗: {str(e)}")
 
 @router.get("/import/test-connection")
 async def test_database_connection():

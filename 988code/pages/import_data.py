@@ -8,6 +8,11 @@ layout = html.Div([
     error_toast("import_data", message=""),
     warning_toast("import_data", message=""),
     
+    # 新增客戶創建相關的 Toast
+    success_toast("create_customer_import", message=""),
+    error_toast("create_customer_import", message=""),
+    warning_toast("create_customer_import", message=""),
+    
     # 進度更新觸發器（隱藏）
     dcc.Interval(
         id='progress-interval',
@@ -19,6 +24,72 @@ layout = html.Div([
     # 存儲匯入會話狀態
     dcc.Store(id='import-session-store', data={'session_id': 0, 'total_records': 0, 'status': 'waiting', 'deleted_count': 0, 'inserted_count': 0}),
     dcc.Store(id='user-role-store'),
+    
+    # 新增：存儲缺失客戶資料
+    dcc.Store(id='missing-customers-store', data=[]),
+    dcc.Store(id='current-file-store', data={}),
+    
+    # 新增客戶創建 Modal
+    dbc.Modal([
+        dbc.ModalHeader([
+            dbc.ModalTitle("創建新客戶", id="new-customer-modal-title")
+        ]),
+        dbc.ModalBody([
+            # 客戶基本資訊表單
+            dbc.Row([
+                dbc.Label("客戶ID", width=3),
+                dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("客戶名稱", width=3),
+                dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("電話號碼", width=3),
+                dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("客戶地址", width=3),
+                dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("每週配送日", width=3),
+                dbc.Col(dcc.Checklist(
+                    id="new-customer-delivery-schedule",
+                    options=[
+                        {"label": "一", "value": "1"},
+                        {"label": "二", "value": "2"},
+                        {"label": "三", "value": "3"},
+                        {"label": "四", "value": "4"},
+                        {"label": "五", "value": "5"},
+                        {"label": "六", "value": "6"},
+                        {"label": "日", "value": "7"}
+                    ],
+                    value=[],
+                    inline=True,
+                    style={"display": "flex", "gap": "15px"}
+                ), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("備註", width=3),
+                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註資訊"), width=9)
+            ], className="mb-3"),
+            
+            # 批量創建進度條（隱藏，只在有多個客戶時顯示）
+            html.Div([
+                html.Hr(),
+                html.H6("批量創建進度", style={"marginBottom": "1rem"}),
+                dbc.Progress(id="customer-creation-progress", value=0, striped=True, animated=True),
+                html.P(id="customer-creation-status", children="", style={"marginTop": "0.5rem", "fontSize": "0.9rem"})
+            ], id="batch-creation-progress", style={"display": "none"})
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
+            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
+            dbc.Button("批量跳過全部", id="skip-all-customers-btn", color="warning", className="me-2", style={"display": "none"}),
+            dbc.Button("完成並匯入", id="finish-and-import-btn", color="success", style={"display": "none"})
+        ])
+    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="lg"),
     
     # 全螢幕載入遮罩
     html.Div([

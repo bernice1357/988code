@@ -14,4 +14,5 @@ __all__ = [
     "sales_analysis",
     "scheduling_settings",
     "import_data",
+    "create_new_customer",
 ]
