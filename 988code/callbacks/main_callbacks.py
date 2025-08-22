@@ -51,9 +51,6 @@ def display_main_content(pathname):
     
     elif pathname == '/import_data':
         return import_data.layout
-    
-    elif pathname == '/create_new_customer':
-        return create_new_customer.layout
 
     else:
         return html.Div([html.H1('404 找不到頁面')])

@@ -53,6 +53,10 @@ layout = html.Div([
                 dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=9)
             ], className="mb-3"),
             dbc.Row([
+                dbc.Label("備註", width=3),
+                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
                 dbc.Label("每週配送日", width=3),
                 dbc.Col(dcc.Checklist(
                     id="new-customer-delivery-schedule",
@@ -71,17 +75,42 @@ layout = html.Div([
                 ), width=9)
             ], className="mb-3"),
             dbc.Row([
-                dbc.Label("備註", width=3),
-                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註資訊"), width=9)
+                dbc.Label("直轄市、縣、市", width=3),
+                dbc.Col(dcc.Dropdown(
+                    id="new-customer-city",
+                    options=[
+                        {"label": "台北市", "value": "台北市"},
+                        {"label": "新北市", "value": "新北市"},
+                        {"label": "桃園市", "value": "桃園市"},
+                        {"label": "台中市", "value": "台中市"},
+                        {"label": "台南市", "value": "台南市"},
+                        {"label": "高雄市", "value": "高雄市"},
+                        {"label": "宜蘭縣", "value": "宜蘭縣"},
+                        {"label": "新竹縣", "value": "新竹縣"},
+                        {"label": "苗栗縣", "value": "苗栗縣"},
+                        {"label": "彰化縣", "value": "彰化縣"},
+                        {"label": "南投縣", "value": "南投縣"},
+                        {"label": "雲林縣", "value": "雲林縣"},
+                        {"label": "嘉義縣", "value": "嘉義縣"},
+                        {"label": "屏東縣", "value": "屏東縣"},
+                        {"label": "台東縣", "value": "台東縣"},
+                        {"label": "花蓮縣", "value": "花蓮縣"},
+                        {"label": "澎湖縣", "value": "澎湖縣"},
+                        {"label": "金門縣", "value": "金門縣"},
+                        {"label": "連江縣", "value": "連江縣"}
+                    ],
+                    placeholder="請選擇直轄市縣市"
+                ), width=9)
             ], className="mb-3"),
-            
-            # 批量創建進度條（隱藏，只在有多個客戶時顯示）
-            html.Div([
-                html.Hr(),
-                html.H6("批量創建進度", style={"marginBottom": "1rem"}),
-                dbc.Progress(id="customer-creation-progress", value=0, striped=True, animated=True),
-                html.P(id="customer-creation-status", children="", style={"marginTop": "0.5rem", "fontSize": "0.9rem"})
-            ], id="batch-creation-progress", style={"display": "none"})
+
+            dbc.Row([
+                dbc.Label("鄉鎮市區", width=3),
+                dbc.Col(dcc.Dropdown(
+                    id="new-customer-district",
+                    options=[],
+                    placeholder="請先選擇直轄市縣市"
+                ), width=9)
+            ], className="mb-3"),
         ]),
         dbc.ModalFooter([
             dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),

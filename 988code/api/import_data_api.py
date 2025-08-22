@@ -650,29 +650,49 @@ async def create_customer(customer_data: dict):
             raise Exception("無法連接數據庫")
         
         try:
+            # 處理 delivery_schedule 排序 (按 1234567 排序)
+            delivery_schedule = customer_data.get('delivery_schedule', '')
+            if delivery_schedule:
+                # 將字符串轉為列表，排序後再轉回字符串
+                schedule_list = delivery_schedule.split(',')
+                sorted_schedule = sorted([day for day in schedule_list if day.strip()])
+                delivery_schedule = ','.join(sorted_schedule)
+            
+            # 獲取當前系統時間
+            current_time = datetime.datetime.now()
+            
             with uploader.connection.cursor() as cursor:
-                # 修正：移除 created_at 欄位
+                # 修改 INSERT 語句，加入 created_date 和 updated_date
                 query = f"""
                 INSERT INTO {uploader.table_config['customer']}
-                (customer_id, customer_name, phone_number, address, delivery_schedule, notes)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (customer_id, customer_name, phone_number, address, city, district, delivery_schedule, notes, is_enabled, created_date, updated_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(query, (
                     customer_data['customer_id'],
                     customer_data['customer_name'],
                     customer_data.get('phone_number', ''),
                     customer_data.get('address', ''),
-                    customer_data.get('delivery_schedule', ''),
-                    customer_data.get('notes', '')
+                    customer_data.get('city', ''), 
+                    customer_data.get('district', ''),
+                    delivery_schedule,  
+                    customer_data.get('notes', ''),
+                    customer_data.get('is_enabled', 1),
+                    current_time,  # created_date
+                    current_time   # updated_date
                 ))
                 uploader.connection.commit()
                 
+                # 回傳包含時間資訊的回應
                 return JSONResponse(
                     status_code=200,
                     content={
                         "success": True,
                         "message": f"客戶 {customer_data['customer_id']} 創建成功",
-                        "customer_id": customer_data['customer_id']
+                        "customer_id": customer_data['customer_id'],
+                        "created_date": current_time.isoformat(),
+                        "updated_date": current_time.isoformat(),
+                        "delivery_schedule": delivery_schedule  # 回傳排序後的配送日程
                     }
                 )
                 
