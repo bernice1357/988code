@@ -4,17 +4,19 @@ from datetime import datetime
 from dash import callback_context, ALL
 from dash.exceptions import PreventUpdate
 from components.toast import warning_toast
+from callbacks.export_callback import create_export_callback, add_download_component
+import global_vars
 
 # TODO update_repurchase_note再測試
 
-# 設定回購提醒天數
-REPURCHASE_DAYS = 7
-
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
+    dcc.Store(id="page-loaded-repurchase", data=True),
     dcc.Store(id='customer-data-store'),
     dcc.Store(id='current-edit-index'),
     dcc.Store(id='user-role-store'),
+    dcc.Store(id="current-table-data", data=[]),
+    add_download_component("repurchase_reminder"),
     success_toast("repurchase_reminder"),
     error_toast("repurchase_reminder"),
     warning_toast("repurchase_reminder"),
@@ -37,26 +39,63 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         ])
     ], id="edit-note-modal", is_open=False, size="lg", centered=True),
 
+    # 頂部按鈕區域
     html.Div([
+        # 左側按鈕群組
         html.Div([
-            html.Span("設定回購提醒天數", style={"marginRight": "10px"}),
-            dbc.InputGroup([
-                dbc.Input(type="number", placeholder="輸入天數", id="repurchase-days-input", min=1, style={"width": "120px"}),
-                dbc.InputGroupText("天")
-            ], style={"width": "auto", "marginRight": "10px"}),
-            dbc.Button("確認", id="confirm-days-button", color="primary", className="me-2"),
+            # 設定回購提醒天數 Popover 按鈕
             html.Div([
-                dbc.Button("匯出列表資料", id="export-button", n_clicks=0, color="primary", outline=True)
-            ], style={"marginLeft": "auto"})
+                dbc.Button(
+                    "設定回購提醒天數",
+                    id="popover-trigger-button",
+                    color="primary",
+                    outline=True,
+                    className="me-2"
+                ),
+                dbc.Popover([
+                    dbc.PopoverBody([
+                        html.Div([
+                            html.Label("回購提醒天數:", className="form-label mb-2"),
+                            dbc.InputGroup([
+                                dbc.Input(
+                                    type="number",
+                                    placeholder="輸入天數",
+                                    id="repurchase-days-input",
+                                    min=1,
+                                    style={"width": "120px"}
+                                ),
+                                dbc.InputGroupText("天")
+                            ], size="sm", className="mb-3"),
+                            dbc.Button(
+                                "確認",
+                                id="confirm-days-button",
+                                color="primary",
+                                size="sm",
+                                className="w-100"
+                            )
+                        ], style={"padding": "15px"})
+                    ], style={"padding": "0"})
+                ], target="popover-trigger-button", placement="bottom-start", trigger="legacy", style={
+                    "padding": "0px"
+                })
+            ]),
+            # 匯出按鈕
+            dbc.Button(
+                "匯出列表資料",
+                id="repurchase_reminder-export-button",
+                n_clicks=0,
+                color="primary",
+                outline=True,
+                className="me-2"
+            )
+        ], className="d-flex align-items-center"),
+        
+        # 右側按鈕群組 (確認已提醒 + ButtonGroup)
+        html.Div([
+            html.Div(id="confirm-reminded-button-container", className="me-2"),
+            html.Div(id="button-group-container", style={"display": "none"})
         ], className="d-flex align-items-center")
-    ], className="mb-3"),
-
-    html.Div(style={"borderBottom": "1px solid #dee2e6"}),
-
-    html.Div([
-        html.Div(id="confirm-reminded-button-container"),
-        html.Div(id="button-group-container", style={"display": "none"})
-    ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "20px"}),
+    ], className="d-flex justify-content-between align-items-center mb-3"),
 
     dcc.Loading(
         id="loading-repurchase-table",
@@ -75,21 +114,58 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
 ])
 
+# 註冊匯出功能 - 使用當前表格資料
+create_export_callback(app, "repurchase_reminder", "current-table-data", "回購提醒清單")
+
+# 從全域變數載入天數設定
+@app.callback(
+    Output("repurchase-days-input", "value"),
+    Input("page-loaded-repurchase", "data"),
+    prevent_initial_call=False
+)
+def load_saved_days(page_loaded):
+    return global_vars.get_repurchase_days()
+
+# 保存天數設定到全域變數
+@app.callback(
+    Output("repurchase-days-input", "value", allow_duplicate=True),
+    Input("confirm-days-button", "n_clicks"),
+    State("repurchase-days-input", "value"),
+    prevent_initial_call=True
+)
+def save_days_to_global(n_clicks, days_value):
+    if n_clicks and days_value:
+        if global_vars.set_repurchase_days(days_value):
+            return days_value
+    return dash.no_update
+
+# 處理 Popover 關閉
+@app.callback(
+    Output("popover-trigger-button", "n_clicks"),
+    Input("confirm-days-button", "n_clicks"),
+    prevent_initial_call=True
+)
+def close_popover_on_confirm(confirm_clicks):
+    if confirm_clicks:
+        # 通過重置 n_clicks 來關閉 popover
+        return 0
+    return dash.no_update
 
 # 頁面初始化callback
 @app.callback(
-    [Output("repurchase-days-input", "value"),
-     Output("repurchase-table-container", "children"),
-     Output("customer-data-store", "data"),
-     Output("button-group-container", "children"),
-     Output("button-group-container", "style"),
-     Output("repurchase_reminder-error-toast", "is_open"),
-     Output("repurchase_reminder-error-toast", "children")],
-    Input("repurchase-days-input", "id")
+    [Output("repurchase-table-container", "children", allow_duplicate=True),
+     Output("customer-data-store", "data", allow_duplicate=True),
+     Output("button-group-container", "children", allow_duplicate=True),
+     Output("button-group-container", "style", allow_duplicate=True),
+     Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
+     Output("current-table-data", "data", allow_duplicate=True)],
+    Input("page-loaded-repurchase", "data"),
+    prevent_initial_call='initial_duplicate'
 )
 def initialize_page(_):
-    global REPURCHASE_DAYS
-    days_input = REPURCHASE_DAYS
+    # 使用全域變數取得天數設定
+    days_input = global_vars.get_repurchase_days()
     
     try:
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -124,14 +200,14 @@ def initialize_page(_):
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return days_input, table_component, df.to_dict('records'), button_group, {"display": "block"}, False, ""
+            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, "", display_df.to_dict('records')
         else:
-            return days_input, html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}"
+            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}", []
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
-        return days_input, html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}"
+        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}", []
 
 # 當確認按鈕被點擊時載入資料
 @app.callback(
@@ -140,19 +216,18 @@ def initialize_page(_):
      Output("button-group-container", "children", allow_duplicate=True),
      Output("button-group-container", "style", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True)],
+     Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
+     Output("current-table-data", "data", allow_duplicate=True)],
     Input("confirm-days-button", "n_clicks"),
     State("repurchase-days-input", "value"),
     prevent_initial_call=True
 )
 def load_repurchase_data(n_clicks, days_input):
-    global REPURCHASE_DAYS
+    if not n_clicks or not days_input or days_input <= 0:
+        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數", []
     
-    if not days_input or days_input <= 0:
-        return html.Div(), [], html.Div(), {"display": "none"}, True, "請輸入有效的天數"
-    
-    # 更新全域變數
-    REPURCHASE_DAYS = days_input
+    # 使用全域變數中的天數設定
+    days_input = global_vars.get_repurchase_days()
     
     try:
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -187,19 +262,20 @@ def load_repurchase_data(n_clicks, days_input):
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, ""
+            return table_component, df.to_dict('records'), button_group, {"display": "block"}, False, "", display_df.to_dict('records')
         else:
-            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}"
+            return html.Div("無法載入資料", style={"color": "red"}), [], html.Div(), {"display": "none"}, True, f"無法載入資料，API code: {response.status_code}", []
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
-        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}"
+        return html.Div(f"載入資料時發生錯誤: {str(e)}\n詳細錯誤: {error_details}", style={"color": "red", "whiteSpace": "pre-wrap"}), [], html.Div(), {"display": "none"}, True, f"載入資料時發生錯誤: {str(e)}", []
 
 # 處理篩選按鈕點擊
 @app.callback(
     [Output("repurchase-table-container", "children", allow_duplicate=True),
-     Output("customer-data-store", "data", allow_duplicate=True)],
+     Output("customer-data-store", "data", allow_duplicate=True),
+     Output("current-table-data", "data", allow_duplicate=True)],
     [Input("btn-all-customers", "n_clicks"),
      Input("btn-unreminded-customers", "n_clicks"),
      Input("btn-reminded-customers", "n_clicks")],
@@ -246,7 +322,7 @@ def filter_customers(btn_all, btn_unreminded, btn_reminded, stored_data):
             sticky_columns=["提醒狀態", "客戶ID"],
         )
     
-    return table_component, stored_data
+    return table_component, stored_data, display_df.to_dict('records')
 
 @app.callback(
     Output('confirm-reminded-button-container', 'children'),
@@ -271,7 +347,8 @@ def show_confirm_button(checkbox_values):
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
      Output("repurchase_reminder-warning-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True)],
+     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True),
+     Output("current-table-data", "data", allow_duplicate=True)],
     [Input("confirm-reminded-button", "n_clicks")],
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("customer-data-store", "data"),
@@ -315,7 +392,7 @@ def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input, u
                 print(f"更新ID {id} 失敗: {response.status_code}")
         
         if has_permission_error:
-            return html.Div(), stored_data, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
+            return html.Div(), stored_data, False, "", False, "", True, "權限不足：僅限編輯者使用此功能", []
         
         # 重新載入資料
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -342,16 +419,16 @@ def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input, u
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), True, "訂單狀態更改為已確認", False, "", False, ""
+            return table_component, df.to_dict('records'), True, "訂單狀態更改為已確認", False, "", False, "", display_df.to_dict('records')
         else:
-            return html.Div(), stored_data, False, "", True, f"無法重新載入資料，API code: {response.status_code}", False, ""
+            return html.Div(), stored_data, False, "", True, f"無法重新載入資料，API code: {response.status_code}", False, "", []
             
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Exception details: {error_details}")
         # 返回錯誤訊息但保持原有資料
-        return html.Div(f"更新失敗: {str(e)}", style={"color": "red"}), stored_data, False, "", True, f"更新失敗: {str(e)}", False, ""
+        return html.Div(f"更新失敗: {str(e)}", style={"color": "red"}), stored_data, False, "", True, f"更新失敗: {str(e)}", False, "", []
 
 # 處理編輯備註按鈕點擊，打開Modal
 @app.callback(
@@ -418,7 +495,8 @@ def handle_edit_note_modal(edit_clicks, cancel_clicks, save_clicks, stored_data,
      Output("repurchase_reminder-error-toast", "is_open", allow_duplicate=True),
      Output("repurchase_reminder-error-toast", "children", allow_duplicate=True),
      Output("repurchase_reminder-warning-toast", "is_open", allow_duplicate=True),
-     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True)],
+     Output("repurchase_reminder-warning-toast", "children", allow_duplicate=True),
+     Output("current-table-data", "data", allow_duplicate=True)],
     [Input("save-edit-button", "n_clicks")],
     [State("edit-note-textarea", "value"),
      State("customer-data-store", "data"),
@@ -433,7 +511,7 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
     
     try:
         if edit_index is None or not stored_data:
-            return html.Div(), stored_data, False, False, "", True, "無法找到要編輯的資料", False, ""
+            return html.Div(), stored_data, False, False, "", True, "無法找到要編輯的資料", False, "", []
         
         df = pd.DataFrame(stored_data)
         customer_id = df.iloc[edit_index]['id']
@@ -448,9 +526,9 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
         )
         
         if response.status_code == 403:
-            return html.Div(), stored_data, False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
+            return html.Div(), stored_data, False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能", []
         elif response.status_code != 200:
-            return html.Div(), stored_data, False, False, "", True, f"API更新失敗: {response.status_code}", False, ""
+            return html.Div(), stored_data, False, False, "", True, f"API更新失敗: {response.status_code}", False, "", []
         
         # 重新載入資料
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
@@ -476,12 +554,12 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
                 sticky_columns=["提醒狀態", "客戶ID"],
             )
             
-            return table_component, df.to_dict('records'), False, True, "備註已更新", False, "", False, ""
+            return table_component, df.to_dict('records'), False, True, "備註已更新", False, "", False, "", display_df.to_dict('records')
         else:
-            return html.Div(), stored_data, False, False, "", True, f"無法重新載入資料: {response.status_code}", False, ""
+            return html.Div(), stored_data, False, False, "", True, f"無法重新載入資料: {response.status_code}", False, "", []
         
     except Exception as e:
         print(f"Exception in save_note_edit: {e}")
         import traceback
         traceback.print_exc()
-        return html.Div(), stored_data, False, False, "", True, f"儲存失敗: {str(e)}", False, ""
+        return html.Div(), stored_data, False, False, "", True, f"儲存失敗: {str(e)}", False, "", []

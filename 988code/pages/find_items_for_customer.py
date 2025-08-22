@@ -188,24 +188,34 @@ def update_customer_info_and_history(selected_customer_id, selected_month):
                 purchase_data = [item for item in purchase_data 
                                if item.get('transaction_date', '').startswith(selected_month)]
             
-            for item in purchase_data:
-                product_name = item.get('product_name', item.get('品項', ''))
-                quantity = item.get('quantity', item.get('數量', ''))
-                transaction_date = item.get('transaction_date', item.get('購買時間', ''))
-                
-                row = html.Div([
-                    html.Div(product_name, style={'flex': '2'}),
-                    html.Div(str(quantity), style={'text-align': 'center', 'flex': '1'}),
-                    html.Div(transaction_date, style={'text-align': 'center', 'flex': '1'})
-                ], style={
-                    'display': 'flex', 
-                    'padding': '10px', 
-                    'border-bottom': '1px solid #ddd',
-                    'min-height': '40px',
-                    'align-items': 'center'
-                })
-                
-                table_rows.append(row)
+            if purchase_data:  # 有資料時正常顯示
+                for item in purchase_data:
+                    product_name = item.get('product_name', item.get('品項', ''))
+                    quantity = item.get('quantity', item.get('數量', ''))
+                    transaction_date = item.get('transaction_date', item.get('購買時間', ''))
+                    
+                    row = html.Div([
+                        html.Div(product_name, style={'flex': '2'}),
+                        html.Div(str(quantity), style={'text-align': 'center', 'flex': '1'}),
+                        html.Div(transaction_date, style={'text-align': 'center', 'flex': '1'})
+                    ], style={
+                        'display': 'flex', 
+                        'padding': '10px', 
+                        'border-bottom': '1px solid #ddd',
+                        'min-height': '40px',
+                        'align-items': 'center'
+                    })
+                    
+                    table_rows.append(row)
+            else:  # 無資料時顯示無資料
+                table_rows = [html.Div('無資料', style={
+                    'display': 'flex',
+                    'justify-content': 'center',
+                    'align-items': 'center',
+                    'height': '45vh',
+                    'color': '#999',
+                    'font-size': '18px'
+                })]
         else:
             table_rows = [html.Div('無法獲取歷史購買記錄', style={'padding': '10px', 'color': 'red'})]
         
@@ -277,6 +287,17 @@ def update_recommended_products(selected_customer_id):
                         
                         table_rows.append(row)
             
+            # 如果沒有資料，顯示無資料
+            if not table_rows:
+                return [html.Div('無資料', style={
+                    'display': 'flex',
+                    'justify-content': 'center',
+                    'align-items': 'center',
+                    'height': '45vh',
+                    'color': '#999',
+                    'font-size': '18px'
+                })]
+                
             return table_rows
             
         else:

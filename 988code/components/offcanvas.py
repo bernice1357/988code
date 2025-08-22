@@ -69,6 +69,8 @@ def create_search_offcanvas(
                         type="date",
                         value=field.get("start_date", ""),
                         id=start_id,
+                        min="1900-01-01",
+                        max="2100-12-31",
                         style={"width": "130px"}
                     ),
                     dbc.FormFeedback(
@@ -91,6 +93,8 @@ def create_search_offcanvas(
                         type="date",
                         value=field.get("end_date", ""),
                         id=end_id,
+                        min="1900-01-01",
+                        max="2100-12-31",
                         style={"width": "130px"}
                     ),
                     dbc.FormFeedback(

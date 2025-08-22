@@ -1,7 +1,7 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
-def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='75vh', sortable_columns=None, sort_state=None):
+def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='78vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
     if sortable_columns is None:
@@ -10,16 +10,21 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
     # 計算每個浮空欄位的最適寬度
     def calculate_column_width(col):
         # 計算標題寬度 (padding: 4px 8px = 16px)
-        header_width = len(str(col)) * 12 + 16
+        # 考慮中文字符較寬的問題
+        col_str = str(col)
+        char_width = sum(14 if ord(c) > 127 else 8 for c in col_str)  # 中文14px, 英文8px
+        header_width = char_width + 16
         
         # 計算內容最大寬度
         max_content_width = 0
         for value in df[col]:
-            content_width = len(str(value)) * 12 + 16  # padding: 4px 8px = 16px
+            value_str = str(value)
+            value_char_width = sum(14 if ord(c) > 127 else 8 for c in value_str)  # 中文14px, 英文8px
+            content_width = value_char_width + 16  # padding: 4px 8px = 16px
             max_content_width = max(max_content_width, content_width)
         
-        # 取標題和內容的最大值，再加上5px
-        calculated_width = max(header_width, max_content_width) + 5
+        # 取標題和內容的最大值，左右各加5px（總共15px），再加5px buffer，加2px邊框
+        calculated_width = max(header_width, max_content_width) + 22
         return calculated_width
     
     # 計算所有浮空欄位的寬度
@@ -52,7 +57,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'maxWidth': '50px',
                     'position': 'sticky',
                     'left': '0px',
-                    'zIndex': 2,
+                    'zIndex': 10,
                     'backgroundColor': '#edf7ff',
                     'border': '1px solid #ccc',
                     'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none'
@@ -65,10 +70,16 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         
         for col in                 ([col for col in df.columns if col in sticky_columns] + 
                  [col for col in df.columns if col not in sticky_columns]) if sticky_columns else df.columns:
-            # 計算cell內容的寬度 - 取標題或內容的最大值再加5px
-            header_width = len(str(col)) * 12 + 16
-            content_width = len(str(row[col])) * 12 + 16
-            cell_width = max(header_width, content_width) + 5
+            # 計算cell內容的寬度 - 取標題或內容的最大值，左右各加5px（總共15px），再加5px buffer，加2px邊框
+            col_str = str(col)
+            header_char_width = sum(14 if ord(c) > 127 else 8 for c in col_str)  # 中文14px, 英文8px
+            header_width = header_char_width + 16
+            
+            row_value_str = str(row[col])
+            content_char_width = sum(14 if ord(c) > 127 else 8 for c in row_value_str)  # 中文14px, 英文8px
+            content_width = content_char_width + 16
+            
+            cell_width = max(header_width, content_width) + 22
             
             cell_style = {
                 'padding': '4px 8px',
@@ -85,22 +96,28 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             
             if col in sticky_columns:
                 sticky_index = sticky_columns.index(col)
-                # 計算前面所有欄位的寬度總和
+                # 計算前面所有欄位的寬度總和（使用統一的寬度計算）
                 left_offset = 0
                 if show_checkbox:
                     left_offset += 50
                 for j in range(sticky_index):
                     left_offset += sticky_widths[sticky_columns[j]]
                 
+                # 右邊的 sticky column 應該有更高的 z-index
+                sticky_z_index = 5 + sticky_index  # 第0個是5，第1個是6，以此類推
+                
                 cell_style.update({
                     'position': 'sticky',
                     'left': f'{left_offset}px',
-                    'zIndex': 2,
+                    'zIndex': sticky_z_index,
                     'backgroundColor': "#edf7ff",
                     'width': f'{sticky_widths[col]}px',
                     'minWidth': f'{sticky_widths[col]}px',
                     'maxWidth': f'{sticky_widths[col]}px'
                 })
+                
+                # 確保使用統一的寬度計算
+                cell_width = sticky_widths[col]
                 
                 cell_content = row[col]
                     
@@ -134,7 +151,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'whiteSpace': 'nowrap',
                         'position': 'sticky',
                         'right': button_right_position,
-                        'zIndex': 2,
+                        'zIndex': 0,
                         'backgroundColor': 'white',
                         'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
                         'width': f'{button_width}px',
@@ -155,7 +172,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     "position": "sticky",
                     "top": "0px",
                     "left": "0px",
-                    "zIndex": 4,
+                    "zIndex": 10,
                     'backgroundColor': '#bcd1df',
                     'fontWeight': 'bold',
                     'fontSize': '16px',
@@ -209,7 +226,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         "position": "sticky",
                         "top": "0px" if col not in sticky_columns else "0px",
                         "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
-                        "zIndex": 3 if col in sticky_columns else 1,
+                        "zIndex": (5 + sticky_columns.index(col)) if col in sticky_columns else 1,
                         'backgroundColor': '#bcd1df',
                         'fontWeight': 'bold',
                         'fontSize': '16px',
@@ -226,7 +243,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     "position": "sticky",
                     "top": "0px",
                     "right": "0px",
-                    "zIndex": 4,
+                    "zIndex": 2,
                     'backgroundColor': '#bcd1df',
                     'fontWeight': 'bold',
                     'fontSize': '16px',

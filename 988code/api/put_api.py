@@ -1062,6 +1062,43 @@ def update_rag_title(update_data: RAGTitleUpdate):
         print(f"[ERROR] RAG標題更新失敗: {e}")
         raise HTTPException(status_code=500, detail="標題更新失敗")
     
+class RestockPredictionStatusUpdate(BaseModel):
+    customer_id: str
+    product_id: str
+    prediction_status: str
+    user_role: str
+
+# 更新補貨預測狀態
+@router.put("/update_restock_prediction_status")
+def update_restock_prediction_status(update_data: RestockPredictionStatusUpdate):
+    check_editor_permission(update_data.user_role)
+    
+    # 驗證 prediction_status 值
+    if update_data.prediction_status not in ['fulfilled', 'cancelled']:
+        raise HTTPException(status_code=400, detail="prediction_status 必須是 'fulfilled' 或 'cancelled'")
+    
+    try:
+        # 根據 customer_id 和 product_id 更新 prophet_predictions 表
+        sql = """
+        UPDATE prophet_predictions 
+        SET prediction_status = %s 
+        WHERE customer_id = %s AND product_id = %s
+        """
+        params = (update_data.prediction_status, update_data.customer_id, update_data.product_id)
+        
+        update_data_to_db(sql, params)
+        
+        return {
+            "message": "補貨預測狀態更新成功",
+            "customer_id": update_data.customer_id,
+            "product_id": update_data.product_id,
+            "prediction_status": update_data.prediction_status
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] 補貨預測狀態更新失敗: {e}")
+        raise HTTPException(status_code=500, detail="補貨預測狀態更新失敗")
+
 class DeliveryScheduleUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None

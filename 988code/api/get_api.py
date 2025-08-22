@@ -87,7 +87,6 @@ def get_all_customer_ids():
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 得到客戶最新補貨紀錄
-# TODO 還沒放預計補貨日期欄位
 @router.get("/get_restock_data")
 def get_customer_latest_transactions():
     print("[API] get_customer_latest_transactions 被呼叫")
@@ -99,6 +98,7 @@ def get_customer_latest_transactions():
         FROM prophet_predictions pp
         LEFT JOIN customer c ON pp.customer_id = c.customer_id
         LEFT JOIN product_master pm ON pp.product_id = pm.product_id
+        WHERE pp.prediction_status = 'active'
         ORDER BY pp.customer_id, pp.prediction_date
         """
         df = get_data_from_db(query)
