@@ -931,3 +931,354 @@ async def create_product(product_data: dict):
     except Exception as e:
         logger.error(f"創建產品失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"創建產品失敗: {str(e)}")
+    
+# 庫存上傳
+class InventoryDataUploader:
+    def __init__(self):
+        """初始化庫存數據上傳器"""
+        self.connection = None
+        
+        # 庫存模組專用的表配置 - 根據實際資料庫表結構
+        self.table_config = {
+            'inventory': 'inventory',  # 實際的庫存表名
+            'product_master': 'product_master'
+        }
+        
+    def connect_database(self):
+        """連接數據庫"""
+        try:
+            # 使用專案的實際資料庫連接參數
+            self.connection = psycopg2.connect(
+                dbname='timtest',
+                user='n8n',  
+                password='1234',
+                host='26.210.160.206',
+                port='5433',
+                connect_timeout=DEFAULT_CONFIG['timeout']
+            )
+            logger.info("庫存數據庫連接成功")
+            return True
+        except Exception as e:
+            logger.error(f"庫存數據庫連接失敗: {str(e)}")
+            return False
+    
+    def close_connection(self):
+        """關閉數據庫連接"""
+        if self.connection:
+            self.connection.close()
+            logger.info("庫存數據庫連接已關閉")
+    
+    def parse_inventory_data(self, file_path: str) -> List[Dict]:
+        """
+        解析庫存 Excel 文件，提取庫存數據
+        
+        Args:
+            file_path (str): Excel 文件路徑
+        
+        Returns:
+            list: 包含所有庫存記錄的列表
+        """
+        logger.info(f"開始解析庫存文件: {file_path}")
+        
+        try:
+            # 使用 openpyxl 讀取 Excel 文件
+            workbook = load_workbook(file_path, data_only=True)
+            worksheet = workbook.active
+            
+            logger.info(f"工作表名稱: {worksheet.title}")
+            logger.info(f"數據範圍: {worksheet.calculate_dimension()}")
+            
+            # 獲取最大行數和列數
+            max_row = worksheet.max_row
+            max_col = worksheet.max_column
+            
+            logger.info(f"總行數: {max_row}, 總列數: {max_col}")
+            
+            # 根據您的 Excel 格式，數據從第8行開始（跳過標題和空行）
+            data = []
+            
+            # 遍歷從第8行開始的所有行
+            for row in range(8, max_row + 1):
+                # 根據您的 Excel 格式獲取各列的值
+                # 根據真實 Excel 格式獲取各列的值
+                product_id_cell = worksheet.cell(row=row, column=1).value        # A列: 產品編號
+                product_name_cell = worksheet.cell(row=row, column=4).value      # B列: 品名現況（保持原樣）
+                category_cell = worksheet.cell(row=row, column=8).value          # C列: 類別（保持原樣）
+                warehouse_name_cell = worksheet.cell(row=row, column=10).value   # J列: 倉庫名稱
+                total_quantity_cell = worksheet.cell(row=row, column=13).value   # M列: 數量
+                borrowed_out_cell = worksheet.cell(row=row, column=15).value     # O列: 借出數量
+                borrowed_in_cell = worksheet.cell(row=row, column=18).value      # R列: 借入數量
+                stock_quantity_cell = worksheet.cell(row=row, column=20).value   # T列: 實際在庫量
+                unit_cell = worksheet.cell(row=row, column=23).value            # W列: 單位
+                
+                # 檢查是否有關鍵數據 (產品編號必須存在)
+                if product_id_cell and str(product_id_cell).strip():
+                    product_id = str(product_id_cell).strip()
+                    logger.debug(f"處理產品: {product_id}")
+                    
+                    
+                    # 處理倉庫名稱
+                    warehouse_id = ""
+                    if warehouse_name_cell and str(warehouse_name_cell).strip():
+                        warehouse_id = str(warehouse_name_cell).strip()
+                    
+                    # 處理數量欄位
+                    total_quantity = 0
+                    borrowed_out = 0  
+                    borrowed_in = 0
+                    stock_quantity = 0
+                    
+                    try:
+                        if total_quantity_cell is not None and str(total_quantity_cell).strip():
+                            # 移除可能的文字並轉換為數字
+                            total_quantity_str = str(total_quantity_cell).replace(',', '')
+                            if total_quantity_str != '---' and total_quantity_str != '':
+                                total_quantity = float(total_quantity_str)
+                                
+                        if borrowed_out_cell is not None and str(borrowed_out_cell).strip():
+                            borrowed_out_str = str(borrowed_out_cell).replace(',', '')
+                            if borrowed_out_str != '---' and borrowed_out_str != '':
+                                borrowed_out = float(borrowed_out_str)
+                                
+                        if borrowed_in_cell is not None and str(borrowed_in_cell).strip():
+                            borrowed_in_str = str(borrowed_in_cell).replace(',', '')
+                            if borrowed_in_str != '---' and borrowed_in_str != '':
+                                borrowed_in = float(borrowed_in_str)
+                                
+                        if stock_quantity_cell is not None and str(stock_quantity_cell).strip():
+                            stock_quantity_str = str(stock_quantity_cell).replace(',', '')
+                            if stock_quantity_str != '---' and stock_quantity_str != '':
+                                stock_quantity = float(stock_quantity_str)
+                                
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"數量轉換錯誤，行 {row}: {str(e)}")
+                        continue
+
+                    # 處理單位
+                    unit = ""
+                    if unit_cell and str(unit_cell).strip():
+                        unit = str(unit_cell).strip()
+                    
+                    # 創建記錄
+                    record = {
+                        'product_id': product_id,
+                        'warehouse_id': warehouse_id,
+                        'total_quantity': total_quantity,
+                        'borrowed_out': borrowed_out,
+                        'borrowed_in': borrowed_in,
+                        'stock_quantity': stock_quantity,
+                        'unit': unit
+                    }
+
+                    data.append(record)
+                    logger.debug(f"新增庫存記錄: 產品ID={product_id}, 倉庫={warehouse_id}, 庫存量={stock_quantity}")
+                else:
+                    logger.debug(f"第 {row} 行跳過 - 無產品編號")
+            
+            logger.info(f"庫存解析完成，共 {len(data)} 筆有效記錄")
+            return data
+            
+        except Exception as e:
+            logger.error(f"解析庫存文件失敗: {str(e)}")
+            raise
+        
+    def insert_inventory_records(self, data: List[Dict]) -> int:
+        """
+        插入庫存記錄
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        inserted_count = 0
+        
+        try:
+            logger.info(f"開始插入 {len(data)} 筆庫存記錄")
+            
+            for i, record in enumerate(data):
+                # 直接插入新記錄
+                self.insert_inventory_record(record)  # ← 改成調用單獨的插入方法
+                inserted_count += 1
+                
+                # 每處理一定數量記錄就提交一次
+                if (i + 1) % DEFAULT_CONFIG['batch_size'] == 0:
+                    self.connection.commit()
+                    logger.info(f"已處理 {i + 1} 筆庫存記錄")
+            
+            # 最終提交
+            self.connection.commit()
+            logger.info(f"庫存數據插入完成 - 插入: {inserted_count} 筆")
+            
+            return inserted_count
+            
+        except Exception as e:
+            self.connection.rollback()
+            logger.error(f"庫存數據插入失敗: {str(e)}")
+            raise
+    def insert_inventory_record(self, record: Dict):
+        """
+        插入單筆庫存記錄
+        
+        Args:
+            record (dict): 庫存記錄
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                query = f"""
+                INSERT INTO {self.table_config['inventory']}
+                (product_id, warehouse_id, total_quantity, borrowed_out, borrowed_in, 
+                stock_quantity, unit, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(query, (
+                    record['product_id'],
+                    record['warehouse_id'],
+                    record['total_quantity'],
+                    record['borrowed_out'],
+                    record['borrowed_in'],
+                    record['stock_quantity'],
+                    record['unit'],
+                    datetime.datetime.now(),  # created_at
+                    datetime.datetime.now()
+                ))
+                logger.debug(f"插入庫存記錄 product_id: {record['product_id']}")
+                
+        except Exception as e:
+            logger.error(f"插入庫存記錄失敗: {str(e)}")
+            raise
+    def process_file(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int]:
+            """
+            處理庫存文件：解析 -> 刪除舊記錄 -> 插入新記錄
+            
+            Args:
+                file_path (str): Excel 文件路徑
+                replace_existing (bool): 是否替換現有記錄，默認為 True
+                
+            Returns:
+                tuple: (刪除記錄數, 插入記錄數)
+            """
+            deleted_count = 0
+            
+            try:
+                # 連接數據庫
+                if not self.connect_database():
+                    raise Exception("無法連接數據庫")
+                
+                # 1. 解析 Excel 文件
+                logger.info("解析庫存 Excel 文件...")
+                data = self.parse_inventory_data(file_path)
+                
+                if not data:
+                    logger.warning("沒有解析到任何有效的庫存記錄")
+                    return 0, 0
+                
+                if replace_existing and data:
+                    # 2. 提取所有產品ID和倉庫ID
+                    product_ids = list(set([record['product_id'] for record in data if record['product_id']]))
+                    warehouse_ids = list(set([record['warehouse_id'] for record in data if record['warehouse_id']]))
+                    logger.info(f"準備更新 {len(product_ids)} 個產品在 {len(warehouse_ids)} 個倉庫的庫存")
+                    
+                    # 3. 刪除現有記錄
+                    deleted_count = self.delete_existing_inventory(product_ids, warehouse_ids)
+                
+                # 4. 插入新記錄
+                inserted_count = self.insert_inventory_records(data)
+                
+                return deleted_count, inserted_count
+                
+            finally:
+                # 關閉數據庫連接
+                self.close_connection()
+    def delete_existing_inventory(self, product_ids: List[str], warehouse_ids: List[str] = None) -> int:
+            """
+            刪除現有的庫存記錄
+            
+            Args:
+                product_ids (list): 要刪除的產品ID列表
+                warehouse_ids (list): 要刪除的倉庫ID列表（可選）
+                
+            Returns:
+                int: 刪除的記錄數
+            """
+            if not product_ids:
+                return 0
+                
+            deleted_count = 0
+            
+            try:
+                with self.connection.cursor() as cursor:
+                    if warehouse_ids:
+                        # 如果指定倉庫，只刪除特定產品在特定倉庫的記錄
+                        product_placeholders = ','.join(['%s'] * len(product_ids))
+                        warehouse_placeholders = ','.join(['%s'] * len(warehouse_ids))
+                        query = f"""
+                        DELETE FROM {self.table_config['inventory']}
+                        WHERE product_id IN ({product_placeholders})
+                        AND warehouse_id IN ({warehouse_placeholders})
+                        """
+                        cursor.execute(query, product_ids + warehouse_ids)
+                    else:
+                        # 刪除所有相關產品的庫存記錄
+                        placeholders = ','.join(['%s'] * len(product_ids))
+                        query = f"""
+                        DELETE FROM {self.table_config['inventory']}
+                        WHERE product_id IN ({placeholders})
+                        """
+                        cursor.execute(query, product_ids)
+                    
+                    deleted_count = cursor.rowcount
+                    logger.info(f"刪除了 {deleted_count} 筆庫存記錄")
+                
+                self.connection.commit()
+                return deleted_count
+                    
+            except Exception as e:
+                self.connection.rollback()
+                logger.error(f"刪除庫存記錄失敗: {str(e)}")
+                raise
+
+# 庫存API端點
+@router.post("/import/inventory")
+async def import_inventory_data(file: UploadFile = File(...), user_role: str = Form(...)):
+    """
+    匯入庫存資料 API
+    """
+    try:
+        # 檢查權限
+        check_editor_permission(user_role)
+        
+        # 檢查檔案類型
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="只支援 Excel 檔案格式")
+        
+        # 創建臨時檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # 使用 InventoryDataUploader 處理檔案
+            inventory_uploader = InventoryDataUploader()
+            deleted_count, inserted_count = inventory_uploader.process_file(temp_file_path)
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": f"庫存匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆庫存記錄",
+                    "deleted_count": deleted_count,
+                    "inserted_count": inserted_count,
+                    "filename": file.filename
+                }
+            )
+            
+        finally:
+            # 清理臨時檔案
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+                
+    except Exception as e:
+        logger.error(f"匯入庫存資料失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"匯入失敗: {str(e)}")

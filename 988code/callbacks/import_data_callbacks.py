@@ -1081,6 +1081,103 @@ def save_current_files(n_clicks, session_data, user_role):
                     error_message = f"處理銷貨資料時發生錯誤: {str(e)}"
                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
                             False, "", True, error_message, False, "", [], [], {}, False, False)
+            elif current_data_type == "inventory":
+                # 處理庫存資料
+                try:
+                    total_records_processed = 0
+                    processing_results = []
+                    
+                    # 處理多個檔案
+                    for file_info in current_files:
+                        filename = file_info['filename']
+                        contents = file_info['contents']
+                        
+                        # 檢查是否為 Excel 文件
+                        if filename.lower().endswith(('.xlsx', '.xls')):
+                            # 解碼 base64 內容
+                            content_type, content_string = contents.split(',')
+                            decoded_content = base64.b64decode(content_string)
+                            
+                            try:
+                                # 準備檔案和表單資料上傳到 API
+                                files = {
+                                    'file': (filename, decoded_content, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                                }
+                                data = {
+                                    'user_role': user_role or 'viewer'
+                                }
+                                
+                                # 呼叫庫存 API 處理檔案
+                                api_url = f"{API_BASE_URL}/import/inventory"
+                                logger.info(f"正在處理庫存檔案: {filename}")
+                                response = requests.post(api_url, files=files, data=data, timeout=300)
+                                
+                                logger.info(f"庫存 API 回應狀態碼: {response.status_code}")
+                                logger.info(f"庫存 API 回應內容: {response.text}")
+                                
+                                if response.status_code == 200:
+                                    result = response.json()
+                                    logger.info(f"庫存解析後的回應: {result}")
+                                    
+                                    if result.get('success'):
+                                        deleted_count = result.get('deleted_count', 0)
+                                        inserted_count = result.get('inserted_count', 0)
+                                        total_records_processed += inserted_count
+                                        
+                                        # 更新會話數據為完成狀態
+                                        session_data['status'] = 'completed'
+                                        session_data['total_records'] = inserted_count
+                                        session_data['deleted_count'] = deleted_count
+                                        session_data['inserted_count'] = inserted_count
+                                        
+                                        status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆庫存記錄"
+                                        processing_results.append(f"{filename}: {status_message}")
+                                        logger.info(f"庫存檔案 {filename} 處理成功: {status_message}")
+                                    else:
+                                        error_msg = result.get('message', '庫存 API 處理失敗')
+                                        processing_results.append(f"{filename}: {error_msg}")
+                                        logger.error(f"庫存檔案 {filename} 處理失敗: {error_msg}")
+                                        session_data['status'] = 'error'
+                                else:
+                                    try:
+                                        error_detail = response.json().get('detail', '未知錯誤')
+                                    except:
+                                        error_detail = response.text if response.content else '服務器無回應'
+                                    processing_results.append(f"{filename}: 庫存 API 錯誤 (狀態碼 {response.status_code}) - {error_detail}")
+                                    logger.error(f"庫存 API 錯誤: 狀態碼 {response.status_code}, 內容: {error_detail}")
+                                    session_data['status'] = 'error'
+                                
+                            except requests.exceptions.RequestException as e:
+                                processing_results.append(f"{filename}: 網路錯誤 - {str(e)}")
+                                session_data['status'] = 'error'
+                            except Exception as e:
+                                processing_results.append(f"{filename}: 處理錯誤 - {str(e)}")
+                                session_data['status'] = 'error'
+                        else:
+                            processing_results.append(f"{filename}: 跳過 (非 Excel 檔案)")
+                    
+                    # 顯示處理結果
+                    if total_records_processed > 0:
+                        success_details = f"庫存資料處理完成，共處理 {total_records_processed} 筆記錄"
+                        success_message = f"✅ 成功處理庫存資料檔案！{success_details}\n\n詳細結果:\n" + "\n".join(processing_results)
+                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                               True, success_message, False, "", False, "", [], [], {}, False, False)
+                    else:
+                        # 檢查是否有錯誤訊息
+                        error_files = [result for result in processing_results if any(keyword in result for keyword in ['錯誤', '失敗', '跳過'])]
+                        if error_files:
+                            error_message = "\n".join(error_files)
+                            return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                                   False, "", True, error_message, False, "", [], [], {}, False, False)
+                        else:
+                            success_message = f"已上傳 {len(current_files)} 個庫存資料檔案，但未處理任何記錄。請檢查檔案格式或內容。"
+                            return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                                   True, success_message, False, "", False, "", [], [], {}, False, False)
+                
+                except Exception as e:
+                    error_message = f"處理庫存資料時發生錯誤: {str(e)}"
+                    return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                           False, "", True, error_message, False, "", [], [], {}, False, False)
             else:
                 # 其他資料類型的一般處理
                 success_message = f"成功匯入 {len(current_files)} 個{type_name}檔案"
