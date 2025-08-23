@@ -43,29 +43,82 @@ layout = html.Div([
             dbc.ModalTitle("創建新客戶", id="new-customer-modal-title")
         ]),
         dbc.ModalBody([
-            # 客戶基本資訊表單
             dbc.Row([
-                dbc.Label("客戶ID", width=3),
-                dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=9)
-            ], className="mb-3"),
+                # 左側欄位
+                dbc.Col([
+                    # 客戶ID
+                    dbc.Row([
+                        dbc.Label("客戶ID", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=8)
+                    ], className="mb-3"),
+                    # 客戶名稱
+                    dbc.Row([
+                        dbc.Label("客戶名稱", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=8)
+                    ], className="mb-3"),
+                    # 電話號碼
+                    dbc.Row([
+                        dbc.Label("電話號碼", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=8)
+                    ], className="mb-3"),
+                    # 客戶地址
+                    dbc.Row([
+                        dbc.Label("客戶地址", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=8)
+                    ], className="mb-3"),
+                    # 備註
+                    dbc.Row([
+                        dbc.Label("備註", width=4),
+                        dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=8)
+                    ], className="mb-3"),
+                ], width=6),
+                
+                # 右側欄位
+                dbc.Col([
+                    # 直轄市、縣、市
+                    dbc.Row([
+                        dbc.Label("直轄市、縣、市", width=4),
+                        dbc.Col(dcc.Dropdown(
+                            id="new-customer-city",
+                            options=[
+                                {"label": "台北市", "value": "台北市"},
+                                {"label": "新北市", "value": "新北市"},
+                                {"label": "桃園市", "value": "桃園市"},
+                                {"label": "台中市", "value": "台中市"},
+                                {"label": "台南市", "value": "台南市"},
+                                {"label": "高雄市", "value": "高雄市"},
+                                {"label": "宜蘭縣", "value": "宜蘭縣"},
+                                {"label": "新竹縣", "value": "新竹縣"},
+                                {"label": "苗栗縣", "value": "苗栗縣"},
+                                {"label": "彰化縣", "value": "彰化縣"},
+                                {"label": "南投縣", "value": "南投縣"},
+                                {"label": "雲林縣", "value": "雲林縣"},
+                                {"label": "嘉義縣", "value": "嘉義縣"},
+                                {"label": "屏東縣", "value": "屏東縣"},
+                                {"label": "台東縣", "value": "台東縣"},
+                                {"label": "花蓮縣", "value": "花蓮縣"},
+                                {"label": "澎湖縣", "value": "澎湖縣"},
+                                {"label": "金門縣", "value": "金門縣"},
+                                {"label": "連江縣", "value": "連江縣"}
+                            ],
+                            placeholder="請選擇直轄市縣市"
+                        ), width=8)
+                    ], className="mb-3"),
+                    # 鄉鎮市區
+                    dbc.Row([
+                        dbc.Label("鄉鎮市區", width=4),
+                        dbc.Col(dcc.Dropdown(
+                            id="new-customer-district",
+                            options=[],
+                            placeholder="請先選擇直轄市縣市"
+                        ), width=8)
+                    ], className="mb-3"),
+                ], width=6)
+            ]),
+            
+            # 每週配送日放在底部，橫跨整個寬度
             dbc.Row([
-                dbc.Label("客戶名稱", width=3),
-                dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("電話號碼", width=3),
-                dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("客戶地址", width=3),
-                dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("備註", width=3),
-                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("每週配送日", width=3),
+                dbc.Label("每週配送日", width=2),
                 dbc.Col(dcc.Checklist(
                     id="new-customer-delivery-schedule",
                     options=[
@@ -80,44 +133,7 @@ layout = html.Div([
                     value=[],
                     inline=True,
                     style={"display": "flex", "gap": "15px"}
-                ), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("直轄市、縣、市", width=3),
-                dbc.Col(dcc.Dropdown(
-                    id="new-customer-city",
-                    options=[
-                        {"label": "台北市", "value": "台北市"},
-                        {"label": "新北市", "value": "新北市"},
-                        {"label": "桃園市", "value": "桃園市"},
-                        {"label": "台中市", "value": "台中市"},
-                        {"label": "台南市", "value": "台南市"},
-                        {"label": "高雄市", "value": "高雄市"},
-                        {"label": "宜蘭縣", "value": "宜蘭縣"},
-                        {"label": "新竹縣", "value": "新竹縣"},
-                        {"label": "苗栗縣", "value": "苗栗縣"},
-                        {"label": "彰化縣", "value": "彰化縣"},
-                        {"label": "南投縣", "value": "南投縣"},
-                        {"label": "雲林縣", "value": "雲林縣"},
-                        {"label": "嘉義縣", "value": "嘉義縣"},
-                        {"label": "屏東縣", "value": "屏東縣"},
-                        {"label": "台東縣", "value": "台東縣"},
-                        {"label": "花蓮縣", "value": "花蓮縣"},
-                        {"label": "澎湖縣", "value": "澎湖縣"},
-                        {"label": "金門縣", "value": "金門縣"},
-                        {"label": "連江縣", "value": "連江縣"}
-                    ],
-                    placeholder="請選擇直轄市縣市"
-                ), width=9)
-            ], className="mb-3"),
-
-            dbc.Row([
-                dbc.Label("鄉鎮市區", width=3),
-                dbc.Col(dcc.Dropdown(
-                    id="new-customer-district",
-                    options=[],
-                    placeholder="請先選擇直轄市縣市"
-                ), width=9)
+                ), width=10)
             ], className="mb-3"),
         ]),
         dbc.ModalFooter([
@@ -126,7 +142,7 @@ layout = html.Div([
             dbc.Button("批量跳過全部", id="skip-all-customers-btn", color="warning", className="me-2", style={"display": "none"}),
             dbc.Button("完成並匯入", id="finish-and-import-btn", color="success", style={"display": "none"})
         ])
-    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="lg"),
+    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
     
     # 新增產品創建 Modal
     dbc.Modal([
@@ -134,58 +150,108 @@ layout = html.Div([
             dbc.ModalTitle("創建新產品", id="new-product-modal-title")
         ]),
         dbc.ModalBody([
-            # 產品基本資訊表單
             dbc.Row([
-                dbc.Label("產品ID", width=3),
-                dbc.Col(dbc.Input(id="new-product-id", type="text", disabled=True), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("倉庫ID", width=3),
-                dbc.Col(dbc.Input(id="new-product-warehouse-id", type="text", placeholder="請輸入倉庫ID"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("產品中文名稱", width=3),
-                dbc.Col(dbc.Input(id="new-product-name-zh", type="text", placeholder="請輸入產品中文名稱"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("類別", width=3),
-                dbc.Col(dbc.Input(id="new-product-category", type="text", placeholder="請輸入類別"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("子類別", width=3),
-                dbc.Col(dbc.Input(id="new-product-subcategory", type="text", placeholder="請輸入子類別"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("規格", width=3),
-                dbc.Col(dbc.Input(id="new-product-specification", type="text", placeholder="請輸入規格"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("包裝原料", width=3),
-                dbc.Col(dbc.Input(id="new-product-package-raw", type="text", placeholder="請輸入包裝原料"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("處理方式", width=3),
-                dbc.Col(dbc.Input(id="new-product-process-type", type="text", placeholder="請輸入處理方式"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("單位", width=3),
-                dbc.Col(dbc.Input(id="new-product-unit", type="text", placeholder="請輸入單位"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("供應商ID", width=3),
-                dbc.Col(dbc.Input(id="new-product-supplier-id", type="text", placeholder="請輸入供應商ID"), width=9)
-            ], className="mb-3"),
-            dbc.Row([
-                dbc.Label("狀態", width=3),
-                dbc.Col(dcc.Dropdown(
-                    id="new-product-is-active",
-                    options=[
-                        {"label": "啟用 (Active)", "value": "active"},
-                        {"label": "停用 (Inactive)", "value": "inactive"}
-                    ],
-                    placeholder="請選擇狀態"
-                ), width=9)
-            ], className="mb-3"),
+                # 左側欄位
+                dbc.Col([
+                    # 產品ID
+                    dbc.Row([
+                        dbc.Label("產品ID", width=4),
+                        dbc.Col(dbc.Input(id="new-product-id", type="text", disabled=True), width=8)
+                    ], className="mb-3"),
+                    # 倉庫ID
+                    dbc.Row([
+                        dbc.Label("倉庫ID", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-warehouse-id", type="text", placeholder="請輸入倉庫id"),
+                            dbc.Tooltip("例如：本倉、物料倉", target="new-product-warehouse-id", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 產品中文名稱
+                    dbc.Row([
+                        dbc.Label("產品名稱", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-name-zh", type="text", placeholder="請輸入產品名稱"),
+                            dbc.Tooltip("請輸入完整的產品名稱", target="new-product-name-zh", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 類別
+                    dbc.Row([
+                        dbc.Label("類別", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-category", type="text", placeholder="請輸入類別"),
+                            dbc.Tooltip("例如：消耗品、其他類、白帶魚", target="new-product-category", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 子類別
+                    dbc.Row([
+                        dbc.Label("子類別", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-subcategory", type="text", placeholder="請輸入子類別"),
+                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片、禮盒", target="new-product-subcategory", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 規格
+                    dbc.Row([
+                        dbc.Label("規格", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-specification", type="text", placeholder="請輸入產品規格"),
+                            dbc.Tooltip("例如：12K、150/200", target="new-product-specification", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6),
+                
+                # 右側欄位
+                dbc.Col([
+                    # 包裝原料
+                    dbc.Row([
+                        dbc.Label("包裝原料", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-package-raw", type="text", placeholder="請輸入包裝原料"),
+                            dbc.Tooltip("例如：10K/箱、500g/包", target="new-product-package-raw", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 處理方式
+                    dbc.Row([
+                        dbc.Label("處理方式", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-process-type", type="text", placeholder="請輸入處理方式"),
+                            dbc.Tooltip("例如：單尾、無骨", target="new-product-process-type", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 單位
+                    dbc.Row([
+                        dbc.Label("單位", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-unit", type="text", placeholder="請輸入單位"),
+                            dbc.Tooltip("例如：公斤、套、包、尾", target="new-product-unit", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 供應商ID
+                    dbc.Row([
+                        dbc.Label("供應商ID", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-product-supplier-id", type="text", placeholder="請輸入供應商id"),
+                            dbc.Tooltip("例如：集和、寶田", target="new-product-supplier-id", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 狀態
+                    dbc.Row([
+                        dbc.Label("狀態", width=4),
+                        dbc.Col([
+                            html.Div([
+                                dcc.Dropdown(
+                                    id="new-product-is-active",
+                                    options=[
+                                        {"label": "啟用 (Active)", "value": "active"},
+                                        {"label": "停用 (Inactive)", "value": "inactive"}
+                                    ],
+                                    placeholder="請選擇狀態"
+                                )
+                            ], title="選擇產品是否啟用：啟用表示可正常使用，停用表示暫時不可使用")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6)
+            ])
         ]),
         dbc.ModalFooter([
             dbc.Button("跳過此產品", id="skip-product-btn", color="secondary", className="me-2"),
@@ -193,7 +259,7 @@ layout = html.Div([
             dbc.Button("批量跳過全部", id="skip-all-products-btn", color="warning", className="me-2", style={"display": "none"}),
             dbc.Button("完成並匯入", id="finish-product-import-btn", color="success", style={"display": "none"})
         ])
-    ], id="new-product-modal", is_open=False, backdrop="static", keyboard=False, size="lg"),
+    ], id="new-product-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
 
 
     # 全螢幕載入遮罩
