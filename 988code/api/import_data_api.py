@@ -49,7 +49,7 @@ class SalesDataUploader:
         try:
             # 使用專案的實際資料庫連接參數
             self.connection = psycopg2.connect(
-                dbname='timtest',
+                dbname='988',
                 user='n8n',  
                 password='1234',
                 host='26.210.160.206',
@@ -949,7 +949,7 @@ class InventoryDataUploader:
         try:
             # 使用專案的實際資料庫連接參數
             self.connection = psycopg2.connect(
-                dbname='timtest',
+                dbname='988',
                 user='n8n',  
                 password='1234',
                 host='26.210.160.206',
