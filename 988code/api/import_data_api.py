@@ -1081,7 +1081,65 @@ class InventoryDataUploader:
         except Exception as e:
             logger.error(f"解析庫存文件失敗: {str(e)}")
             raise
+    
+    def check_product_exists(self, product_id: str) -> bool:
+        """
+        檢查產品是否已存在於 product_master 表中
         
+        Args:
+            product_id (str): 產品ID
+            
+        Returns:
+            bool: 如果已存在返回 True，否則返回 False
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                query = f"""
+                SELECT EXISTS(
+                    SELECT 1 FROM {self.table_config['product_master']}
+                    WHERE product_id = %s
+                )
+                """
+                cursor.execute(query, (product_id,))
+                return cursor.fetchone()[0]
+                
+        except Exception as e:
+            logger.error(f"檢查產品存在性失敗: {str(e)}")
+            try:
+                self.connection.rollback()
+            except:
+                pass
+            return False
+
+    def get_missing_products(self, data: List[Dict]) -> List[str]:
+        """
+        檢查數據中哪些產品不存在於 product_master 表中
+        
+        Args:
+            data (list): 庫存記錄列表
+            
+        Returns:
+            list: 不存在的產品ID列表
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        # 提取所有唯一的產品ID
+        unique_product_ids = set()
+        for record in data:
+            product_id = record.get('product_id')
+            if product_id and product_id.strip():
+                unique_product_ids.add(product_id.strip())
+        
+        missing_products = []
+        
+        for product_id in unique_product_ids:
+            if not self.check_product_exists(product_id):
+                missing_products.append(product_id)
+                logger.info(f"發現新產品ID: {product_id}")
+        
+        return missing_products
+
     def insert_inventory_records(self, data: List[Dict]) -> int:
         """
         插入庫存記錄
@@ -1235,6 +1293,60 @@ class InventoryDataUploader:
                 self.connection.rollback()
                 logger.error(f"刪除庫存記錄失敗: {str(e)}")
                 raise
+    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, List[str]]:
+        """
+        處理庫存文件並檢查產品：解析文件 -> 檢查產品 -> 返回缺失產品列表
+        
+        Args:
+            file_path (str): Excel 文件路徑
+            replace_existing (bool): 是否替換現有記錄，默認為 True
+            
+        Returns:
+            tuple: (刪除記錄數, 插入記錄數, 缺失產品列表)
+        """
+        deleted_count = 0
+        
+        try:
+            # 連接數據庫
+            if not self.connect_database():
+                raise Exception("無法連接數據庫")
+            
+            # 1. 解析 Excel 文件
+            logger.info("解析庫存 Excel 文件...")
+            data = self.parse_inventory_data(file_path)
+            
+            if not data:
+                logger.warning("沒有解析到任何有效的庫存記錄")
+                return 0, 0, []
+            
+            # 2. 檢查缺失的產品
+            missing_products = self.get_missing_products(data)
+            
+            if missing_products:
+                logger.info(f"發現 {len(missing_products)} 個新產品需要創建: {missing_products}")
+                # 返回缺失產品列表，暫不進行數據插入
+                return 0, 0, missing_products
+            
+            # 3. 如果沒有缺失產品，繼續原有流程
+            if replace_existing and data:
+                # 提取所有產品ID和倉庫ID
+                product_ids = list(set([record['product_id'] for record in data if record['product_id']]))
+                warehouse_ids = list(set([record['warehouse_id'] for record in data if record['warehouse_id']]))
+                logger.info(f"準備更新 {len(product_ids)} 個產品在 {len(warehouse_ids)} 個倉庫的庫存")
+                
+                # 刪除現有記錄
+                deleted_count = self.delete_existing_inventory(product_ids, warehouse_ids)
+            
+            # 4. 插入新記錄
+            inserted_count = self.insert_inventory_records(data)
+            
+            return deleted_count, inserted_count, []
+            
+        finally:
+            # 關閉數據庫連接
+            self.close_connection()
+
+
 
 # 庫存API端點
 @router.post("/import/inventory")
@@ -1282,3 +1394,51 @@ async def import_inventory_data(file: UploadFile = File(...), user_role: str = F
     except Exception as e:
         logger.error(f"匯入庫存資料失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"匯入失敗: {str(e)}")
+
+
+
+# 在檔案最後新增這個 API 端點
+@router.post("/import/inventory/check-products")
+async def check_inventory_products(file: UploadFile = File(...), user_role: str = Form(...)):
+    """
+    檢查庫存資料中的產品是否存在，返回缺失的產品列表
+    """
+    try:
+        # 檢查權限
+        check_editor_permission(user_role)
+        
+        # 檢查檔案類型
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="只支援 Excel 檔案格式")
+        
+        # 創建臨時檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # 使用 InventoryDataUploader 處理檔案
+            inventory_uploader = InventoryDataUploader()
+            deleted_count, inserted_count, missing_products = inventory_uploader.process_file_with_product_check(temp_file_path)
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "missing_products": missing_products,
+                    "message": f"檢查完成，發現 {len(missing_products)} 個新產品需要創建" if missing_products else "所有產品都已存在，可以直接匯入",
+                    "filename": file.filename
+                }
+            )
+            
+        finally:
+            # 清理臨時檔案
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+                
+    except Exception as e:
+        logger.error(f"檢查庫存產品失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"檢查失敗: {str(e)}")
