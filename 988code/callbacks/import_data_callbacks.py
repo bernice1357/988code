@@ -954,8 +954,10 @@ def process_sales_import(current_files, session_data, user_role):
      Output("import_data-warning-toast", "is_open"),
      Output("import_data-warning-toast", "children"),
      Output("missing-customers-store", "data"),
+     Output("missing-products-store", "data"),
      Output("current-file-store", "data"),
-     Output("new-customer-modal", "is_open")],
+     Output("new-customer-modal", "is_open"),
+     Output("new-product-modal", "is_open")],
     [Input("save-current-files-btn", "n_clicks")],
     [State("import-session-store", "data"),
      State("user-role-store", "data")],
@@ -998,8 +1000,9 @@ def save_current_files(n_clicks, session_data, user_role):
                                 'user_role': user_role or 'viewer'
                             }
                             
-                            # 呼叫客戶檢查 API
-                            api_url = f"{API_BASE_URL}/import/sales/check-customers"
+                            
+                            # 呼叫客戶和產品檢查 API
+                            api_url = f"{API_BASE_URL}/import/sales/check-customers-and-products"
                             logger.info(f"正在檢查客戶: {filename}")
                             response = requests.post(api_url, files=files, data=data, timeout=300)
                             
@@ -1012,12 +1015,25 @@ def save_current_files(n_clicks, session_data, user_role):
                                 
                                 if result.get('success'):
                                     missing_customers = result.get('missing_customers', [])
+                                    missing_products = result.get('missing_products', [])
                                     
                                     if missing_customers:
-                                        # 有缺失客戶，打開創建客戶 Modal
+                                        # 有缺失客戶，優先處理客戶
                                         logger.info(f"發現 {len(missing_customers)} 個缺失客戶: {missing_customers}")
                                         
-                                        # 存儲缺失客戶和當前文件信息
+                                        file_store_data = {
+                                            'filename': filename,
+                                            'contents': contents,
+                                            'current_files': current_files,
+                                            'missing_products': missing_products  # 保存產品信息供後續處理
+                                        }
+                                        
+                                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                                            False, "", False, "", False, "", missing_customers, missing_products, file_store_data, True, False)
+                                    elif missing_products:
+                                        # 只有缺失產品，打開產品創建 Modal
+                                        logger.info(f"發現 {len(missing_products)} 個缺失產品: {missing_products}")
+                                        
                                         file_store_data = {
                                             'filename': filename,
                                             'contents': contents,
@@ -1025,20 +1041,20 @@ def save_current_files(n_clicks, session_data, user_role):
                                         }
                                         
                                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                               False, "", False, "", False, "", missing_customers, file_store_data, True)
+                                            False, "", False, "", False, "", [], missing_products, file_store_data, False, True)
                                     else:
-                                        # 沒有缺失客戶，直接繼續匯入流程
-                                        logger.info("所有客戶都已存在，直接進行匯入")
-                                        # 這裡直接呼叫原有的匯入邏輯
-                                        return process_sales_import(current_files, session_data, user_role)
+                                        # 沒有缺失項目，直接繼續匯入流程
+                                        logger.info("所有客戶和產品都已存在，直接進行匯入")
+                                        return process_sales_import(current_files, session_data, user_role) + ([], [], False, False)
+                                    
                                 else:
                                     error_msg = result.get('message', '客戶檢查失敗')
                                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                           False, "", True, error_msg, False, "", [], {}, False)
+                                            False, "", True, error_msg, False, "", [], [], {}, False, False)
                             elif response.status_code == 403:
                                 # 權限不足錯誤
                                 return ("匯入上傳檔案", True, {"display": "none"}, session_data, 
-                                       False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], {}, False)
+                                        False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], [], {}, False, False)
                             else:
                                 try:
                                     error_detail = response.json().get('detail', '未知錯誤')
@@ -1046,40 +1062,40 @@ def save_current_files(n_clicks, session_data, user_role):
                                     error_detail = response.text if response.content else '服務器無回應'
                                 error_msg = f"客戶檢查失敗 (狀態碼 {response.status_code}) - {error_detail}"
                                 return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                       False, "", True, error_msg, False, "", [], {}, False)
+                                        False, "", True, error_msg, False, "", [], [], {}, False, False)
                             
                         except requests.exceptions.RequestException as e:
                             error_msg = f"網路錯誤 - {str(e)}"
                             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                   False, "", True, error_msg, False, "", [], {}, False)
+                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
                         except Exception as e:
                             error_msg = f"處理錯誤 - {str(e)}"
                             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                   False, "", True, error_msg, False, "", [], {}, False)
+                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
                     else:
                         error_msg = f"跳過非 Excel 檔案: {filename}"
                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                               False, "", True, error_msg, False, "", [], {}, False)
+                                False, "", True, error_msg, False, "", [], [], {}, False, False)
                 
                 except Exception as e:
                     error_message = f"處理銷貨資料時發生錯誤: {str(e)}"
                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                           False, "", True, error_message, False, "", [], {}, False)
+                            False, "", True, error_message, False, "", [], [], {}, False, False)
             else:
                 # 其他資料類型的一般處理
                 success_message = f"成功匯入 {len(current_files)} 個{type_name}檔案"
                 return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                       True, success_message, False, "", False, "", [], {}, False)
+                        True, success_message, False, "", False, "", [], [], {}, False, False)
         else:
             # 沒有檔案，顯示錯誤 toast
             error_message = "沒有檔案可匯入，請先上傳檔案"
             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                   False, "", True, error_message, False, "", [], {}, False)
+                    False, "", True, error_message, False, "", [], [], {}, False, False)
     else:
         # 沒有選擇資料類型，顯示錯誤 toast
         error_message = "請先選擇資料類型"
         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-               False, "", True, error_message, False, "", [], {}, False)
+                False, "", True, error_message, False, "", [], [], {}, False, False)
 
 # 新增：客戶創建 Modal 相關回調函數
 
@@ -1136,6 +1152,7 @@ def update_district_options(selected_city):
 @app.callback(
     [Output("missing-customers-store", "data", allow_duplicate=True),
      Output("new-customer-modal", "is_open", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
      Output("create_customer_import-success-toast", "is_open"),
      Output("create_customer_import-success-toast", "children"),
      Output("create_customer_import-error-toast", "is_open"),
@@ -1149,10 +1166,11 @@ def update_district_options(selected_city):
      State("new-customer-district", "value"),  
      State("new-customer-delivery-schedule", "value"),
      State("new-customer-notes", "value"),
-     State("missing-customers-store", "data")],
+     State("missing-customers-store", "data"),
+     State("missing-products-store", "data")],
     prevent_initial_call=True
 )
-def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, delivery_schedule, notes, missing_customers):
+def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, delivery_schedule, notes, missing_customers, missing_products):
     if not n_clicks or not customer_id:
         return no_update, no_update, False, "", False, ""
     
@@ -1189,11 +1207,17 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                 if updated_missing_customers:
                     # 還有其他客戶需要創建，繼續顯示 Modal
                     success_msg = f"客戶 {customer_id} 創建成功！還剩 {len(updated_missing_customers)} 個客戶需要創建。"
-                    return updated_missing_customers, True, True, success_msg, False, ""
+                    return updated_missing_customers, True, False, True, success_msg, False, ""
                 else:
-                    # 所有客戶都已創建完成，關閉 Modal
-                    success_msg = f"客戶 {customer_id} 創建成功！所有客戶已創建完成，請重新點擊匯入按鈕。"
-                    return [], False, True, success_msg, False, ""
+                    # 所有客戶都已創建完成，檢查是否有缺失產品
+                    if missing_products and len(missing_products) > 0:
+                        # 有缺失產品，打開產品 Modal
+                        success_msg = f"客戶 {customer_id} 創建成功！現在處理 {len(missing_products)} 個產品。"
+                        return [], False, True, True, success_msg, False, ""
+                    else:
+                        # 沒有缺失產品，完成處理
+                        success_msg = f"客戶 {customer_id} 創建成功！所有資料已準備完成，請重新點擊匯入按鈕。"
+                        return [], False, False, True, success_msg, False, ""
             else:
                 error_msg = result.get('message', '創建客戶失敗')
                 return no_update, no_update, False, "", True, error_msg
@@ -1216,16 +1240,18 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
 @app.callback(
     [Output("missing-customers-store", "data", allow_duplicate=True),
      Output("new-customer-modal", "is_open", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
      Output("create_customer_import-warning-toast", "is_open"),
      Output("create_customer_import-warning-toast", "children")],
     [Input("skip-customer-btn", "n_clicks")],
     [State("new-customer-id", "value"),
-     State("missing-customers-store", "data")],
+     State("missing-customers-store", "data"),
+     State("missing-products-store", "data")],
     prevent_initial_call=True
 )
-def skip_current_customer(n_clicks, customer_id, missing_customers):
+def skip_current_customer(n_clicks, customer_id, missing_customers, missing_products):
     if not n_clicks or not customer_id:
-        return no_update, no_update, False, ""
+        return no_update, no_update, no_update, False, ""
     
     # 從缺失列表中移除當前客戶
     updated_missing_customers = [cid for cid in missing_customers if cid != customer_id]
@@ -1233,30 +1259,47 @@ def skip_current_customer(n_clicks, customer_id, missing_customers):
     if updated_missing_customers:
         # 還有其他客戶需要處理，繼續顯示 Modal
         warning_msg = f"已跳過客戶 {customer_id}，還剩 {len(updated_missing_customers)} 個客戶需要處理。"
-        return updated_missing_customers, True, True, warning_msg
+        return updated_missing_customers, True, False, True, warning_msg
     else:
-        # 所有客戶都已處理完成，關閉 Modal
-        warning_msg = f"已跳過客戶 {customer_id}，所有客戶已處理完成。注意：跳過的客戶可能導致匯入失敗。"
-        return [], False, True, warning_msg
+        # 所有客戶已處理完成，檢查是否有缺失產品
+        if missing_products and len(missing_products) > 0:
+            # 有缺失產品，打開產品 Modal
+            warning_msg = f"客戶 {customer_id} 已跳過，現在處理產品創建。"
+            return [], False, True, True, warning_msg
+        else:
+            # 沒有缺失產品，完成處理
+            warning_msg = f"已跳過客戶 {customer_id}，所有處理完成。注意：跳過的客戶可能導致匯入失敗。"
+            return [], False, False, True, warning_msg
 
 # 跳過所有剩餘客戶
 @app.callback(
     [Output("missing-customers-store", "data", allow_duplicate=True),
      Output("new-customer-modal", "is_open", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
      Output("create_customer_import-warning-toast", "is_open", allow_duplicate=True),
      Output("create_customer_import-warning-toast", "children", allow_duplicate=True)],
     [Input("skip-all-customers-btn", "n_clicks")],
-    [State("missing-customers-store", "data")],
+    [State("missing-customers-store", "data"),
+     State("current-file-store", "data"), 
+     State("missing-products-store", "data")], 
     prevent_initial_call=True
 )
-def skip_all_customers(n_clicks, missing_customers):
+def skip_all_customers(n_clicks, missing_customers, current_file_store_data, missing_products):
     if not n_clicks:
-        return no_update, no_update, False, ""
+        return no_update, no_update, no_update, False, ""
     
     skipped_count = len(missing_customers)
-    warning_msg = f"已跳過所有 {skipped_count} 個客戶。注意：跳過的客戶可能導致匯入失敗。"
-    
-    return [], False, True, warning_msg
+
+    # 檢查是否有缺失產品
+    if missing_products and len(missing_products) > 0:
+        # 有缺失產品，打開產品 Modal
+        warning_msg = f"已跳過所有 {skipped_count} 個客戶，現在處理 {len(missing_products)} 個產品。"
+        return [], False, True, True, warning_msg
+    else:
+        # 沒有缺失產品，完成處理
+        warning_msg = f"已跳過所有 {skipped_count} 個客戶。注意：跳過的客戶可能導致匯入失敗。"
+        return [], False, False, True, warning_msg
+    修改說明
 
 # 完成並匯入（當所有客戶都處理完成時）
 @app.callback(
@@ -1292,3 +1335,166 @@ def finish_and_import(n_clicks, file_store_data, session_data, user_role):
         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
                False, "", True, error_msg, False)
     
+# 產品創建 Modal 相關回調函數
+
+# 產品 Modal 顯示邏輯 - 設置當前產品資訊
+@app.callback(
+    [Output("new-product-modal-title", "children"),
+     Output("new-product-id", "value"),
+     Output("new-product-warehouse-id", "value"),
+     Output("new-product-name-zh", "value"),
+     Output("new-product-category", "value"),
+     Output("new-product-subcategory", "value"),
+     Output("new-product-specification", "value"),
+     Output("new-product-package-raw", "value"),
+     Output("new-product-process-type", "value"),
+     Output("new-product-unit", "value"),
+     Output("new-product-supplier-id", "value"),
+     Output("new-product-is-active", "value"),
+     Output("skip-all-products-btn", "style"),
+     Output("finish-product-import-btn", "style")],
+    [Input("missing-products-store", "data"),
+     Input("new-product-modal", "is_open")],
+    prevent_initial_call=True
+)
+def setup_product_modal(missing_products, is_open):
+    if is_open and missing_products:
+        current_product = missing_products[0]
+        total_products = len(missing_products)
+        
+        show_batch = total_products > 1
+        skip_all_style = {"display": "inline-block"} if show_batch else {"display": "none"}
+        finish_style = {"display": "none"}
+        
+        title = f"創建新產品 ({1}/{total_products})" if show_batch else "創建新產品"
+        
+        return (title, current_product, "", "", "", "", "", "", "", "", "", None,
+               skip_all_style, finish_style)
+    
+    return ("創建新產品", "", "", "", "", "", "", "", "", "", "", None,
+           {"display": "none"}, {"display": "none"})
+
+# 儲存新產品
+@app.callback(
+    [Output("missing-products-store", "data", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
+     Output("create_product_import-success-toast", "is_open"),
+     Output("create_product_import-success-toast", "children"),
+     Output("create_product_import-error-toast", "is_open"),
+     Output("create_product_import-error-toast", "children")],
+    [Input("save-new-product-btn", "n_clicks")],
+    [State("new-product-id", "value"),
+     State("new-product-warehouse-id", "value"),
+     State("new-product-name-zh", "value"),
+     State("new-product-category", "value"),
+     State("new-product-subcategory", "value"),
+     State("new-product-specification", "value"),
+     State("new-product-package-raw", "value"),
+     State("new-product-process-type", "value"),
+     State("new-product-unit", "value"),
+     State("new-product-supplier-id", "value"),
+     State("new-product-is-active", "value"),
+     State("missing-products-store", "data")],
+    prevent_initial_call=True
+)
+def save_new_product(n_clicks, product_id, warehouse_id, name_zh, category, subcategory, 
+                    specification, package_raw, process_type, unit, supplier_id, 
+                    is_active, missing_products):
+    if not n_clicks or not product_id:
+        return no_update, no_update, False, "", False, ""
+    
+    # 驗證必填欄位
+    if not name_zh or not name_zh.strip():
+        return no_update, no_update, False, "", True, "產品中文名稱為必填欄位"
+    if not is_active:
+        return no_update, no_update, False, "", True, "請選擇產品狀態"
+    
+    # 準備產品資料
+    product_data = {
+        "product_id": product_id.strip(),
+        "warehouse_id": warehouse_id.strip() if warehouse_id else "",
+        "name_zh": name_zh.strip(),
+        "category": category.strip() if category else "",
+        "subcategory": subcategory.strip() if subcategory else "",
+        "specification": specification.strip() if specification else "",
+        "package_raw": package_raw.strip() if package_raw else "",
+        "process_type": process_type.strip() if process_type else "",
+        "unit": unit.strip() if unit else "",
+        "supplier_id": supplier_id.strip() if supplier_id else "",
+        "is_active": is_active
+    }
+    
+    try:
+        # 呼叫創建產品 API
+        api_url = f"{API_BASE_URL}/product/create"
+        response = requests.post(api_url, json=product_data, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                # 產品創建成功，從缺失列表中移除
+                updated_missing_products = [pid for pid in missing_products if pid != product_id]
+                
+                if updated_missing_products:
+                    success_msg = f"產品 {product_id} 創建成功！還剩 {len(updated_missing_products)} 個產品需要創建。"
+                    return updated_missing_products, True, True, success_msg, False, ""
+                else:
+                    success_msg = f"產品 {product_id} 創建成功！所有產品已創建完成，請重新點擊匯入按鈕。"
+                    return [], False, True, success_msg, False, ""
+            else:
+                error_msg = result.get('message', '創建產品失敗')
+                return no_update, no_update, False, "", True, error_msg
+        else:
+            try:
+                error_detail = response.json().get('detail', '未知錯誤')
+            except:
+                error_detail = response.text if response.content else '服務器無回應'
+            error_msg = f"創建產品失敗 (狀態碼 {response.status_code}) - {error_detail}"
+            return no_update, no_update, False, "", True, error_msg
+        
+    except Exception as e:
+        error_msg = f"處理錯誤 - {str(e)}"
+        return no_update, no_update, False, "", True, error_msg
+
+# 跳過當前產品
+@app.callback(
+    [Output("missing-products-store", "data", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
+     Output("create_product_import-warning-toast", "is_open"),
+     Output("create_product_import-warning-toast", "children")],
+    [Input("skip-product-btn", "n_clicks")],
+    [State("new-product-id", "value"),
+     State("missing-products-store", "data")],
+    prevent_initial_call=True
+)
+def skip_current_product(n_clicks, product_id, missing_products):
+    if not n_clicks or not product_id:
+        return no_update, no_update, False, ""
+    
+    updated_missing_products = [pid for pid in missing_products if pid != product_id]
+    
+    if updated_missing_products:
+        warning_msg = f"已跳過產品 {product_id}，還剩 {len(updated_missing_products)} 個產品需要處理。"
+        return updated_missing_products, True, True, warning_msg
+    else:
+        warning_msg = f"已跳過產品 {product_id}，所有產品已處理完成。注意：跳過的產品可能導致匯入失敗。"
+        return [], False, True, warning_msg
+
+# 跳過所有剩餘產品
+@app.callback(
+    [Output("missing-products-store", "data", allow_duplicate=True),
+     Output("new-product-modal", "is_open", allow_duplicate=True),
+     Output("create_product_import-warning-toast", "is_open", allow_duplicate=True),
+     Output("create_product_import-warning-toast", "children", allow_duplicate=True)],
+    [Input("skip-all-products-btn", "n_clicks")],
+    [State("missing-products-store", "data")],
+    prevent_initial_call=True
+)
+def skip_all_products(n_clicks, missing_products):
+    if not n_clicks:
+        return no_update, no_update, False, ""
+    
+    skipped_count = len(missing_products)
+    warning_msg = f"已跳過所有 {skipped_count} 個產品。注意：跳過的產品可能導致匯入失敗。"
+    
+    return [], False, True, warning_msg

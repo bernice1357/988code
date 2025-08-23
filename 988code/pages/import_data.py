@@ -13,6 +13,11 @@ layout = html.Div([
     error_toast("create_customer_import", message=""),
     warning_toast("create_customer_import", message=""),
     
+    # 新增產品創建相關的 Toast
+    success_toast("create_product_import", message=""),
+    error_toast("create_product_import", message=""),
+    warning_toast("create_product_import", message=""),
+
     # 進度更新觸發器（隱藏）
     dcc.Interval(
         id='progress-interval',
@@ -28,7 +33,10 @@ layout = html.Div([
     # 新增：存儲缺失客戶資料
     dcc.Store(id='missing-customers-store', data=[]),
     dcc.Store(id='current-file-store', data={}),
-    
+
+    # 新增：存儲缺失產品資料
+    dcc.Store(id='missing-products-store', data=[]),
+
     # 新增客戶創建 Modal
     dbc.Modal([
         dbc.ModalHeader([
@@ -120,6 +128,74 @@ layout = html.Div([
         ])
     ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="lg"),
     
+    # 新增產品創建 Modal
+    dbc.Modal([
+        dbc.ModalHeader([
+            dbc.ModalTitle("創建新產品", id="new-product-modal-title")
+        ]),
+        dbc.ModalBody([
+            # 產品基本資訊表單
+            dbc.Row([
+                dbc.Label("產品ID", width=3),
+                dbc.Col(dbc.Input(id="new-product-id", type="text", disabled=True), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("倉庫ID", width=3),
+                dbc.Col(dbc.Input(id="new-product-warehouse-id", type="text", placeholder="請輸入倉庫ID"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("產品中文名稱", width=3),
+                dbc.Col(dbc.Input(id="new-product-name-zh", type="text", placeholder="請輸入產品中文名稱"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("類別", width=3),
+                dbc.Col(dbc.Input(id="new-product-category", type="text", placeholder="請輸入類別"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("子類別", width=3),
+                dbc.Col(dbc.Input(id="new-product-subcategory", type="text", placeholder="請輸入子類別"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("規格", width=3),
+                dbc.Col(dbc.Input(id="new-product-specification", type="text", placeholder="請輸入規格"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("包裝原料", width=3),
+                dbc.Col(dbc.Input(id="new-product-package-raw", type="text", placeholder="請輸入包裝原料"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("處理方式", width=3),
+                dbc.Col(dbc.Input(id="new-product-process-type", type="text", placeholder="請輸入處理方式"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("單位", width=3),
+                dbc.Col(dbc.Input(id="new-product-unit", type="text", placeholder="請輸入單位"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("供應商ID", width=3),
+                dbc.Col(dbc.Input(id="new-product-supplier-id", type="text", placeholder="請輸入供應商ID"), width=9)
+            ], className="mb-3"),
+            dbc.Row([
+                dbc.Label("狀態", width=3),
+                dbc.Col(dcc.Dropdown(
+                    id="new-product-is-active",
+                    options=[
+                        {"label": "啟用 (Active)", "value": "active"},
+                        {"label": "停用 (Inactive)", "value": "inactive"}
+                    ],
+                    placeholder="請選擇狀態"
+                ), width=9)
+            ], className="mb-3"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("跳過此產品", id="skip-product-btn", color="secondary", className="me-2"),
+            dbc.Button("儲存產品", id="save-new-product-btn", color="primary"),
+            dbc.Button("批量跳過全部", id="skip-all-products-btn", color="warning", className="me-2", style={"display": "none"}),
+            dbc.Button("完成並匯入", id="finish-product-import-btn", color="success", style={"display": "none"})
+        ])
+    ], id="new-product-modal", is_open=False, backdrop="static", keyboard=False, size="lg"),
+
+
     # 全螢幕載入遮罩
     html.Div([
         html.Div([
