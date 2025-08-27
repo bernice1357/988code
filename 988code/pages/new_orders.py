@@ -8,6 +8,47 @@ from .common import *
 from dash import ALL
 from datetime import datetime
 
+# 在文件開頭新增縣市區域對應字典
+CITY_DISTRICT_MAP = {
+    "台北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區", "南港區", "文山區"],
+    "新北市": ["萬里區", "金山區", "板橋區", "汐止區", "深坑區", "石碇區", "瑞芳區", "平溪區", "雙溪區", "貢寮區", "新店區", "坪林區", "烏來區", "永和區", "中和區", "土城區", "三峽區", "樹林區", "鶯歌區", "三重區", "新莊區", "泰山區", "林口區", "蘆洲區", "五股區", "八里區", "淡水區", "三芝區", "石門區"],
+    "桃園市": ["中壢區", "平鎮區", "龍潭區", "楊梅區", "新屋區", "觀音區", "桃園區", "龜山區", "八德區", "大溪區", "復興區", "大園區", "蘆竹區"],
+    "台中市": ["中區", "東區", "南區", "西區", "北區", "北屯區", "西屯區", "南屯區", "太平區", "大里區", "霧峰區", "烏日區", "豐原區", "后里區", "石岡區", "東勢區", "和平區", "新社區", "潭子區", "大雅區", "神岡區", "大肚區", "沙鹿區", "龍井區", "梧棲區", "清水區", "大甲區", "外埔區", "大安區"],
+    "台南市": ["中西區", "東區", "南區", "北區", "安平區", "安南區", "永康區", "歸仁區", "新化區", "左鎮區", "玉井區", "楠西區", "南化區", "仁德區", "關廟區", "龍崎區", "官田區", "麻豆區", "佳里區", "西港區", "七股區", "將軍區", "學甲區", "北門區", "新營區", "後壁區", "白河區", "東山區", "六甲區", "下營區", "柳營區", "鹽水區", "善化區", "大內區", "山上區", "新市區", "安定區"],
+    "高雄市": ["新興區", "前金區", "苓雅區", "鹽埕區", "鼓山區", "旗津區", "前鎮區", "三民區", "楠梓區", "小港區", "左營區", "仁武區", "大社區", "岡山區", "路竹區", "阿蓮區", "田寮區", "燕巢區", "橋頭區", "梓官區", "彌陀區", "永安區", "湖內區", "鳳山區", "大寮區", "林園區", "鳥松區", "大樹區", "旗山區", "美濃區", "六龜區", "內門區", "杉林區", "甲仙區", "桃源區", "那瑪夏區", "茂林區", "茄萣區"],
+    "宜蘭縣": ["宜蘭市", "頭城鎮", "礁溪鄉", "壯圍鄉", "員山鄉", "羅東鎮", "三星鄉", "大同鄉", "五結鄉", "冬山鄉", "蘇澳鎮", "南澳鄉"],
+    "新竹縣": ["竹北市", "湖口鄉", "新豐鄉", "新埔鎮", "關西鎮", "芎林鄉", "寶山鄉", "竹東鎮", "五峰鄉", "橫山鄉", "尖石鄉", "北埔鄉", "峨眉鄉"],
+    "苗栗縣": ["竹南鎮", "頭份市", "三灣鄉", "南庄鄉", "獅潭鄉", "後龍鎮", "通霄鎮", "苑裡鎮", "苗栗市", "造橋鄉", "頭屋鄉", "公館鄉", "大湖鄉", "泰安鄉", "銅鑼鄉", "三義鄉", "西湖鄉", "卓蘭鎮"],
+    "彰化縣": ["彰化市", "芬園鄉", "花壇鄉", "秀水鄉", "鹿港鎮", "福興鄉", "線西鄉", "和美鎮", "伸港鄉", "員林市", "社頭鄉", "永靖鄉", "埔心鄉", "溪湖鎮", "大村鄉", "埔鹽鄉", "田中鎮", "北斗鎮", "田尾鄉", "埔頭鄉", "溪州鄉", "竹塘鄉", "二林鎮", "大城鄉", "芳苑鄉", "二水鄉"],
+    "南投縣": ["南投市", "中寮鄉", "草屯鎮", "國姓鄉", "埔里鎮", "仁愛鄉", "名間鄉", "集集鎮", "水里鄉", "魚池鄉", "信義鄉", "竹山鎮", "鹿谷鄉"],
+    "雲林縣": ["斗南鎮", "大埤鄉", "虎尾鎮", "土庫鎮", "褒忠鄉", "東勢鄉", "台西鄉", "崙背鄉", "麥寮鄉", "斗六市", "林內鄉", "古坑鄉", "莿桐鄉", "西螺鎮", "二崙鄉", "北港鎮", "水林鄉", "口湖鄉", "四湖鄉", "元長鄉"],
+    "嘉義縣": ["太保市", "朴子市", "布袋鎮", "大林鎮", "民雄鄉", "中埔鄉", "大埔鄉", "水上鄉", "鹿草鄉", "東石鄉", "六腳鄉", "新港鄉", "溪口鄉", "義竹鄉", "番路鄉", "梅山鄉", "竹崎鄉", "阿里山鄉"],
+    "屏東縣": ["屏東市", "潮州鎮", "東港鎮", "恆春鎮", "三地門鄉", "霧台鄉", "瑪家鄉", "九如鄉", "里港鄉", "高樹鄉", "鹽埔鄉", "長治鄉", "麟洛鄉", "竹田鄉", "內埔鄉", "萬丹鄉", "泰武鄉", "來義鄉", "萬巒鄉", "崁頂鄉", "新園鄉", "新埤鄉", "南州鄉", "林邊鄉", "琉球鄉", "佳冬鄉", "枋寮鄉", "枋山鄉", "春日鄉", "獅子鄉", "車城鄉", "牡丹鄉", "滿州鄉"],
+    "台東縣": ["台東市", "綠島鄉", "蘭嶼鄉", "延平鄉", "卑南鄉", "鹿野鄉", "關山鎮", "海端鄉", "池上鄉", "東河鄉", "成功鎮", "長濱鄉", "太麻里鄉", "金峰鄉", "大武鄉", "達仁鄉"],
+    "花蓮縣": ["花蓮市", "新城鄉", "秀林鄉", "吉安鄉", "壽豐鄉", "鳳林鎮", "光復鄉", "豐濱鄉", "瑞穗鄉", "萬榮鄉", "玉里鎮", "卓溪鄉", "富里鄉"],
+    "澎湖縣": ["馬公市", "西嶼鄉", "望安鄉", "七美鄉", "白沙鄉", "湖西鄉"],
+    "金門縣": ["金沙鎮", "金湖鎮", "金寧鄉", "金城鎮", "烈嶼鄉", "烏坵鄉（代管）"],
+    "連江縣": ["南竿鄉", "北竿鄉", "莒光鄉", "東引鄉"]
+}
+
+# 生成隨機客戶ID的函數
+def generate_customer_id():
+    import random
+    import string
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(characters) for _ in range(8))
+
+# 檢查客戶是否存在於customer表的函數
+def check_customer_exists(customer_id):
+    try:
+        response = requests.get(f"http://127.0.0.1:8000/check_customer_exists/{customer_id}")
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("exists", False)
+        return False
+    except:
+        return False
+
 # 載入訂單資料的函數
 def get_orders():
     response = requests.get("http://127.0.0.1:8000/get_new_orders")
@@ -252,17 +293,105 @@ layout = dbc.Container([
             dbc.Button("取消", id="cancel-delete", color="secondary", outline=True),
             dbc.Button("刪除", id="submit-delete", color="danger")
         ])
-    ], id="delete-modal", is_open=False)
+    ], id="delete-modal", is_open=False),
+
+    # 新增客戶創建 Modal
+    dbc.Modal([
+        dbc.ModalHeader([
+            dbc.ModalTitle("創建新客戶", id="create-customer-modal-title")
+        ]),
+        dbc.ModalBody([
+            dbc.Row([
+                # 左側欄位
+                dbc.Col([
+                    # 客戶ID
+                    dbc.Row([
+                        dbc.Label("客戶ID", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=8)
+                    ], className="mb-3"),
+                    # 客戶名稱
+                    dbc.Row([
+                        dbc.Label("客戶名稱", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=8)
+                    ], className="mb-3"),
+                    # 電話號碼
+                    dbc.Row([
+                        dbc.Label("電話號碼", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=8)
+                    ], className="mb-3"),
+                    # 客戶地址
+                    dbc.Row([
+                        dbc.Label("客戶地址", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=8)
+                    ], className="mb-3"),
+                ], width=6),
+                
+                # 右側欄位
+                dbc.Col([
+                    # 直轄市、縣、市
+                    dbc.Row([
+                        dbc.Label("直轄市、縣、市", width=4),
+                        dbc.Col(dcc.Dropdown(
+                            id="new-customer-city",
+                            options=[{"label": city, "value": city} for city in CITY_DISTRICT_MAP.keys()],
+                            placeholder="請選擇直轄市縣市"
+                        ), width=8)
+                    ], className="mb-3"),
+                    # 鄉鎮市區
+                    dbc.Row([
+                        dbc.Label("鄉鎮市區", width=4),
+                        dbc.Col(dcc.Dropdown(
+                            id="new-customer-district",
+                            options=[],
+                            placeholder="請先選擇直轄市縣市"
+                        ), width=8)
+                    ], className="mb-3"),
+                ], width=6)
+            ]),
+            
+            dbc.Row([
+                dbc.Label("備註", width=2),
+                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=10)
+            ], className="mb-3"),
+            # 每週配送日放在底部，橫跨整個寬度
+            dbc.Row([
+                dbc.Label("每週配送日", width=2),
+                dbc.Col(dcc.Checklist(
+                    id="new-customer-delivery-schedule",
+                    options=[
+                        {"label": "一", "value": "1"},
+                        {"label": "二", "value": "2"},
+                        {"label": "三", "value": "3"},
+                        {"label": "四", "value": "4"},
+                        {"label": "五", "value": "5"},
+                        {"label": "六", "value": "6"},
+                        {"label": "日", "value": "7"}
+                    ],
+                    value=[],
+                    inline=True,
+                    style={"display": "flex", "gap": "15px"}
+                ), width=10)
+            ], className="mb-3"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
+            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
+        ])
+    ], id="create-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
+    
+    # 儲存需要創建客戶的訂單資料
+    dcc.Store(id="pending-order-store"),
+    dcc.Store(id="current-processing-order"),
 ], fluid=True)
 
 
 # 篩選顯示訂單和更新按鈕狀態
 @app.callback(
     [Output("orders-container", "children", allow_duplicate=True),
-     Output("filter-all", "outline"),
-     Output("filter-unconfirmed", "outline"),
-     Output("filter-confirmed", "outline"),
-     Output("filter-deleted", "outline")],
+     Output("filter-all", "outline", allow_duplicate=True),
+     Output("filter-unconfirmed", "outline", allow_duplicate=True),
+     Output("filter-confirmed", "outline", allow_duplicate=True),
+     Output("filter-deleted", "outline", allow_duplicate=True)],
     [Input("filter-all", "n_clicks"),
      Input("filter-unconfirmed", "n_clicks"),
      Input("filter-confirmed", "n_clicks"),
@@ -295,8 +424,8 @@ def filter_orders(all_clicks, unconfirmed_clicks, confirmed_clicks, deleted_clic
 
 # 刪除按鈕，顯示確認刪除modal
 @app.callback(
-    [Output("delete-modal", "is_open"),
-     Output("delete-modal-body", "children")],
+    [Output("delete-modal", "is_open", allow_duplicate=True),
+     Output("delete-modal-body", "children", allow_duplicate=True)],
     [Input({"type": "delete-btn", "index": ALL}, "n_clicks")],
     [State("delete-modal", "is_open")],
     prevent_initial_call=True
@@ -398,9 +527,9 @@ def confirm_delete(n_clicks, modal_body, user_role):
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
-    [Output("confirm-modal", "is_open"),
-     Output("modal-body-content", "children"),
-     Output("modal-header", "children")],
+    [Output("confirm-modal", "is_open", allow_duplicate=True),
+     Output("modal-body-content", "children", allow_duplicate=True),
+     Output("modal-header", "children", allow_duplicate=True)],
     [Input({"type": "confirm-btn", "index": ALL}, "n_clicks")],
     [State("confirm-modal", "is_open")],
     prevent_initial_call=True
@@ -467,7 +596,10 @@ def close_modal(n_clicks):
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
      Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
      Output("new_orders-warning-toast", "children", allow_duplicate=True),
-     Output("orders-container", "children", allow_duplicate=True)],
+     Output("orders-container", "children", allow_duplicate=True),
+     Output("create-customer-modal", "is_open", allow_duplicate=True),  
+     Output("pending-order-store", "data", allow_duplicate=True),   
+     Output("current-processing-order", "data", allow_duplicate=True)],
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
@@ -494,6 +626,22 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                 break
         
         if order_id and original_order:
+            # 檢查客戶是否存在於customer表中
+            if customer_id and not check_customer_exists(customer_id):
+                # 客戶不存在，需要創建新客戶
+                pending_order_data = {
+                    "order_id": order_id,
+                    "original_order": original_order,
+                    "customer_id": customer_id,
+                    "customer_name": customer_name,
+                    "product_id": product_id,
+                    "purchase_record": purchase_record,
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "amount": amount,
+                    "user_role": user_role
+                }
+                return False, False, dash.no_update, False, False, dash.no_update, dash.no_update, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
             current_time = datetime.now().isoformat()
             
             # 準備更新資料
@@ -538,16 +686,163 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                     
                     orders = get_orders()
                     updated_orders = create_grouped_orders_layout(orders)
-                    return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders
+                    return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders, False, dash.no_update, dash.no_update
                 elif response.status_code == 403:
-                    return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
+                    return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update, False, dash.no_update, dash.no_update
                 else:
                     print(f"API 錯誤，狀態碼：{response.status_code}")
-                    return False, False, dash.no_update, True, False, "", dash.no_update
+                    return False, False, dash.no_update, True, False, "", dash.no_update, False, dash.no_update, dash.no_update
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
-                return False, False, dash.no_update, True, False, "", dash.no_update
+                return False, False, dash.no_update, True, False, "", dash.no_update, False, dash.no_update, dash.no_update
         
-        return False, False, dash.no_update, True, False, "", dash.no_update
+        return False, False, dash.no_update, True, False, "", dash.no_update, False, dash.no_update, dash.no_update
     
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+# 縣市區域聯動
+@app.callback(
+    [Output("new-customer-district", "options", allow_duplicate=True),
+     Output("new-customer-district", "value", allow_duplicate=True)],
+    Input("new-customer-city", "value"),
+    prevent_initial_call=True
+)
+def update_district_options(selected_city):
+    if selected_city and selected_city in CITY_DISTRICT_MAP:
+        district_options = [{"label": district, "value": district} for district in CITY_DISTRICT_MAP[selected_city]]
+        return district_options, None
+    return [], None
+
+# 開啟新客戶Modal時自動產生客戶ID
+@app.callback(
+    Output("new-customer-id", "value", allow_duplicate=True),
+    Input("create-customer-modal", "is_open"),
+    prevent_initial_call=True
+)
+def generate_new_customer_id(is_open):
+    if is_open:
+        return generate_customer_id()
+    return dash.no_update
+
+# 填入當前處理的客戶名稱
+@app.callback(
+    Output("new-customer-name", "value", allow_duplicate=True),
+    Input("current-processing-order", "data"),
+    prevent_initial_call=True
+)
+def set_customer_name(order_data):
+    if order_data and order_data.get("customer_name"):
+        return order_data["customer_name"]
+    return dash.no_update
+
+# 儲存新客戶
+@app.callback(
+    [Output("create-customer-modal", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "children", allow_duplicate=True),
+     Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("orders-container", "children", allow_duplicate=True)],
+    Input("save-new-customer-btn", "n_clicks"),
+    [State("new-customer-id", "value"),
+     State("new-customer-name", "value"),
+     State("new-customer-phone", "value"),
+     State("new-customer-address", "value"),
+     State("new-customer-city", "value"),
+     State("new-customer-district", "value"),
+     State("new-customer-notes", "value"),
+     State("new-customer-delivery-schedule", "value"),
+     State("pending-order-store", "data"),
+     State("user-role-store", "data")],
+    prevent_initial_call=True
+)
+def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, notes, delivery_schedule, pending_order, user_role):
+    if n_clicks and pending_order:
+        # 建構完整地址
+        full_address = ""
+        if city:
+            full_address += city
+        if district:
+            full_address += district
+        if address:
+            full_address += address
+        
+        # 處理配送日程
+        delivery_schedule_str = ",".join(delivery_schedule) if delivery_schedule else ""
+        
+        # 創建新客戶的資料
+        new_customer_data = {
+            "customer_id": customer_id,
+            "customer_name": customer_name,
+            "phone_number": phone,
+            "address": full_address,
+            "city": city,
+            "district": district,
+            "notes": notes,
+            "delivery_schedule": delivery_schedule_str,
+            "user_role": user_role or "viewer"
+        }
+        
+        try:
+            # 先創建客戶
+            create_response = requests.post("http://127.0.0.1:8000/create_customer", json=new_customer_data)
+            if create_response.status_code == 200:
+                # 客戶創建成功，繼續處理訂單
+                current_time = datetime.now().isoformat()
+                update_data = {
+                    "customer_id": pending_order["customer_id"],
+                    "customer_name": pending_order["customer_name"],
+                    "product_id": pending_order["product_id"],
+                    "purchase_record": pending_order["purchase_record"],
+                    "quantity": pending_order["quantity"],
+                    "unit_price": pending_order["unit_price"],
+                    "amount": pending_order["amount"],
+                    "updated_at": current_time,
+                    "status": "1",
+                    "confirmed_by": "user",
+                    "confirmed_at": current_time,
+                    "user_role": user_role or "viewer"
+                }
+                
+                # 更新訂單
+                response = requests.put(f"http://127.0.0.1:8000/temp/{pending_order['order_id']}", json=update_data)
+                if response.status_code == 200:
+                    # 更新 order_transactions 表
+                    transaction_data = {
+                        "customer_id": pending_order["customer_id"],
+                        "product_id": pending_order["product_id"],
+                        "quantity": pending_order["quantity"],
+                        "unit_price": pending_order["unit_price"],
+                        "amount": pending_order["amount"],
+                        "transaction_date": pending_order["original_order"]['created_at'],
+                        "user_role": user_role or "viewer"
+                    }
+                    
+                    transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                    
+                    orders = get_orders()
+                    updated_orders = create_grouped_orders_layout(orders)
+                    return False, True, "新客戶創建成功，訂單已確認", False, updated_orders
+                else:
+                    return dash.no_update, False, dash.no_update, True, dash.no_update
+            else:
+                return dash.no_update, False, dash.no_update, True, dash.no_update
+                
+        except Exception as e:
+            print(f"新客戶創建失敗：{e}")
+            return dash.no_update, False, dash.no_update, True, dash.no_update
+    
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+# 跳過客戶創建，直接處理訂單
+@app.callback(
+    [Output("create-customer-modal", "is_open", allow_duplicate=True),
+     Output("confirm-modal", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "children", allow_duplicate=True)],
+    Input("skip-customer-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def skip_customer_creation(n_clicks):
+    if n_clicks:
+        return False, False, True, "已跳過客戶創建，請重新確認訂單"
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update

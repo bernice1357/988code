@@ -909,3 +909,25 @@ def get_potential_customers_details(product_name: str = Query(..., description="
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"獲取詳細結果失敗: {str(e)}")
+    
+# 檢查客戶是否存在
+@router.get("/check_customer_exists/{customer_id}")
+def check_customer_exists(customer_id: str):
+    print(f"[API] check_customer_exists 被呼叫，客戶ID: {customer_id}")
+    try:
+        query = "SELECT COUNT(*) as count FROM customer WHERE customer_id = %s"
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (customer_id,))
+                result = cursor.fetchone()
+                exists = result[0] > 0 if result else False
+                return {"exists": exists}
+    except Exception as e:
+        print(f"[API ERROR] check_customer_exists: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

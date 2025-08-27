@@ -310,3 +310,16 @@ def get_delivery_schedule_by_date_range(start_date: str, end_date: str):
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 檢查客戶是否存在
+@router.get("/check_customer_exists/{customer_id}")
+def check_customer_exists(customer_id: str):
+    print(f"[API] check_customer_exists 被呼叫，客戶ID: {customer_id}")
+    try:
+        query = "SELECT COUNT(*) as count FROM customer WHERE customer_id = %s"
+        df = get_data_from_db_with_params(query, (customer_id,))
+        exists = df.iloc[0]['count'] > 0 if not df.empty else False
+        return {"exists": exists}
+    except Exception as e:
+        print(f"[API ERROR] check_customer_exists: {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

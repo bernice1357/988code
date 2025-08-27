@@ -1155,3 +1155,43 @@ def batch_update_delivery_status(record_ids: List[int], new_status: str):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="批量更新失敗")
+    
+# 新增客戶創建的 Pydantic 模型和 API 端點
+class CustomerCreate(BaseModel):
+    customer_id: str
+    customer_name: str
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    notes: Optional[str] = None
+    delivery_schedule: Optional[str] = None
+    user_role: str
+
+@router.post("/create_customer")
+def create_customer(customer_data: CustomerCreate):
+    check_editor_permission(customer_data.user_role)
+    
+    sql = """
+    INSERT INTO customer 
+    (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    
+    params = (
+        customer_data.customer_id,
+        customer_data.customer_name,
+        customer_data.phone_number,
+        customer_data.address,
+        customer_data.city,
+        customer_data.district,
+        customer_data.notes,
+        customer_data.delivery_schedule
+    )
+    
+    try:
+        update_data_to_db(sql, params)
+        return {"message": "客戶創建成功", "customer_id": customer_data.customer_id}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="客戶創建失敗")
