@@ -67,10 +67,6 @@ layout = html.Div([
                         dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=8)
                     ], className="mb-3"),
                     # 備註
-                    dbc.Row([
-                        dbc.Label("備註", width=4),
-                        dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=8)
-                    ], className="mb-3"),
                 ], width=6),
                 
                 # 右側欄位
@@ -116,6 +112,10 @@ layout = html.Div([
                 ], width=6)
             ]),
             
+            dbc.Row([
+                dbc.Label("備註", width=2),
+                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=10)
+            ], className="mb-3"),
             # 每週配送日放在底部，橫跨整個寬度
             dbc.Row([
                 dbc.Label("每週配送日", width=2),
