@@ -579,14 +579,53 @@ def toggle_modal(n_clicks_list, is_open):
 
 # 訂單取消處理按鈕
 @app.callback(
-    Output("confirm-modal", "is_open", allow_duplicate=True),
+    [Output("confirm-modal", "is_open", allow_duplicate=True),
+     Output("create-customer-modal", "is_open", allow_duplicate=True),
+     Output("pending-order-store", "data", allow_duplicate=True),
+     Output("current-processing-order", "data", allow_duplicate=True)],
     Input("cancel-modal", "n_clicks"),
+    [State("customer-id", "value"),
+     State("customer-name", "value"),
+     State("product-id", "value"),
+     State("purchase-record", "value"),
+     State("quantity", "value"),
+     State("unit-price", "value"),
+     State("amount", "value"),
+     State("modal-header", "children"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def close_modal(n_clicks):
+def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
-        return False
-    return dash.no_update
+        # 如果有customer_id但客戶不存在，則開啟新建客戶modal
+        if customer_id and not check_customer_exists(customer_id):
+            orders = get_orders()
+            # 從modal header找到原始訂單
+            original_order = None
+            for order in orders:
+                expected_title = f"確認訂單 - {order['customer_id'] + order['customer_name']}" if order.get("customer_id") else f"確認訂單 - {order['line_id']}"
+                if modal_header == expected_title:
+                    original_order = order
+                    break
+            
+            if original_order:
+                pending_order_data = {
+                    "order_id": original_order["id"],
+                    "original_order": original_order,
+                    "customer_id": customer_id,
+                    "customer_name": customer_name,
+                    "product_id": product_id,
+                    "purchase_record": purchase_record,
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "amount": amount,
+                    "user_role": user_role
+                }
+                return False, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
+        
+        # 其他情況只關閉確認modal
+        return False, False, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 # modal確認送出
 @app.callback(
