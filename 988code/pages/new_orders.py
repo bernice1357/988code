@@ -114,6 +114,12 @@ def make_card_item(order):
                 ], style={"marginTop": "8px"}) if any(order.get(field) is not None for field in ['quantity', 'unit_price', 'amount']) else None
             ], className="mb-3"),
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
+            # Order Notes 區塊
+            html.Div([
+                html.Small("訊息備註", className="text-info mb-1 d-block"),
+                html.Pre(order.get("order_note", ""), style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
+            ], className="mb-3"),
+            html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
             # 歷史備註區塊
             html.Div([
                 html.Small("歷史備註", className="text-info mb-1 d-block"),
