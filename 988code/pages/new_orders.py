@@ -79,7 +79,16 @@ def make_card_item(order):
         dbc.CardHeader([
             html.Div([
                 dbc.Badge("新品提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"}) if order.get("is_new_product") == "true" or order.get("is_new_product") == True else None,
-                dbc.Badge("備註與歷史提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"})
+                dbc.Badge("備註與歷史提醒", color="danger", className="me-2 rounded-pill", style={"fontSize": "0.7rem", "padding": "4px 8px"}),
+                # 顯示標籤
+                dbc.Badge({
+                    "ORDER": "訂單",
+                    "INQUIRY": "問題", 
+                    "MIXED": "混合",
+                    "OTHER": "其他"
+                }.get(order.get("label"), order.get("label", "")), 
+                color="info", className="ms-2 rounded-pill", 
+                style={"fontSize": "0.7rem", "padding": "4px 8px"}) if order.get("label") else None
             ], style={"lineHeight": "1"})
         ], style={"overflow": "hidden", "padding": "8px 12px"}),
         dbc.CardBody([
