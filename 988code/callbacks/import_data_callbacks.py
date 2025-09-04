@@ -1457,7 +1457,19 @@ def setup_product_modal(missing_products, is_open):
         
         title = f"創建新產品 ({1}/{total_products})" if show_batch else "創建新產品"
         
-        return (title, current_product, "", "", "", "", "", "", "", "", "", None,
+        # 從Excel資料預填欄位
+        if isinstance(current_product, dict):
+            product_id = current_product.get('product_id', '')
+            name_zh = current_product.get('name_zh', '')
+            category = current_product.get('category', '')
+            unit = current_product.get('unit', '')
+            warehouse_id = current_product.get('warehouse_id', '')
+        else:
+            # 向後相容：如果還是字串格式
+            product_id = current_product
+            name_zh = category = unit = warehouse_id = ""
+        
+        return (title, product_id, warehouse_id, name_zh, category, "", "", "", "", unit, "", None,
                skip_all_style, finish_style)
     
     return ("創建新產品", "", "", "", "", "", "", "", "", "", "", None,
@@ -1522,7 +1534,10 @@ def save_new_product(n_clicks, product_id, warehouse_id, name_zh, category, subc
             result = response.json()
             if result.get('success'):
                 # 產品創建成功，從缺失列表中移除
-                updated_missing_products = [pid for pid in missing_products if pid != product_id]
+                updated_missing_products = [
+                    product for product in missing_products 
+                    if (product.get('product_id') if isinstance(product, dict) else product) != product_id
+                ]
                 
                 if updated_missing_products:
                     success_msg = f"產品 {product_id} 創建成功！還剩 {len(updated_missing_products)} 個產品需要創建。"
@@ -1560,7 +1575,11 @@ def skip_current_product(n_clicks, product_id, missing_products):
     if not n_clicks or not product_id:
         return no_update, no_update, False, ""
     
-    updated_missing_products = [pid for pid in missing_products if pid != product_id]
+    # 處理新的資料格式：missing_products 現在是物件陣列
+    updated_missing_products = [
+        product for product in missing_products 
+        if (product.get('product_id') if isinstance(product, dict) else product) != product_id
+    ]
     
     if updated_missing_products:
         warning_msg = f"已跳過產品 {product_id}，還剩 {len(updated_missing_products)} 個產品需要處理。"

@@ -1059,6 +1059,16 @@ class InventoryDataUploader:
                     if unit_cell and str(unit_cell).strip():
                         unit = str(unit_cell).strip()
                     
+                    # 處理品名規格
+                    product_name_zh = ""
+                    if product_name_cell and str(product_name_cell).strip():
+                        product_name_zh = str(product_name_cell).strip()
+                    
+                    # 處理類別
+                    category = ""
+                    if category_cell and str(category_cell).strip():
+                        category = str(category_cell).strip()
+                    
                     # 創建記錄
                     record = {
                         'product_id': product_id,
@@ -1067,7 +1077,9 @@ class InventoryDataUploader:
                         'borrowed_out': borrowed_out,
                         'borrowed_in': borrowed_in,
                         'stock_quantity': stock_quantity,
-                        'unit': unit
+                        'unit': unit,
+                        'product_name_zh': product_name_zh,
+                        'category': category
                     }
 
                     data.append(record)
@@ -1111,7 +1123,7 @@ class InventoryDataUploader:
                 pass
             return False
 
-    def get_missing_products(self, data: List[Dict]) -> List[str]:
+    def get_missing_products(self, data: List[Dict]) -> List[Dict]:
         """
         檢查數據中哪些產品不存在於 product_master 表中
         
@@ -1119,24 +1131,33 @@ class InventoryDataUploader:
             data (list): 庫存記錄列表
             
         Returns:
-            list: 不存在的產品ID列表
+            list: 不存在的產品資訊列表，包含從Excel提取的欄位
         """
         if not self.connection:
             raise Exception("數據庫未連接")
         
-        # 提取所有唯一的產品ID
-        unique_product_ids = set()
+        # 收集唯一的產品資料，包含Excel中的相關欄位
+        unique_products = {}
         for record in data:
             product_id = record.get('product_id')
             if product_id and product_id.strip():
-                unique_product_ids.add(product_id.strip())
+                product_id = product_id.strip()
+                if product_id not in unique_products:
+                    # 從Excel記錄中提取產品資訊
+                    unique_products[product_id] = {
+                        'product_id': product_id,
+                        'name_zh': record.get('product_name_zh', ''),  # 品名規格
+                        'category': record.get('category', ''),        # 類別
+                        'unit': record.get('unit', ''),               # 單位
+                        'warehouse_id': record.get('warehouse_id', '') # 倉庫名稱
+                    }
         
         missing_products = []
         
-        for product_id in unique_product_ids:
+        for product_id, product_info in unique_products.items():
             if not self.check_product_exists(product_id):
-                missing_products.append(product_id)
-                logger.info(f"發現新產品ID: {product_id}")
+                missing_products.append(product_info)
+                logger.info(f"發現新產品: {product_id} - {product_info.get('name_zh', '')}")
         
         return missing_products
 
@@ -1293,7 +1314,7 @@ class InventoryDataUploader:
                 self.connection.rollback()
                 logger.error(f"刪除庫存記錄失敗: {str(e)}")
                 raise
-    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, List[str]]:
+    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, List[Dict]]:
         """
         處理庫存文件並檢查產品：解析文件 -> 檢查產品 -> 返回缺失產品列表
         
@@ -1302,7 +1323,7 @@ class InventoryDataUploader:
             replace_existing (bool): 是否替換現有記錄，默認為 True
             
         Returns:
-            tuple: (刪除記錄數, 插入記錄數, 缺失產品列表)
+            tuple: (刪除記錄數, 插入記錄數, 缺失產品資訊列表)
         """
         deleted_count = 0
         
