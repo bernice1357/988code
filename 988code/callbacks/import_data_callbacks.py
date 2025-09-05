@@ -877,6 +877,7 @@ def process_sales_import(current_files, session_data, user_role):
                         if result.get('success'):
                             deleted_count = result.get('deleted_count', 0)
                             inserted_count = result.get('inserted_count', 0)
+                            skipped_count = result.get('skipped_count', 0)
                             total_records_processed += inserted_count
                             
                             # 更新會話數據為完成狀態，包含實際處理結果
@@ -884,8 +885,12 @@ def process_sales_import(current_files, session_data, user_role):
                             session_data['total_records'] = inserted_count
                             session_data['deleted_count'] = deleted_count
                             session_data['inserted_count'] = inserted_count
+                            session_data['skipped_count'] = skipped_count
                             
-                            status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄"
+                            if skipped_count > 0:
+                                status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄，跳過 {skipped_count} 筆記錄"
+                            else:
+                                status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄"
                             processing_results.append(f"{filename}: {status_message}")
                             logger.info(f"檔案 {filename} 處理成功: {status_message}")
                         else:
@@ -1016,10 +1021,23 @@ def save_current_files(n_clicks, session_data, user_role):
                                 if result.get('success'):
                                     missing_customers = result.get('missing_customers', [])
                                     missing_products = result.get('missing_products', [])
+                                    deleted_count = result.get('deleted_count', 0)
+                                    inserted_count = result.get('inserted_count', 0)
+                                    skipped_count = result.get('skipped_count', 0)
+                                    
+                                    # 更新會話數據（包含部分成功的結果）
+                                    session_data['deleted_count'] = deleted_count
+                                    session_data['inserted_count'] = inserted_count
+                                    session_data['skipped_count'] = skipped_count
                                     
                                     if missing_customers:
                                         # 有缺失客戶，優先處理客戶
-                                        logger.info(f"發現 {len(missing_customers)} 個缺失客戶: {missing_customers}")
+                                        if inserted_count > 0:
+                                            # 部分成功，更新狀態但繼續處理缺失項目
+                                            session_data['status'] = 'partial'
+                                            logger.info(f"部分上傳成功：{inserted_count} 筆記錄已上傳，發現 {len(missing_customers)} 個缺失客戶")
+                                        else:
+                                            logger.info(f"發現 {len(missing_customers)} 個缺失客戶: {missing_customers}")
                                         
                                         file_store_data = {
                                             'filename': filename,
@@ -1032,7 +1050,11 @@ def save_current_files(n_clicks, session_data, user_role):
                                             False, "", False, "", False, "", missing_customers, missing_products, file_store_data, True, False)
                                     elif missing_products:
                                         # 只有缺失產品，打開產品創建 Modal
-                                        logger.info(f"發現 {len(missing_products)} 個缺失產品: {missing_products}")
+                                        if inserted_count > 0:
+                                            session_data['status'] = 'partial'
+                                            logger.info(f"部分上傳成功：{inserted_count} 筆記錄已上傳，發現 {len(missing_products)} 個缺失產品")
+                                        else:
+                                            logger.info(f"發現 {len(missing_products)} 個缺失產品: {missing_products}")
                                         
                                         file_store_data = {
                                             'filename': filename,
@@ -1043,9 +1065,14 @@ def save_current_files(n_clicks, session_data, user_role):
                                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
                                             False, "", False, "", False, "", [], missing_products, file_store_data, False, True)
                                     else:
-                                        # 沒有缺失項目，直接繼續匯入流程
-                                        logger.info("所有客戶和產品都已存在，直接進行匯入")
-                                        return process_sales_import(current_files, session_data, user_role) + ([], [], False, False)
+                                        # 沒有缺失項目，上傳完全成功
+                                        session_data['status'] = 'completed'
+                                        session_data['total_records'] = inserted_count
+                                        
+                                        success_message = f"✅ 上傳完成！\n檔案: {filename}\n刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄"
+                                        
+                                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                                                True, success_message, False, "", False, "", [], [], {}, False, False)
                                     
                                 else:
                                     error_msg = result.get('message', '客戶檢查失敗')
@@ -1362,33 +1389,41 @@ def skip_current_customer(n_clicks, customer_id, missing_customers, missing_prod
 
 # 跳過所有剩餘客戶
 @app.callback(
-    [Output("missing-customers-store", "data", allow_duplicate=True),
+    [Output("save-current-files-btn", "children", allow_duplicate=True),
+     Output("save-current-files-btn", "disabled", allow_duplicate=True),
+     Output("import-session-store", "data", allow_duplicate=True),
+     Output("missing-customers-store", "data", allow_duplicate=True),
      Output("new-customer-modal", "is_open", allow_duplicate=True),
      Output("new-product-modal", "is_open", allow_duplicate=True),
-     Output("create_customer_import-warning-toast", "is_open", allow_duplicate=True),
-     Output("create_customer_import-warning-toast", "children", allow_duplicate=True)],
+     Output("import_data-success-toast", "is_open", allow_duplicate=True),
+     Output("import_data-success-toast", "children", allow_duplicate=True),
+     Output("import_data-warning-toast", "is_open", allow_duplicate=True),
+     Output("import_data-warning-toast", "children", allow_duplicate=True)],
     [Input("skip-all-customers-btn", "n_clicks")],
     [State("missing-customers-store", "data"),
      State("current-file-store", "data"), 
-     State("missing-products-store", "data")], 
+     State("missing-products-store", "data"),
+     State("import-session-store", "data")], 
     prevent_initial_call=True
 )
-def skip_all_customers(n_clicks, missing_customers, current_file_store_data, missing_products):
+def skip_all_customers(n_clicks, missing_customers, current_file_store_data, missing_products, session_data):
     if not n_clicks:
-        return no_update, no_update, no_update, False, ""
+        return no_update, no_update, no_update, no_update, no_update, no_update, False, "", False, ""
     
-    skipped_count = len(missing_customers)
-
+    skipped_count = len(missing_customers) if missing_customers else 0
+    inserted_count = session_data.get('inserted_count', 0)
+    
     # 檢查是否有缺失產品
     if missing_products and len(missing_products) > 0:
         # 有缺失產品，打開產品 Modal
         warning_msg = f"已跳過所有 {skipped_count} 個客戶，現在處理 {len(missing_products)} 個產品。"
-        return [], False, True, True, warning_msg
+        return ("匯入上傳檔案", False, session_data, [], False, True, False, "", True, warning_msg)
     else:
-        # 沒有缺失產品，完成處理
-        warning_msg = f"已跳過所有 {skipped_count} 個客戶。注意：跳過的客戶可能導致匯入失敗。"
-        return [], False, False, True, warning_msg
-    修改說明
+        # 沒有缺失產品，完成上傳流程
+        session_data['status'] = 'completed'
+        success_msg = f"✅ 上傳完成！已上傳 {inserted_count} 筆記錄，跳過 {skipped_count} 個客戶"
+        warning_msg = f"⚠️ 注意：跳過的客戶可能導致匯入失敗。"
+        return ("匯入上傳檔案", False, session_data, [], False, False, True, success_msg, True, warning_msg)
 
 # 完成並匯入（當所有客戶都處理完成時）
 @app.callback(
@@ -1590,22 +1625,43 @@ def skip_current_product(n_clicks, product_id, missing_products):
 
 # 跳過所有剩餘產品
 @app.callback(
-    [Output("missing-products-store", "data", allow_duplicate=True),
+    [Output("save-current-files-btn", "children", allow_duplicate=True),
+     Output("save-current-files-btn", "disabled", allow_duplicate=True),
+     Output("import-session-store", "data", allow_duplicate=True),
+     Output("missing-products-store", "data", allow_duplicate=True),
      Output("new-product-modal", "is_open", allow_duplicate=True),
-     Output("create_product_import-warning-toast", "is_open", allow_duplicate=True),
-     Output("create_product_import-warning-toast", "children", allow_duplicate=True)],
+     Output("import_data-success-toast", "is_open", allow_duplicate=True),
+     Output("import_data-success-toast", "children", allow_duplicate=True),
+     Output("import_data-warning-toast", "is_open", allow_duplicate=True),
+     Output("import_data-warning-toast", "children", allow_duplicate=True)],
     [Input("skip-all-products-btn", "n_clicks")],
-    [State("missing-products-store", "data")],
+    [State("missing-products-store", "data"),
+     State("import-session-store", "data")],
     prevent_initial_call=True
 )
-def skip_all_products(n_clicks, missing_products):
+def skip_all_products(n_clicks, missing_products, session_data):
     if not n_clicks:
-        return no_update, no_update, False, ""
+        return no_update, no_update, no_update, no_update, no_update, no_update, "", no_update, ""
     
     skipped_count = len(missing_products)
-    warning_msg = f"已跳過所有 {skipped_count} 個產品。注意：跳過的產品可能導致匯入失敗。"
     
-    return [], False, True, warning_msg
+    # 更新會話數據為完成狀態
+    session_data['status'] = 'completed'
+    
+    # 構建成功訊息
+    deleted_count = session_data.get('deleted_count', 0)
+    inserted_count = session_data.get('inserted_count', 0)
+    
+    if inserted_count > 0:
+        success_msg = f"✅ 上傳完成！已上傳 {inserted_count} 筆記錄，跳過 {skipped_count} 個產品"
+        if deleted_count > 0:
+            success_msg = f"✅ 上傳完成！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄，跳過 {skipped_count} 個產品"
+    else:
+        success_msg = f"處理完成，跳過 {skipped_count} 個產品"
+    
+    warning_msg = f"注意：已跳過 {skipped_count} 個產品，這些記錄未被匯入"
+    
+    return ("匯入上傳檔案", False, session_data, [], False, True, success_msg, True, warning_msg)
 
 def process_inventory_import(current_files, session_data, user_role):
     """處理庫存資料匯入的輔助函數"""

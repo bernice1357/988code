@@ -151,12 +151,14 @@ class SalesDataUploader:
         Returns:
             str: 唯一的 transaction_id
         """
-        max_attempts = 10
+        max_attempts = 50  # 增加嘗試次數
         for attempt in range(max_attempts):
-            # 使用更精確的時間戳 + 隨機字符確保唯一性
-            timestamp = str(int(datetime.datetime.now().timestamp() * 1000000))[-6:]  # 取微秒時間戳後6位
-            random_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
-            transaction_id = timestamp + random_chars
+            # 使用更強的隨機性：時間戳 + 隨機數 + 計數器
+            import time
+            current_time = time.time_ns()  # 納秒級時間戳
+            timestamp_part = str(current_time)[-4:]  # 取後4位
+            random_part = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            transaction_id = timestamp_part + random_part
             
             # 檢查是否已存在（僅在有資料庫連接時）
             if self.connection and not self.transaction_id_exists(transaction_id):
@@ -165,12 +167,14 @@ class SalesDataUploader:
                 # 如果沒有資料庫連接，直接返回（在解析階段）
                 return transaction_id
             
-            # 如果重複，加入更多隨機性
-            import time
-            time.sleep(0.001)  # 等待1毫秒確保時間戳不同
+            # 如果重複，等待一小段時間增加隨機性
+            time.sleep(0.001)
         
-        # 如果10次嘗試都失敗，使用完全隨機的ID
-        return ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        # 如果多次嘗試都失敗，使用完全隨機的ID + UUID後綴
+        import uuid
+        random_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        uuid_suffix = str(uuid.uuid4())[:2]
+        return random_id + uuid_suffix
     
     def transaction_id_exists(self, transaction_id: str) -> bool:
         """
@@ -290,12 +294,93 @@ class SalesDataUploader:
         
         return missing_products
 
-    def process_file_with_product_check(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int, List[str], List[str]]:
+    def filter_valid_records(self, data: List[Dict]) -> Tuple[List[Dict], int, List[str], List[str]]:
         """
-        處理整個流程：解析文件 -> 檢查客戶和產品 -> 返回缺失列表
+        過濾出有效的記錄（客戶和產品都存在的記錄）
+        
+        Args:
+            data (list): 原始交易記錄列表
+            
+        Returns:
+            tuple: (有效記錄列表, 跳過記錄數, 跳過的客戶ID列表, 跳過的產品ID列表)
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        valid_records = []
+        skipped_customers = set()
+        skipped_products = set()
+        skipped_count = 0
+        
+        for record in data:
+            customer_id = record.get('customer_id', '').strip()
+            product_id = record.get('product_id', '').strip()
+            
+            # 檢查客戶是否存在
+            customer_exists = self.check_customer_exists(customer_id) if customer_id else False
+            # 檢查產品是否存在  
+            product_exists = self.check_product_exists(product_id) if product_id else False
+            
+            if customer_exists and product_exists:
+                # 客戶和產品都存在，記錄有效
+                valid_records.append(record)
+            else:
+                # 記錄跳過的項目
+                skipped_count += 1
+                if not customer_exists and customer_id:
+                    skipped_customers.add(customer_id)
+                if not product_exists and product_id:
+                    skipped_products.add(product_id)
+                    
+                logger.info(f"跳過記錄: customer_id={customer_id}, product_id={product_id}, "
+                           f"customer_exists={customer_exists}, product_exists={product_exists}")
+        
+        logger.info(f"記錄過濾完成: 有效={len(valid_records)}, 跳過={skipped_count}")
+        return valid_records, skipped_count, list(skipped_customers), list(skipped_products)
+
+    def filter_valid_records_by_customer(self, data: List[Dict]) -> Tuple[List[Dict], int, List[str]]:
+        """
+        只根據客戶過濾有效記錄
+        
+        Args:
+            data (list): 原始交易記錄列表
+            
+        Returns:
+            tuple: (有效記錄列表, 跳過記錄數, 跳過的客戶ID列表)
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        valid_records = []
+        skipped_customers = set()
+        skipped_count = 0
+        
+        for record in data:
+            customer_id = record.get('customer_id', '').strip()
+            
+            # 檢查客戶是否存在
+            customer_exists = self.check_customer_exists(customer_id) if customer_id else False
+            
+            if customer_exists:
+                # 客戶存在，記錄有效
+                valid_records.append(record)
+            else:
+                # 記錄跳過的客戶
+                skipped_count += 1
+                if customer_id:
+                    skipped_customers.add(customer_id)
+                    
+                logger.info(f"跳過記錄（缺失客戶）: customer_id={customer_id}")
+        
+        logger.info(f"客戶記錄過濾完成: 有效={len(valid_records)}, 跳過={skipped_count}")
+        return valid_records, skipped_count, list(skipped_customers)
+
+    def process_file_with_product_check(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int, int, List[str], List[str]]:
+        """
+        處理整個流程：解析文件 -> 上傳存在的記錄 -> 返回缺失項目列表
         
         Returns:
-            tuple: (刪除記錄數, 插入記錄數, 缺失客戶列表, 缺失產品列表)
+            tuple: (刪除記錄數, 插入記錄數, 跳過記錄數, 缺失客戶列表, 缺失產品列表)
         """
         deleted_count = 0
         
@@ -308,25 +393,27 @@ class SalesDataUploader:
             logger.info("解析 Excel 文件以提取數據...")
             data = self.parse_sales_data(file_path)
             
-            # 2. 檢查缺失的客戶
-            missing_customers = self.get_missing_customers(data)
+            # 2. 過濾有效記錄（混合模式：上傳存在的，返回缺失的）
+            valid_records, skipped_count, skipped_customers, skipped_products = self.filter_valid_records(data)
             
-            # 3. 檢查缺失的產品
-            missing_products = self.get_missing_products(data)
+            if skipped_count > 0:
+                logger.info(f"將上傳 {len(valid_records)} 筆有效記錄，跳過 {skipped_count} 筆記錄（缺失 {len(skipped_customers)} 個客戶和 {len(skipped_products)} 個產品）")
             
-            if missing_customers or missing_products:
-                logger.info(f"發現 {len(missing_customers)} 個新客戶，{len(missing_products)} 個新產品需要創建")
-                return 0, 0, missing_customers, missing_products
+            # 3. 上傳有效記錄（即使有跳過的記錄也要上傳）
+            if valid_records:
+                # 從有效記錄中提取月份資訊進行刪除
+                months_to_delete = self.extract_months_from_data(valid_records)
+                
+                if delete_month_records and months_to_delete:
+                    deleted_count = self.delete_records_by_months(months_to_delete)
+                
+                # 插入有效記錄
+                inserted_count = self.insert_all_records(valid_records)
+            else:
+                inserted_count = 0
             
-            # 4. 如果沒有缺失項目，繼續原有流程
-            months_to_delete = self.extract_months_from_data(data)
-            
-            if delete_month_records and months_to_delete:
-                deleted_count = self.delete_records_by_months(months_to_delete)
-            
-            inserted_count = self.insert_all_records(data)
-            
-            return deleted_count, inserted_count, [], []
+            # 4. 返回結果：包含上傳統計和缺失項目
+            return deleted_count, inserted_count, skipped_count, skipped_customers, skipped_products
             
         finally:
             self.close_connection()
@@ -478,13 +565,16 @@ class SalesDataUploader:
                 pass
             return None
     
-    def insert_record(self, record: Dict, is_active: Optional[bool]):
+    def insert_record(self, record: Dict, is_active: Optional[bool]) -> bool:
         """
         插入新記錄
         
         Args:
             record (dict): 交易記錄
             is_active (bool): 產品是否活躍
+            
+        Returns:
+            bool: 是否成功插入（False 表示重複跳過）
         """
         try:
             with self.connection.cursor() as cursor:
@@ -510,7 +600,12 @@ class SalesDataUploader:
                     datetime.datetime.now()
                 ))
                 logger.debug(f"插入新記錄 transaction_id: {record['transaction_id']}")
+                return True
                 
+        except psycopg2.errors.UniqueViolation as e:
+            # 重複的 transaction_id，跳過這條記錄
+            logger.warning(f"跳過重複記錄 transaction_id: {record['transaction_id']}")
+            return False
         except Exception as e:
             logger.error(f"插入記錄失敗: {str(e)}")
             raise
@@ -537,9 +632,9 @@ class SalesDataUploader:
                 # 獲取產品的 is_active 狀態
                 is_active = self.get_product_is_active(record['product_id'])
                 
-                # 直接插入新記錄
-                self.insert_record(record, is_active)
-                inserted_count += 1
+                # 插入新記錄，如果成功則增加計數
+                if self.insert_record(record, is_active):
+                    inserted_count += 1
                 
                 # 每處理一定數量記錄就提交一次
                 if (i + 1) % DEFAULT_CONFIG['batch_size'] == 0:
@@ -557,16 +652,16 @@ class SalesDataUploader:
             logger.error(f"數據插入失敗: {str(e)}")
             raise
     
-    def process_file_with_customer_check(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int, List[str]]:
+    def process_file_with_customer_check(self, file_path: str, delete_month_records: bool = True) -> Tuple[int, int, int, List[str]]:
         """
-        處理整個流程：解析文件 -> 檢查客戶 -> 返回缺失客戶列表
+        處理整個流程：解析文件 -> 過濾有效記錄（只檢查客戶）-> 上傳資料
         
         Args:
             file_path (str): Excel 文件路徑
             delete_month_records (bool): 是否刪除涉及月份記錄，默認為 True
             
         Returns:
-            tuple: (刪除記錄數, 插入記錄數, 缺失客戶列表)
+            tuple: (刪除記錄數, 插入記錄數, 跳過記錄數, 跳過的客戶列表)
         """
         deleted_count = 0
         
@@ -575,32 +670,34 @@ class SalesDataUploader:
             if not self.connect_database():
                 raise Exception("無法連接數據庫")
             
-            # 1. 先解析 Excel 文件
-            logger.info("解析 Excel 文件以提取月份信息...")
+            # 1. 解析 Excel 文件
+            logger.info("解析 Excel 文件以提取數據...")
             data = self.parse_sales_data(file_path)
             
-            # 2. 檢查缺失的客戶
-            missing_customers = self.get_missing_customers(data)
+            # 2. 過濾有效記錄（只檢查客戶，跳過缺失的客戶）
+            valid_records, skipped_count, skipped_customers = self.filter_valid_records_by_customer(data)
             
-            if missing_customers:
-                logger.info(f"發現 {len(missing_customers)} 個新客戶需要創建: {missing_customers}")
-                # 返回缺失客戶列表，暫不進行數據插入
-                return 0, 0, missing_customers
+            if skipped_count > 0:
+                logger.warning(f"跳過 {skipped_count} 筆記錄，缺失 {len(skipped_customers)} 個客戶")
             
-            # 3. 如果沒有缺失客戶，繼續原有流程
-            # 從數據中提取所有涉及的年月
-            months_to_delete = self.extract_months_from_data(data)
+            # 3. 如果沒有有效記錄，直接返回
+            if not valid_records:
+                logger.warning("沒有有效記錄可以上傳")
+                return 0, 0, skipped_count, skipped_customers
+            
+            # 4. 從有效記錄中提取月份資訊進行刪除
+            months_to_delete = self.extract_months_from_data(valid_records)
             logger.info(f"Excel 中包含的月份: {sorted(list(months_to_delete))}")
             
-            # 4. 刪除這些月份的所有記錄（如果需要）
+            # 5. 刪除這些月份的所有記錄（如果需要）
             if delete_month_records and months_to_delete:
                 logger.info(f"開始刪除 {len(months_to_delete)} 個月份的記錄...")
                 deleted_count = self.delete_records_by_months(months_to_delete)
             
-            # 5. 直接插入新記錄
-            inserted_count = self.insert_all_records(data)
+            # 6. 插入有效記錄
+            inserted_count = self.insert_all_records(valid_records)
             
-            return deleted_count, inserted_count, []
+            return deleted_count, inserted_count, skipped_count, skipped_customers
             
         finally:
             # 關閉數據庫連接
@@ -669,14 +766,18 @@ async def check_sales_customers(file: UploadFile = File(...), user_role: str = F
         try:
             # 使用 SalesDataUploader 處理檔案
             sales_uploader = SalesDataUploader()
-            deleted_count, inserted_count, missing_customers = sales_uploader.process_file_with_customer_check(temp_file_path)
+            deleted_count, inserted_count, skipped_count, skipped_customers = sales_uploader.process_file_with_customer_check(temp_file_path)
             
             return JSONResponse(
                 status_code=200,
                 content={
                     "success": True,
-                    "missing_customers": missing_customers,
-                    "message": f"檢查完成，發現 {len(missing_customers)} 個新客戶需要創建" if missing_customers else "所有客戶都已存在，可以直接匯入",
+                    "missing_customers": skipped_customers,
+                    "message": f"檢查完成，發現 {len(skipped_customers)} 個新客戶需要創建" 
+                              if skipped_customers 
+                              else f"匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄",
+                    "deleted_count": deleted_count,
+                    "inserted_count": inserted_count,
                     "filename": file.filename
                 }
             )
@@ -849,17 +950,27 @@ async def check_sales_customers(file: UploadFile = File(...), user_role: str = F
         try:
             # 使用 SalesDataUploader 處理檔案
             sales_uploader = SalesDataUploader()
-            deleted_count, inserted_count, missing_customers, missing_products = sales_uploader.process_file_with_product_check(temp_file_path)
+            deleted_count, inserted_count, skipped_count, missing_customers, missing_products = sales_uploader.process_file_with_product_check(temp_file_path)
+            
+            # 構建回應訊息
+            if missing_customers or missing_products:
+                if inserted_count > 0:
+                    message = f"部分匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄，跳過 {skipped_count} 筆記錄。發現 {len(missing_customers)} 個新客戶和 {len(missing_products)} 個新產品需要創建"
+                else:
+                    message = f"檢查完成，發現 {len(missing_customers)} 個新客戶和 {len(missing_products)} 個新產品需要創建"
+            else:
+                message = f"匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄"
             
             return JSONResponse(
                 status_code=200,
                 content={
                     "success": True,
+                    "deleted_count": deleted_count,
+                    "inserted_count": inserted_count,
+                    "skipped_count": skipped_count,
                     "missing_customers": missing_customers,
                     "missing_products": missing_products,
-                    "message": f"檢查完成，發現 {len(missing_customers)} 個新客戶和 {len(missing_products)} 個新產品需要創建" 
-                              if (missing_customers or missing_products) 
-                              else "所有客戶和產品都已存在，可以直接匯入",
+                    "message": message,
                     "filename": file.filename
                 }
             )
@@ -1161,6 +1272,43 @@ class InventoryDataUploader:
         
         return missing_products
 
+    def filter_valid_inventory_records(self, data: List[Dict]) -> Tuple[List[Dict], int, List[str]]:
+        """
+        過濾出有效的庫存記錄（產品存在的記錄）
+        
+        Args:
+            data (list): 原始庫存記錄列表
+            
+        Returns:
+            tuple: (有效記錄列表, 跳過記錄數, 跳過的產品ID列表)
+        """
+        if not self.connection:
+            raise Exception("數據庫未連接")
+        
+        valid_records = []
+        skipped_products = set()
+        skipped_count = 0
+        
+        for record in data:
+            product_id = record.get('product_id', '').strip()
+            
+            # 檢查產品是否存在  
+            product_exists = self.check_product_exists(product_id) if product_id else False
+            
+            if product_exists:
+                # 產品存在，記錄有效
+                valid_records.append(record)
+            else:
+                # 記錄跳過的產品
+                skipped_count += 1
+                if product_id:
+                    skipped_products.add(product_id)
+                    
+                logger.info(f"跳過庫存記錄: product_id={product_id}, product_exists={product_exists}")
+        
+        logger.info(f"庫存記錄過濾完成: 有效={len(valid_records)}, 跳過={skipped_count}")
+        return valid_records, skipped_count, list(skipped_products)
+
     def insert_inventory_records(self, data: List[Dict]) -> int:
         """
         插入庫存記錄
@@ -1314,16 +1462,16 @@ class InventoryDataUploader:
                 self.connection.rollback()
                 logger.error(f"刪除庫存記錄失敗: {str(e)}")
                 raise
-    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, List[Dict]]:
+    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, int, List[str]]:
         """
-        處理庫存文件並檢查產品：解析文件 -> 檢查產品 -> 返回缺失產品列表
+        處理庫存文件：解析文件 -> 上傳存在的記錄 -> 返回缺失產品列表
         
         Args:
             file_path (str): Excel 文件路徑
             replace_existing (bool): 是否替換現有記錄，默認為 True
             
         Returns:
-            tuple: (刪除記錄數, 插入記錄數, 缺失產品資訊列表)
+            tuple: (刪除記錄數, 插入記錄數, 跳過記錄數, 缺失產品ID列表)
         """
         deleted_count = 0
         
@@ -1338,30 +1486,32 @@ class InventoryDataUploader:
             
             if not data:
                 logger.warning("沒有解析到任何有效的庫存記錄")
-                return 0, 0, []
+                return 0, 0, 0, []
             
-            # 2. 檢查缺失的產品
-            missing_products = self.get_missing_products(data)
+            # 2. 過濾有效記錄（混合模式：上傳存在的，返回缺失的）
+            valid_records, skipped_count, skipped_products = self.filter_valid_inventory_records(data)
             
-            if missing_products:
-                logger.info(f"發現 {len(missing_products)} 個新產品需要創建: {missing_products}")
-                # 返回缺失產品列表，暫不進行數據插入
-                return 0, 0, missing_products
+            if skipped_count > 0:
+                logger.info(f"將上傳 {len(valid_records)} 筆有效庫存記錄，跳過 {skipped_count} 筆記錄（缺失 {len(skipped_products)} 個產品）")
             
-            # 3. 如果沒有缺失產品，繼續原有流程
-            if replace_existing and data:
-                # 提取所有產品ID和倉庫ID
-                product_ids = list(set([record['product_id'] for record in data if record['product_id']]))
-                warehouse_ids = list(set([record['warehouse_id'] for record in data if record['warehouse_id']]))
-                logger.info(f"準備更新 {len(product_ids)} 個產品在 {len(warehouse_ids)} 個倉庫的庫存")
+            # 3. 上傳有效記錄（即使有跳過的記錄也要上傳）
+            if valid_records:
+                if replace_existing:
+                    # 從有效記錄中提取所有產品ID和倉庫ID
+                    product_ids = list(set([record['product_id'] for record in valid_records if record['product_id']]))
+                    warehouse_ids = list(set([record['warehouse_id'] for record in valid_records if record['warehouse_id']]))
+                    logger.info(f"準備更新 {len(product_ids)} 個產品在 {len(warehouse_ids)} 個倉庫的庫存")
+                    
+                    # 刪除現有記錄
+                    deleted_count = self.delete_existing_inventory(product_ids, warehouse_ids)
                 
-                # 刪除現有記錄
-                deleted_count = self.delete_existing_inventory(product_ids, warehouse_ids)
+                # 插入有效記錄
+                inserted_count = self.insert_inventory_records(valid_records)
+            else:
+                inserted_count = 0
             
-            # 4. 插入新記錄
-            inserted_count = self.insert_inventory_records(data)
-            
-            return deleted_count, inserted_count, []
+            # 4. 返回結果：包含上傳統計和缺失產品
+            return deleted_count, inserted_count, skipped_count, skipped_products
             
         finally:
             # 關閉數據庫連接
@@ -1441,14 +1591,26 @@ async def check_inventory_products(file: UploadFile = File(...), user_role: str 
         try:
             # 使用 InventoryDataUploader 處理檔案
             inventory_uploader = InventoryDataUploader()
-            deleted_count, inserted_count, missing_products = inventory_uploader.process_file_with_product_check(temp_file_path)
+            deleted_count, inserted_count, skipped_count, missing_products = inventory_uploader.process_file_with_product_check(temp_file_path)
+            
+            # 構建回應訊息
+            if missing_products:
+                if inserted_count > 0:
+                    message = f"部分匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆庫存記錄，跳過 {skipped_count} 筆記錄。發現 {len(missing_products)} 個新產品需要創建"
+                else:
+                    message = f"檢查完成，發現 {len(missing_products)} 個新產品需要創建"
+            else:
+                message = f"庫存匯入成功！刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆庫存記錄"
             
             return JSONResponse(
                 status_code=200,
                 content={
                     "success": True,
+                    "deleted_count": deleted_count,
+                    "inserted_count": inserted_count,
+                    "skipped_count": skipped_count,
                     "missing_products": missing_products,
-                    "message": f"檢查完成，發現 {len(missing_products)} 個新產品需要創建" if missing_products else "所有產品都已存在，可以直接匯入",
+                    "message": message,
                     "filename": file.filename
                 }
             )
