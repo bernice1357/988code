@@ -178,7 +178,7 @@ layout = html.Div([
                             }
                         )
                     ]),
-                    
+
                     # Password輸入
                     html.Div([
                         html.Label("密碼", style={
@@ -259,15 +259,18 @@ layout = html.Div([
      Output("password-input", "value"),
      Output("login_status", "data"),
      Output("login-redirect", "href")],
-    Input("login-submit-btn", "n_clicks"),
+    [Input("login-submit-btn", "n_clicks"),
+     Input("username-input", "n_submit"),  
+     Input("password-input", "n_submit")],
     [State("username-input", "value"),
      State("password-input", "value")],
     prevent_initial_call=True
 )
-def handle_login(btn_clicks, username, password):
+def handle_login(btn_clicks, username_submit, password_submit, username, password):
     # 檢查是否有任何觸發
-    if not btn_clicks:
+    if not (btn_clicks or username_submit or password_submit):
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
     
     # 驗證輸入
     if not username or not password:
