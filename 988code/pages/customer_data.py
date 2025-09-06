@@ -94,45 +94,52 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dbc.Modal(
         id="customer_data_modal",
         is_open=False,
-        style={"fontSize": "18px"},
+        size="xl",
         centered=True,
+        style={"fontSize": "18px"},
         children=[
             dbc.ModalHeader("客戶資訊", style={"fontWeight": "bold", "fontSize": "24px"}),
             dbc.ModalBody([
-                dbc.Row([
-                    dbc.Label("客戶名稱", width=3),
-                    dbc.Col(dbc.Input(id="input-customer-name", type="text"), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("客戶ID", width=3),
-                    dbc.Col(dbc.Input(id="input-customer-id", type="text"), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("客戶地址", width=3),
-                    dbc.Col(dbc.Input(id="input-customer-address", type="text"), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("每週配送日", width=3),
-                    dbc.Col(dcc.Checklist(
-                        id="input-delivery-schedule",
-                        options=[
-                            {"label": "一", "value": "一"},
-                            {"label": "二", "value": "二"},
-                            {"label": "三", "value": "三"},
-                            {"label": "四", "value": "四"},
-                            {"label": "五", "value": "五"},
-                            {"label": "六", "value": "六"},
-                            {"label": "日", "value": "日"}
-                        ],
-                        value=[],
-                        inline=True,
-                        style={"display": "flex", "gap": "15px"}
-                    ), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("備註", width=3),
-                    dbc.Col(dbc.Textarea(id="input-notes", rows=3), width=9)
-                ], className="mb-3"),
+                dbc.Form([
+                    html.Div([
+                        dbc.Label("客戶名稱", html_for="input-customer-name", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Input(id="input-customer-name", type="text", style={"width": "500px"})
+                    ], className="mb-3"),
+                    html.Div([
+                        dbc.Label("客戶ID", html_for="input-customer-id", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Input(id="input-customer-id", type="text", style={"width": "500px"})
+                    ], className="mb-3"),
+                    html.Div([
+                        dbc.Label("電話", html_for="input-customer-phone", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Input(id="input-customer-phone", type="text", style={"width": "500px"})
+                    ], className="mb-3"),
+                    html.Div([
+                        dbc.Label("客戶地址", html_for="input-customer-address", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Input(id="input-customer-address", type="text", style={"width": "500px"})
+                    ], className="mb-3"),
+                    html.Div([
+                        dbc.Label("每週配送日", className="form-label", style={"fontSize": "14px"}),
+                        dcc.Checklist(
+                            id="input-delivery-schedule",
+                            options=[
+                                {"label": "一", "value": "一"},
+                                {"label": "二", "value": "二"},
+                                {"label": "三", "value": "三"},
+                                {"label": "四", "value": "四"},
+                                {"label": "五", "value": "五"},
+                                {"label": "六", "value": "六"},
+                                {"label": "日", "value": "日"}
+                            ],
+                            value=[],
+                            inline=True,
+                            style={"display": "flex", "gap": "15px"}
+                        )
+                    ], className="mb-3"),
+                    html.Div([
+                        dbc.Label("備註", html_for="input-notes", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Textarea(id="input-notes", rows=3, style={"width": "500px"})
+                    ], className="mb-3")
+                ])
             ], id="customer_data_modal_body"),
             dbc.ModalFooter([
                 dbc.Button("取消", id="input-customer-cancel", color="secondary", className="me-2"),
@@ -264,6 +271,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     Output('customer_data_modal', 'is_open'),
     Output('input-customer-name', 'value'),
     Output('input-customer-id', 'value'),
+    Output('input-customer-phone', 'value'),
     Output('input-customer-address', 'value'),
     Output('input-delivery-schedule', 'value'),
     Output('input-notes', 'value'),
@@ -275,11 +283,11 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
 )
 def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, selected_customer_name):
     if not any(n_clicks):
-        return False, "", "", "", "", ""
+        return False, "", "", "", "", "", ""
     
     ctx = callback_context
     if not ctx.triggered:
-        return False, "", "", "", "", ""
+        return False, "", "", "", "", "", ""
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     button_index = eval(button_id)['index']
@@ -289,6 +297,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     df = df.rename(columns={
             "customer_id": "客戶ID",
             "customer_name": "客戶名稱",
+            "phone_number": "電話",
             "address": "客戶地址",
             "delivery_schedule": "每週配送日",
             "transaction_date": "最新交易日期",
@@ -322,11 +331,12 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
         return (True, 
                 row_data['客戶名稱'], 
                 row_data['客戶ID'], 
+                row_data['電話'], 
                 row_data['客戶地址'], 
                 delivery_schedule_list,
                 row_data['備註'])
     else:
-        return False, "", "", "", "", ""
+        return False, "", "", "", "", "", ""
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
@@ -339,6 +349,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     Input('input-customer-save', 'n_clicks'),
     State('input-customer-name', 'value'),
     State('input-customer-id', 'value'),
+    State('input-customer-phone', 'value'),
     State('input-customer-address', 'value'),
     State('input-delivery-schedule', 'value'),
     State('input-notes', 'value'),
@@ -349,7 +360,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name, user_role):
+def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -369,6 +380,7 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
     df = df.rename(columns={
             "customer_id": "客戶ID",
             "customer_name": "客戶名稱",
+            "phone_number": "電話",
             "address": "客戶地址",
             "delivery_schedule": "每週配送日",
             "transaction_date": "最新交易日期",
@@ -396,6 +408,7 @@ def save_customer_data(save_clicks, customer_name, customer_id, address, deliver
     update_data = {
         "customer_name": customer_name,
         "customer_id": customer_id,
+        "phone_number": phone_number,
         "address": address,
         "delivery_schedule": delivery_schedule_str,
         "notes": notes
