@@ -92,7 +92,7 @@ def get_customer_latest_transactions():
     print("[API] get_customer_latest_transactions 被呼叫")
     try:
         query = """
-        SELECT pp.customer_id, c.customer_name, c.phone_number, 
+        SELECT DISTINCT pp.prediction_id, pp.customer_id, c.customer_name, c.phone_number, 
                pp.product_id, COALESCE(pm.name_zh, pp.product_name) as product_name, 
                pp.prediction_date, pp.estimated_quantity, pp.confidence_level
         FROM prophet_predictions pp

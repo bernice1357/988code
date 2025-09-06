@@ -49,7 +49,7 @@ def create_restock_table(df, customer_index_start=0):
     df_reset = df.reset_index(drop=True)
     
     # 選擇要顯示的欄位（移除電話號碼，調整順序：客戶名稱在前）
-    display_columns = ['客戶名稱', '客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
+    display_columns = ['預測ID', '客戶名稱', '客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
     df_display = df_reset[display_columns].copy()
     
     # 計算每個欄位的動態寬度
@@ -148,27 +148,26 @@ def create_restock_table(df, customer_index_start=0):
         row_cells.append(customer_id_cell)
         
         # 創建對應的Popover
-        popover = dbc.Popover(
-            dbc.PopoverBody(f"電話：{phone_number}", style={
+        popover = dbc.Popover([
+            html.Div(f"電話：{phone_number}", style={
                 'textAlign': 'center', 
                 'fontWeight': 'bold',
-                'padding': '0px 5px',
+                'padding': '8px',
                 'fontSize': '14px',
-                'whiteSpace': 'nowrap',
-                'lineHeight': '0.8'
-            }),
-            target=customer_name_id,
+                'whiteSpace': 'nowrap'
+            })
+        ], target=customer_name_id,
             trigger="hover",
             placement="right",
             style={
                 'maxWidth': 'fit-content',
-                'minWidth': 'auto'
+                'padding': '0px'
             }
         )
         popovers.append(popover)
         
         # 其他欄位（移除電話號碼）
-        other_columns = ['商品ID', '商品名稱', '預估數量']
+        other_columns = ['預測ID', '商品ID', '商品名稱', '預估數量']
         
         for col in other_columns:
             col_width = column_widths[col]
@@ -273,7 +272,7 @@ def create_restock_table(df, customer_index_start=0):
     ]
     
     # 其他標頭（移除電話號碼）
-    other_header_columns = ['客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
+    other_header_columns = ['預測ID', '客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
     
     for header_text in other_header_columns:
         col_width = column_widths[header_text]
@@ -438,8 +437,18 @@ def reload_table_data():
         data = response.json()
         df = pd.DataFrame(data)
         
+        # Debug: 檢查重複的 prediction_id
+        if 'prediction_id' in df.columns:
+            duplicates = df['prediction_id'].duplicated()
+            if duplicates.any():
+                duplicate_ids = df[duplicates]['prediction_id'].tolist()
+                print(f"[DEBUG] 發現重複的 prediction_id: {duplicate_ids}")
+                print(f"[DEBUG] 總資料筆數: {len(df)}")
+                print(f"[DEBUG] 重複筆數: {duplicates.sum()}")
+        
         # 重新命名欄位
         df = df.rename(columns={
+            'prediction_id': '預測ID',
             'customer_id': '客戶ID',
             'customer_name': '客戶名稱',
             'phone_number': '電話號碼',
@@ -520,6 +529,7 @@ def load_data_and_handle_errors(page_loaded):
             
             # 重新命名欄位
             df = df.rename(columns={
+                'prediction_id': '預測ID',
                 'customer_id': '客戶ID',
                 'customer_name': '客戶名稱',
                 'phone_number': '電話號碼',
@@ -1176,6 +1186,7 @@ def update_accordion_with_search(selected_customer_id, checkbox_values, checkbox
             
             # 重新命名欄位
             df = df.rename(columns={
+                'prediction_id': '預測ID',
                 'customer_id': '客戶ID',
                 'customer_name': '客戶名稱',
                 'phone_number': '電話號碼',
