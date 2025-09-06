@@ -1173,27 +1173,54 @@ class CustomerCreate(BaseModel):
 def create_customer(customer_data: CustomerCreate):
     check_editor_permission(customer_data.user_role)
     
-    sql = """
-    INSERT INTO customer 
-    (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    
-    params = (
-        customer_data.customer_id,
-        customer_data.customer_name,
-        customer_data.phone_number,
-        customer_data.address,
-        customer_data.city,
-        customer_data.district,
-        customer_data.notes,
-        customer_data.delivery_schedule,
-        customer_data.line_id
-    )
-    
     try:
-        update_data_to_db(sql, params)
+        # 使用事務確保資料一致性
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                # 創建客戶
+                customer_sql = """
+                INSERT INTO customer 
+                (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                customer_params = (
+                    customer_data.customer_id,
+                    customer_data.customer_name,
+                    customer_data.phone_number,
+                    customer_data.address,
+                    customer_data.city,
+                    customer_data.district,
+                    customer_data.notes,
+                    customer_data.delivery_schedule,
+                    customer_data.line_id
+                )
+                cursor.execute(customer_sql, customer_params)
+                
+                # 如果有 line_id，則寫入 customer_line_mapping 表
+                if customer_data.line_id:
+                    mapping_sql = """
+                    INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes) 
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (customer_id, line_id) DO NOTHING
+                    """
+                    mapping_params = (
+                        customer_data.customer_id,
+                        customer_data.line_id,
+                        datetime.now(),
+                        f"從新訂單系統創建客戶時建立對應關係 - {customer_data.customer_name}"
+                    )
+                    cursor.execute(mapping_sql, mapping_params)
+                
+                # 提交事務
+                conn.commit()
+        
         return {"message": "客戶創建成功", "customer_id": customer_data.customer_id}
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[ERROR] 客戶創建失敗: {e}")
         raise HTTPException(status_code=500, detail="客戶創建失敗")

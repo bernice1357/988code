@@ -819,7 +819,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
         
         # 創建新客戶的資料
         new_customer_data = {
-            "customer_id": customer_id,  # 使用用戶輸入的客戶ID
+            "customer_id": customer_id,
             "customer_name": customer_name,
             "phone_number": phone,
             "address": full_address,
@@ -827,7 +827,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "district": district,
             "notes": notes,
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id"),
+            "line_id": pending_order.get("line_id"),  # 確保傳遞 line_id
             "user_role": user_role or "viewer"
         }
         
