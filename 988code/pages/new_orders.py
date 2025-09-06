@@ -87,7 +87,12 @@ def make_card_item(order):
                     "MIXED": "混合",
                     "OTHER": "其他"
                 }.get(order.get("label"), order.get("label", "")), 
-                color="info", className="ms-2 rounded-pill", 
+                color={
+                    "ORDER": "info",
+                    "INQUIRY": "warning", 
+                    "MIXED": "success",
+                    "OTHER": "secondary"
+                }.get(order.get("label"), "info"), className="ms-2 rounded-pill", 
                 style={"fontSize": "0.7rem", "padding": "4px 8px"}) if order.get("label") else None
             ], style={"lineHeight": "1"})
         ], style={"overflow": "hidden", "padding": "8px 12px"}),

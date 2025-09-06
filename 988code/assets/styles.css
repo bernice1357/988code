@@ -124,3 +124,14 @@ div[id*="status-dropdown"] .Select-value-label {
 .Select-menu-outer {
     z-index: 10000000 !important;
 }
+
+/* 側邊欄下拉選單項目的 hover 效果 */
+#sidebar .dropdown-item:hover {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+}
+
+#sidebar .dropdown-item:focus {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+}
