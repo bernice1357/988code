@@ -24,7 +24,7 @@ def get_data_from_db_with_params(sql_prompt: str, params: tuple = ()) -> pd.Data
         print(f"[DB ERROR] {e}")
         raise
 
-# 得到特定客戶的所有交易日期
+# 得到特定客戶的所有交易日期 (畫補貨時間軸用的)
 @router.get("/get_restock_history/{customer_id}")
 def get_customer_transactions(customer_id: str):
     try:

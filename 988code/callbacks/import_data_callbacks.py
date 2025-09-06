@@ -135,20 +135,18 @@ def convert_delivery_schedule_to_numbers(schedule_list):
 
 # 側邊欄項目點擊回調
 @app.callback(
-    [Output("customer-item", "style"),
-     Output("sales-item", "style"), 
+    [Output("sales-item", "style"), 
      Output("inventory-item", "style"),
      Output("current-data-type", "children")],
-    [Input("customer-item", "n_clicks"),
-     Input("sales-item", "n_clicks"),
+    [Input("sales-item", "n_clicks"),
      Input("inventory-item", "n_clicks")],
     prevent_initial_call=True
 )
-def update_sidebar_selection(customer_clicks, sales_clicks, inventory_clicks):
+def update_sidebar_selection(sales_clicks, inventory_clicks):
     global current_data_type
     ctx = dash.callback_context
     if not ctx.triggered:
-        return [no_update] * 4
+        return [no_update] * 3
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
@@ -175,19 +173,15 @@ def update_sidebar_selection(customer_clicks, sales_clicks, inventory_clicks):
     })
     
     # 返回樣式列表
-    styles = [base_style, base_style, base_style]
+    styles = [base_style, base_style]
     title = "請選擇資料類型"
     
-    if button_id == "customer-item":
+    if button_id == "sales-item":
         styles[0] = selected_style
-        title = "客戶資料上傳"
-        current_data_type = "customer"
-    elif button_id == "sales-item":
-        styles[1] = selected_style
         title = "銷貨資料上傳"
         current_data_type = "sales"
     elif button_id == "inventory-item":
-        styles[2] = selected_style
+        styles[1] = selected_style
         title = "庫存資料上傳"
         current_data_type = "inventory"
     
@@ -958,10 +952,8 @@ def process_sales_import(current_files, session_data, user_role):
      Output("import_data-error-toast", "children"),
      Output("import_data-warning-toast", "is_open"),
      Output("import_data-warning-toast", "children"),
-     Output("missing-customers-store", "data"),
      Output("missing-products-store", "data"),
      Output("current-file-store", "data"),
-     Output("new-customer-modal", "is_open"),
      Output("new-product-modal", "is_open")],
     [Input("save-current-files-btn", "n_clicks")],
     [State("import-session-store", "data"),
@@ -976,138 +968,73 @@ def save_current_files(n_clicks, session_data, user_role):
         
         if current_files:
             type_names = {
-                "customer": "客戶資料",
                 "sales": "銷貨資料", 
                 "inventory": "庫存資料"
             }
             type_name = type_names.get(current_data_type, "資料")
             
-            # 特別處理銷貨資料 - 先檢查客戶
+            # 處理銷貨和庫存資料
             if current_data_type == "sales":
+                # 銷貨資料直接上傳，不檢查客戶
                 try:
-                    # 只處理第一個檔案進行客戶檢查
                     file_info = current_files[0]
                     filename = file_info['filename']
                     contents = file_info['contents']
                     
-                    # 檢查是否為 Excel 文件
                     if filename.lower().endswith(('.xlsx', '.xls')):
-                        # 解碼 base64 內容
                         content_type, content_string = contents.split(',')
                         decoded_content = base64.b64decode(content_string)
                         
-                        try:
-                            # 準備檔案和表單資料上傳到客戶檢查 API
-                            files = {
-                                'file': (filename, decoded_content, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                            }
-                            data = {
-                                'user_role': user_role or 'viewer'
-                            }
-                            
-                            
-                            # 呼叫客戶和產品檢查 API
-                            api_url = f"{API_BASE_URL}/import/sales/check-customers-and-products"
-                            logger.info(f"正在檢查客戶: {filename}")
-                            response = requests.post(api_url, files=files, data=data, timeout=300)
-                            
-                            logger.info(f"客戶檢查 API 回應狀態碼: {response.status_code}")
-                            logger.info(f"客戶檢查 API 回應內容: {response.text}")
-                            
-                            if response.status_code == 200:
-                                result = response.json()
-                                logger.info(f"客戶檢查解析後的回應: {result}")
+                        files = {
+                            'file': (filename, decoded_content, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                        }
+                        data = {
+                            'user_role': user_role or 'viewer'
+                        }
+                        
+                        api_url = f"{API_BASE_URL}/import/sales"
+                        logger.info(f"正在匯入銷貨資料: {filename}")
+                        response = requests.post(api_url, files=files, data=data, timeout=300)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            if result.get('success'):
+                                deleted_count = result.get('deleted_count', 0)
+                                inserted_count = result.get('inserted_count', 0)
                                 
-                                if result.get('success'):
-                                    missing_customers = result.get('missing_customers', [])
-                                    missing_products = result.get('missing_products', [])
-                                    deleted_count = result.get('deleted_count', 0)
-                                    inserted_count = result.get('inserted_count', 0)
-                                    skipped_count = result.get('skipped_count', 0)
-                                    
-                                    # 更新會話數據（包含部分成功的結果）
-                                    session_data['deleted_count'] = deleted_count
-                                    session_data['inserted_count'] = inserted_count
-                                    session_data['skipped_count'] = skipped_count
-                                    
-                                    if missing_customers:
-                                        # 有缺失客戶，優先處理客戶
-                                        if inserted_count > 0:
-                                            # 部分成功，更新狀態但繼續處理缺失項目
-                                            session_data['status'] = 'partial'
-                                            logger.info(f"部分上傳成功：{inserted_count} 筆記錄已上傳，發現 {len(missing_customers)} 個缺失客戶")
-                                        else:
-                                            logger.info(f"發現 {len(missing_customers)} 個缺失客戶: {missing_customers}")
-                                        
-                                        file_store_data = {
-                                            'filename': filename,
-                                            'contents': contents,
-                                            'current_files': current_files,
-                                            'missing_products': missing_products  # 保存產品信息供後續處理
-                                        }
-                                        
-                                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                            False, "", False, "", False, "", missing_customers, missing_products, file_store_data, True, False)
-                                    elif missing_products:
-                                        # 只有缺失產品，打開產品創建 Modal
-                                        if inserted_count > 0:
-                                            session_data['status'] = 'partial'
-                                            logger.info(f"部分上傳成功：{inserted_count} 筆記錄已上傳，發現 {len(missing_products)} 個缺失產品")
-                                        else:
-                                            logger.info(f"發現 {len(missing_products)} 個缺失產品: {missing_products}")
-                                        
-                                        file_store_data = {
-                                            'filename': filename,
-                                            'contents': contents,
-                                            'current_files': current_files
-                                        }
-                                        
-                                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                            False, "", False, "", False, "", [], missing_products, file_store_data, False, True)
-                                    else:
-                                        # 沒有缺失項目，上傳完全成功
-                                        session_data['status'] = 'completed'
-                                        session_data['total_records'] = inserted_count
-                                        
-                                        success_message = f"✅ 上傳完成！\n檔案: {filename}\n刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄"
-                                        
-                                        return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                                True, success_message, False, "", False, "", [], [], {}, False, False)
-                                    
-                                else:
-                                    error_msg = result.get('message', '客戶檢查失敗')
-                                    return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                            False, "", True, error_msg, False, "", [], [], {}, False, False)
-                            elif response.status_code == 403:
-                                # 權限不足錯誤
-                                return ("匯入上傳檔案", True, {"display": "none"}, session_data, 
-                                        False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], [], {}, False, False)
-                            else:
-                                try:
-                                    error_detail = response.json().get('detail', '未知錯誤')
-                                except:
-                                    error_detail = response.text if response.content else '服務器無回應'
-                                error_msg = f"客戶檢查失敗 (狀態碼 {response.status_code}) - {error_detail}"
+                                session_data['status'] = 'completed'
+                                session_data['total_records'] = inserted_count
+                                session_data['deleted_count'] = deleted_count
+                                session_data['inserted_count'] = inserted_count
+                                
+                                success_message = f"✅ 銷貨資料上傳完成！\n檔案: {filename}\n刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄"
+                                
                                 return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                        False, "", True, error_msg, False, "", [], [], {}, False, False)
-                            
-                        except requests.exceptions.RequestException as e:
-                            error_msg = f"網路錯誤 - {str(e)}"
+                                        True, success_message, False, "", False, "", [], {}, False)
+                            else:
+                                error_msg = result.get('message', '銷貨資料上傳失敗')
+                                return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
+                                        False, "", True, error_msg, False, "", [], {}, False)
+                        elif response.status_code == 403:
+                            return ("匯入上傳檔案", True, {"display": "none"}, session_data, 
+                                    False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], {}, False)
+                        else:
+                            try:
+                                error_detail = response.json().get('detail', '未知錯誤')
+                            except:
+                                error_detail = response.text if response.content else '服務器無回應'
+                            error_msg = f"銷貨資料上傳失敗 (狀態碼 {response.status_code}) - {error_detail}"
                             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
-                        except Exception as e:
-                            error_msg = f"處理錯誤 - {str(e)}"
-                            return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                    False, "", True, error_msg, False, "", [], {}, False)
                     else:
                         error_msg = f"跳過非 Excel 檔案: {filename}"
                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                False, "", True, error_msg, False, "", [], [], {}, False, False)
-                
+                                False, "", True, error_msg, False, "", [], {}, False)
+                        
                 except Exception as e:
                     error_message = f"處理銷貨資料時發生錯誤: {str(e)}"
                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                            False, "", True, error_message, False, "", [], [], {}, False, False)
+                            False, "", True, error_message, False, "", [], {}, False)
             elif current_data_type == "inventory":
                 # 處理庫存資料 - 先檢查產品
                 try:
@@ -1157,7 +1084,7 @@ def save_current_files(n_clicks, session_data, user_role):
                                         }
                                         
                                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                            False, "", False, "", False, "", [], missing_products, file_store_data, False, True)
+                                            False, "", False, "", False, "", missing_products, file_store_data, True)
                                     else:
                                         # 沒有缺失產品，直接繼續匯入流程
                                         logger.info("所有產品都已存在，直接進行庫存匯入")
@@ -1166,11 +1093,11 @@ def save_current_files(n_clicks, session_data, user_role):
                                 else:
                                     error_msg = result.get('message', '庫存產品檢查失敗')
                                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                            False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                            False, "", True, error_msg, False, "", [], {}, False)
                             elif response.status_code == 403:
                                 # 權限不足錯誤
                                 return ("匯入上傳檔案", True, {"display": "none"}, session_data, 
-                                        False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], [], {}, False, False)
+                                        False, "", False, "", True, "權限不足：僅限編輯者使用此功能", [], {}, False)
                             else:
                                 try:
                                     error_detail = response.json().get('detail', '未知錯誤')
@@ -1178,25 +1105,25 @@ def save_current_files(n_clicks, session_data, user_role):
                                     error_detail = response.text if response.content else '服務器無回應'
                                 error_msg = f"庫存產品檢查失敗 (狀態碼 {response.status_code}) - {error_detail}"
                                 return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                        False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                        False, "", True, error_msg, False, "", [], {}, False)
                             
                         except requests.exceptions.RequestException as e:
                             error_msg = f"網路錯誤 - {str(e)}"
                             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                    False, "", True, error_msg, False, "", [], {}, False)
                         except Exception as e:
                             error_msg = f"處理錯誤 - {str(e)}"
                             return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                    False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                    False, "", True, error_msg, False, "", [], {}, False)
                     else:
                         error_msg = f"跳過非 Excel 檔案: {filename}"
                         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                                False, "", True, error_msg, False, "", [], [], {}, False, False)
+                                False, "", True, error_msg, False, "", [], {}, False)
                 
                 except Exception as e:
                     error_message = f"處理庫存資料時發生錯誤: {str(e)}"
                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                            False, "", True, error_message, False, "", [], [], {}, False, False)
+                            False, "", True, error_message, False, "", [], {}, False)
             else:
                 # 其他資料類型的一般處理
                 success_message = f"成功匯入 {len(current_files)} 個{type_name}檔案"
@@ -1211,9 +1138,7 @@ def save_current_files(n_clicks, session_data, user_role):
         # 沒有選擇資料類型，顯示錯誤 toast
         error_message = "請先選擇資料類型"
         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
-                False, "", True, error_message, False, "", [], [], {}, False, False)
-
-# 新增：客戶創建 Modal 相關回調函數
+                False, "", True, error_message, False, "", [], {}, False)
 
 # 客戶 Modal 顯示邏輯 - 設置當前客戶資訊
 @app.callback(

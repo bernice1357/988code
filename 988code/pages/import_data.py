@@ -8,10 +8,6 @@ layout = html.Div([
     error_toast("import_data", message=""),
     warning_toast("import_data", message=""),
     
-    # 新增客戶創建相關的 Toast
-    success_toast("create_customer_import", message=""),
-    error_toast("create_customer_import", message=""),
-    warning_toast("create_customer_import", message=""),
     
     # 新增產品創建相關的 Toast
     success_toast("create_product_import", message=""),
@@ -30,119 +26,11 @@ layout = html.Div([
     dcc.Store(id='import-session-store', data={'session_id': 0, 'total_records': 0, 'status': 'waiting', 'deleted_count': 0, 'inserted_count': 0}),
     dcc.Store(id='user-role-store'),
     
-    # 新增：存儲缺失客戶資料
-    dcc.Store(id='missing-customers-store', data=[]),
     dcc.Store(id='current-file-store', data={}),
 
     # 新增：存儲缺失產品資料
     dcc.Store(id='missing-products-store', data=[]),
 
-    # 新增客戶創建 Modal
-    dbc.Modal([
-        dbc.ModalHeader([
-            dbc.ModalTitle("創建新客戶", id="new-customer-modal-title")
-        ]),
-        dbc.ModalBody([
-            dbc.Row([
-                # 左側欄位
-                dbc.Col([
-                    # 客戶ID
-                    dbc.Row([
-                        dbc.Label("客戶ID", width=4),
-                        dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=8)
-                    ], className="mb-3"),
-                    # 客戶名稱
-                    dbc.Row([
-                        dbc.Label("客戶名稱", width=4),
-                        dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=8)
-                    ], className="mb-3"),
-                    # 電話號碼
-                    dbc.Row([
-                        dbc.Label("電話號碼", width=4),
-                        dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=8)
-                    ], className="mb-3"),
-                    # 客戶地址
-                    dbc.Row([
-                        dbc.Label("客戶地址", width=4),
-                        dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=8)
-                    ], className="mb-3"),
-                    # 備註
-                ], width=6),
-                
-                # 右側欄位
-                dbc.Col([
-                    # 直轄市、縣、市
-                    dbc.Row([
-                        dbc.Label("直轄市、縣、市", width=4),
-                        dbc.Col(dcc.Dropdown(
-                            id="new-customer-city",
-                            options=[
-                                {"label": "台北市", "value": "台北市"},
-                                {"label": "新北市", "value": "新北市"},
-                                {"label": "桃園市", "value": "桃園市"},
-                                {"label": "台中市", "value": "台中市"},
-                                {"label": "台南市", "value": "台南市"},
-                                {"label": "高雄市", "value": "高雄市"},
-                                {"label": "宜蘭縣", "value": "宜蘭縣"},
-                                {"label": "新竹縣", "value": "新竹縣"},
-                                {"label": "苗栗縣", "value": "苗栗縣"},
-                                {"label": "彰化縣", "value": "彰化縣"},
-                                {"label": "南投縣", "value": "南投縣"},
-                                {"label": "雲林縣", "value": "雲林縣"},
-                                {"label": "嘉義縣", "value": "嘉義縣"},
-                                {"label": "屏東縣", "value": "屏東縣"},
-                                {"label": "台東縣", "value": "台東縣"},
-                                {"label": "花蓮縣", "value": "花蓮縣"},
-                                {"label": "澎湖縣", "value": "澎湖縣"},
-                                {"label": "金門縣", "value": "金門縣"},
-                                {"label": "連江縣", "value": "連江縣"}
-                            ],
-                            placeholder="請選擇直轄市縣市"
-                        ), width=8)
-                    ], className="mb-3"),
-                    # 鄉鎮市區
-                    dbc.Row([
-                        dbc.Label("鄉鎮市區", width=4),
-                        dbc.Col(dcc.Dropdown(
-                            id="new-customer-district",
-                            options=[],
-                            placeholder="請先選擇直轄市縣市"
-                        ), width=8)
-                    ], className="mb-3"),
-                ], width=6)
-            ]),
-            
-            dbc.Row([
-                dbc.Label("備註", width=2),
-                dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註"), width=10)
-            ], className="mb-3"),
-            # 每週配送日放在底部，橫跨整個寬度
-            dbc.Row([
-                dbc.Label("每週配送日", width=2),
-                dbc.Col(dcc.Checklist(
-                    id="new-customer-delivery-schedule",
-                    options=[
-                        {"label": "一", "value": "1"},
-                        {"label": "二", "value": "2"},
-                        {"label": "三", "value": "3"},
-                        {"label": "四", "value": "4"},
-                        {"label": "五", "value": "5"},
-                        {"label": "六", "value": "6"},
-                        {"label": "日", "value": "7"}
-                    ],
-                    value=[],
-                    inline=True,
-                    style={"display": "flex", "gap": "15px"}
-                ), width=10)
-            ], className="mb-3"),
-        ]),
-        dbc.ModalFooter([
-            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
-            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
-            dbc.Button("批量跳過全部", id="skip-all-customers-btn", color="warning", className="me-2", style={"display": "none"}),
-            dbc.Button("完成並匯入", id="finish-and-import-btn", color="success", style={"display": "none"})
-        ])
-    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
     
     # 新增產品創建 Modal
     dbc.Modal([
@@ -381,34 +269,6 @@ layout = html.Div([
     html.Div([
         # 左側邊欄
         html.Div([
-            # 客戶資料項目
-            html.Div([
-                html.Div([
-                    html.H4("客戶資料", style={
-                        "fontSize": "1.2rem",
-                        "fontWeight": "500",
-                        "color": "#333",
-                        "margin": "0 0 0.25rem 0"
-                    }),
-                    html.P("匯入客戶基本資料檔案", style={
-                        "color": "#333",
-                        "fontSize": "0.9rem",
-                        "margin": "0"
-                    })
-                ])
-            ], id="customer-item", style={
-                "display": "flex",
-                "alignItems": "center",
-                "justifyContent": "space-between",
-                "padding": "1.2rem",
-                "backgroundColor": "white",
-                "borderRadius": "8px",
-                "border": "1px solid #e0e6ed",
-                "marginBottom": "0.8rem",
-                "cursor": "pointer",
-                "transition": "all 0.2s ease",
-                "boxShadow": "rgb(204, 219, 232) 3px 3px 6px 0px inset, rgba(255, 255, 255, 0.5) -3px -3px 6px 1px inset"
-            }),
             
             # 銷貨資料項目
             html.Div([

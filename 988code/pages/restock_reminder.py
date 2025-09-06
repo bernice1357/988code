@@ -1,11 +1,338 @@
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
+from components.table import custom_table
 import requests
 import plotly.graph_objects as go
 from dash import ctx
 import dash_bootstrap_components as dbc
 
 # TODO 差預計補貨日期欄位
+
+# 信心度顏色映射函數
+def get_confidence_color(confidence_level):
+    """根據信心度返回對應的顏色"""
+    colors = {
+        'HIGH': '#28a745',    # 綠色
+        'MEDIUM': '#ffc107',  # 橙色
+        'LOW': '#dc3545'      # 紅色
+    }
+    if confidence_level:
+        return colors.get(confidence_level.upper(), '#000000')  # 預設黑色
+    return '#000000'
+
+def calculate_restock_column_width(df, col):
+    """計算補貨表格欄位的最適寬度"""
+    # 計算標題寬度 (padding: 4px 8px = 16px)
+    # 考慮中文字符較寬的問題
+    col_str = str(col)
+    char_width = sum(14 if ord(c) > 127 else 8 for c in col_str)  # 中文14px, 英文8px
+    header_width = char_width + 16
+    
+    # 計算內容最大寬度
+    max_content_width = 0
+    for value in df[col]:
+        value_str = str(value)
+        value_char_width = sum(14 if ord(c) > 127 else 8 for c in value_str)  # 中文14px, 英文8px
+        content_width = value_char_width + 16  # padding: 4px 8px = 16px
+        max_content_width = max(max_content_width, content_width)
+    
+    # 取標題和內容的最大值，左右各加5px（總共15px），再加5px buffer，加2px邊框
+    calculated_width = max(header_width, max_content_width) + 22
+    return calculated_width
+
+def create_restock_table(df, customer_index_start=0):
+    """創建補貨提醒表格"""
+    if df.empty:
+        return html.Div("無資料"), pd.DataFrame()
+    
+    # 重設索引以確保 custom_table 正常運作
+    df_reset = df.reset_index(drop=True)
+    
+    # 選擇要顯示的欄位（移除電話號碼，調整順序：客戶名稱在前）
+    display_columns = ['客戶名稱', '客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
+    df_display = df_reset[display_columns].copy()
+    
+    # 計算每個欄位的動態寬度
+    column_widths = {}
+    for col in display_columns:
+        column_widths[col] = calculate_restock_column_width(df_display, col)
+    
+    # 客戶名稱為固定列，需要特殊處理
+    customer_name_width = column_widths['客戶名稱']
+    
+    # 使用 custom_table 但需要手動創建以支援信心度顏色和特定 checkbox ID
+    rows = []
+    popovers = []  # 儲存所有Popover組件
+    
+    for i, row in df_display.iterrows():
+        row_cells = []
+        
+        # Checkbox 欄位
+        customer_id = row.get('客戶ID', '')
+        row_index = i
+        checkbox_key = f"{customer_id}-{row_index}"
+        
+        checkbox_cell = html.Td(
+            dcc.Checklist(
+                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': row_index},
+                options=[{'label': '', 'value': checkbox_key}],
+                value=[],
+                style={'margin': '0px'}
+            ),
+            style={
+                'padding': '4px 8px',
+                'textAlign': 'center',
+                'fontSize': '16px',
+                'height': '50px',
+                'minWidth': '50px',
+                'maxWidth': '50px',
+                'position': 'sticky',
+                'left': '0px',
+                'zIndex': 90,  # 提高z-index
+                'backgroundColor': '#edf7ff',
+                'border': '1px solid #ccc',
+                'boxShadow': '2px 0 5px rgba(0,0,0,0.1)'
+            }
+        )
+        row_cells.append(checkbox_cell)
+        
+        # 客戶名稱 (sticky, 帶hover功能) - 現在在客戶ID前面
+        customer_name = str(row.get('客戶名稱', ''))
+        phone_number = str(df_reset.iloc[i].get('電話號碼', ''))
+        customer_name_id = f"customer-name-{customer_id}-{row_index}"
+        
+        customer_name_cell = html.Td(
+            html.Span(
+                customer_name,
+                id=customer_name_id,
+                style={
+                    'cursor': 'pointer',
+                    'textDecoration': 'underline dotted',
+                    'color': '#0066cc'
+                }
+            ),
+            style={
+                'padding': '4px 8px',
+                'textAlign': 'center',
+                'border': '1px solid #ccc',
+                'fontSize': '16px',
+                'height': '50px',
+                'whiteSpace': 'nowrap',
+                'position': 'sticky',
+                'left': '50px',
+                'zIndex': 89,  # 提高z-index
+                'backgroundColor': '#edf7ff',
+                'width': f'{customer_name_width}px',
+                'minWidth': f'{customer_name_width}px',
+                'maxWidth': f'{customer_name_width}px'
+            }
+        )
+        row_cells.append(customer_name_cell)
+        
+        # 客戶ID (普通欄位) - 現在在客戶名稱後面
+        customer_id_width = column_widths['客戶ID']
+        customer_id_cell = html.Td(
+            str(customer_id),
+            style={
+                'padding': '4px 8px',
+                'textAlign': 'center',
+                'border': '1px solid #ccc',
+                'fontSize': '16px',
+                'height': '50px',
+                'whiteSpace': 'nowrap',
+                'backgroundColor': 'white',
+                'width': f'{customer_id_width}px',
+                'minWidth': f'{customer_id_width}px'
+            }
+        )
+        row_cells.append(customer_id_cell)
+        
+        # 創建對應的Popover
+        popover = dbc.Popover(
+            dbc.PopoverBody(f"電話：{phone_number}", style={
+                'textAlign': 'center', 
+                'fontWeight': 'bold',
+                'padding': '0px 5px',
+                'fontSize': '14px',
+                'whiteSpace': 'nowrap',
+                'lineHeight': '0.8'
+            }),
+            target=customer_name_id,
+            trigger="hover",
+            placement="right",
+            style={
+                'maxWidth': 'fit-content',
+                'minWidth': 'auto'
+            }
+        )
+        popovers.append(popover)
+        
+        # 其他欄位（移除電話號碼）
+        other_columns = ['商品ID', '商品名稱', '預估數量']
+        
+        for col in other_columns:
+            col_width = column_widths[col]
+            cell = html.Td(
+                str(row.get(col, '')),
+                style={
+                    'padding': '4px 8px',
+                    'textAlign': 'center',
+                    'border': '1px solid #ccc',
+                    'fontSize': '16px',
+                    'height': '50px',
+                    'whiteSpace': 'nowrap',
+                    'backgroundColor': 'white',
+                    'width': f'{col_width}px',
+                    'minWidth': f'{col_width}px'
+                }
+            )
+            row_cells.append(cell)
+        
+        # 信心度欄位 (帶顏色)
+        confidence_level = row.get('信心度', '')
+        confidence_color = get_confidence_color(confidence_level)
+        confidence_width = column_widths['信心度']
+        confidence_cell = html.Td(
+            str(confidence_level),
+            style={
+                'padding': '4px 8px',
+                'textAlign': 'center',
+                'border': '1px solid #ccc',
+                'fontSize': '16px',
+                'height': '50px',
+                'whiteSpace': 'nowrap',
+                'backgroundColor': 'white',
+                'width': f'{confidence_width}px',
+                'minWidth': f'{confidence_width}px',
+                'color': confidence_color,
+                'fontWeight': 'bold'
+            }
+        )
+        row_cells.append(confidence_cell)
+        
+        # 操作按鈕欄位
+        button_cell = html.Td(
+            html.Button(
+                "查看歷史補貨紀錄",
+                id={'type': 'view-button', 'index': customer_index_start + i},
+                n_clicks=0,
+                className="btn btn-warning btn-sm",
+                style={'fontSize': '16px'}
+            ),
+            style={
+                'padding': '4px 8px',
+                'textAlign': 'center',
+                'border': '1px solid #ccc',
+                'fontSize': '16px',
+                'height': '50px',
+                'whiteSpace': 'nowrap',
+                'position': 'sticky',
+                'right': '0px',
+                'zIndex': 88,  # 提高z-index
+                'backgroundColor': 'white',
+                'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
+                'width': '160px',
+                'minWidth': '160px'
+            }
+        )
+        row_cells.append(button_cell)
+        
+        # 添加行
+        rows.append(html.Tr(row_cells, style={'backgroundColor': 'white'}))
+    
+    # 創建表格標頭
+    headers = [
+        html.Th('', style={
+            "position": "sticky",
+            "top": "0px",
+            "left": "0px",
+            "zIndex": 100,  # 提高z-index
+            'backgroundColor': '#bcd1df',
+            'fontWeight': 'bold',
+            'fontSize': '16px',
+            'padding': '4px 8px',
+            'textAlign': 'center',
+            'border': '1px solid #ccc',
+            'width': '50px',
+            'boxShadow': '2px 0 5px rgba(0,0,0,0.1)'
+        }),
+        html.Th('客戶名稱', style={
+            "position": "sticky",
+            "top": "0px",
+            "left": "50px",
+            "zIndex": 99,  # 提高z-index
+            'backgroundColor': '#bcd1df',
+            'fontWeight': 'bold',
+            'fontSize': '16px',
+            'padding': '4px 8px',
+            'textAlign': 'center',
+            'border': '1px solid #ccc',
+            'width': f'{customer_name_width}px',
+            'minWidth': f'{customer_name_width}px'
+        })
+    ]
+    
+    # 其他標頭（移除電話號碼）
+    other_header_columns = ['客戶ID', '商品ID', '商品名稱', '預估數量', '信心度']
+    
+    for header_text in other_header_columns:
+        col_width = column_widths[header_text]
+        headers.append(html.Th(header_text, style={
+            "position": "sticky",
+            "top": "0px",
+            "zIndex": 50,  # 提高z-index
+            'backgroundColor': '#bcd1df',
+            'fontWeight': 'bold',
+            'fontSize': '16px',
+            'padding': '4px 8px',
+            'textAlign': 'center',
+            'border': '1px solid #ccc',
+            'width': f'{col_width}px',
+            'minWidth': f'{col_width}px'
+        }))
+    
+    # 操作欄標頭
+    headers.append(html.Th('操作', style={
+        "position": "sticky",
+        "top": "0px",
+        "right": "0px",
+        "zIndex": 98,  # 提高z-index
+        'backgroundColor': '#bcd1df',
+        'fontWeight': 'bold',
+        'fontSize': '16px',
+        'padding': '4px 8px',
+        'textAlign': 'center',
+        'border': '1px solid #ccc',
+        'whiteSpace': 'nowrap',
+        'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
+        'width': '160px',
+        'minWidth': '160px'
+    }))
+    
+    # 創建完整表格
+    table = html.Table([
+        html.Thead([html.Tr(headers)]),
+        html.Tbody(rows)
+    ], style={
+        "width": "max-content",
+        "minWidth": "100%",
+        "borderCollapse": "collapse",
+        'border': '1px solid #ccc'
+    })
+
+    table_div = html.Div([
+        html.Div([table], style={
+            'overflowX': 'auto',
+            'overflowY': 'auto',
+            'maxHeight': '300px',
+            'position': 'relative'
+        })
+    ] + popovers, style={
+        'width': '100%',
+        'maxWidth': '100%'
+    })
+    
+    return table_div, df_reset
 
 # offcanvas
 product_input_fields = [
@@ -100,6 +427,80 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     ),
 ])
 
+# 重新載入資料的輔助函數
+def reload_table_data():
+    """重新載入表格資料並返回表格內容和資料"""
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_restock_data')
+        if response.status_code != 200:
+            return None, [], True, "無法獲取資料"
+        
+        data = response.json()
+        df = pd.DataFrame(data)
+        
+        # 重新命名欄位
+        df = df.rename(columns={
+            'customer_id': '客戶ID',
+            'customer_name': '客戶名稱',
+            'phone_number': '電話號碼',
+            'product_id': '商品ID',
+            'product_name': '商品名稱',
+            'prediction_date': '預計補貨日期',
+            'estimated_quantity': '預估數量',
+            'confidence_level': '信心度'
+        })
+        
+        # 按預計補貨日期分組數據
+        date_groups = df.groupby('預計補貨日期')
+        
+        # 創建Accordion
+        accordions = []
+        all_records = []  # 用於存儲所有記錄，給modal使用
+        
+        customer_index = 0
+        for prediction_date, group in date_groups:
+            # 按客戶名稱排序
+            group = group.sort_values('客戶名稱', ascending=True)
+            
+            # 建立標題顯示日期
+            title_text = html.Span([
+                html.Span(f'{prediction_date}', style={'color': 'black', 'fontWeight': 'bold'})
+            ])
+            
+            # 創建表格和記錄
+            table, group_records = create_restock_table(group, customer_index)
+            
+            # 將記錄加入all_records供modal使用
+            for _, row in group_records.iterrows():
+                record_for_modal = {
+                    '客戶ID': row.get('客戶ID', ''),
+                    '客戶名稱': row.get('客戶名稱', '')
+                }
+                all_records.append(record_for_modal)
+            
+            # 建立 Accordion Item
+            accordion_item = dbc.AccordionItem(
+                table,
+                title=title_text,
+                item_id=f"item-{prediction_date}"
+            )
+            accordions.append(accordion_item)
+            
+            customer_index += len(group)
+        
+        # 創建完整的Accordion
+        accordion = dbc.Accordion(
+            accordions,
+            always_open=True,
+            style={'maxHeight': '70vh', 'overflowY': 'auto'}
+        )
+        
+        return accordion, all_records, False, ""
+    
+    except Exception as e:
+        print(f"[ERROR] 載入資料時發生錯誤: {e}")
+        return None, [], True, f"載入資料失敗: {str(e)}"
+
 # 載入數據的 callback
 @app.callback(
     [Output("table-container", "children"),
@@ -129,115 +530,52 @@ def load_data_and_handle_errors(page_loaded):
                 'confidence_level': '信心度'
             })
             
-            # 按客戶ID分組數據
-            customer_groups = df.groupby(['客戶ID', '客戶名稱', '電話號碼'])
+            # 按預計補貨日期分組數據
+            date_groups = df.groupby('預計補貨日期')
             
             # 創建Accordion
             accordions = []
             all_records = []  # 用於存儲所有記錄，給modal使用
             
             customer_index = 0
-            for (customer_id, customer_name, phone_number), group in customer_groups:
-                # 按預測日期排序
-                group = group.sort_values('預計補貨日期', ascending=False)
+            for prediction_date, group in date_groups:
+                # 按客戶名稱排序
+                group = group.sort_values('客戶名稱', ascending=True)
                 
-                # 建立標題（初始載入時不會有選中項目） 
+                # 建立標題顯示日期
                 title_text = html.Span([
-                    html.Span(customer_id, style={'color': 'black', 'fontWeight': 'bold'}),
-                    html.Span(' '),
-                    html.Span(customer_name, style={'color': 'black'}),
-                    html.Span(f' ({phone_number})', style={'color': 'black'})
+                    html.Span(f'{prediction_date}', style={'color': 'black', 'fontWeight': 'bold'})
                 ])
                 
-                # 建立accordion內容 - 表格標題
-                table_header = html.Div([
-                    html.Div('選擇', style={'font-weight': 'bold', 'flex': '0 0 60px', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('商品ID', style={'font-weight': 'bold', 'flex': '1', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('商品名稱', style={'font-weight': 'bold', 'flex': '2', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('預計補貨日期', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('預估數量', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('信心度', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('操作', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'})
-                ], style={'display': 'flex', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'align-items': 'center'})
+                # 創建表格和記錄
+                table, group_records = create_restock_table(group, customer_index)
                 
-                # 建立資料行
-                table_rows = []
-                row_index = 0
-                for _, row in group.iterrows():
-                    # 將每行資料加入all_records供modal使用
+                # 將記錄加入all_records供modal使用
+                for _, row in group_records.iterrows():
                     record_for_modal = {
-                        '客戶ID': customer_id,
-                        '客戶名稱': customer_name
+                        '客戶ID': row.get('客戶ID', ''),
+                        '客戶名稱': row.get('客戶名稱', '')
                     }
                     all_records.append(record_for_modal)
-                    
-                    # 初始載入時所有checkbox都是未勾選狀態
-                    checkbox_key = f"{customer_id}-{row_index}"
-                    
-                    table_row = html.Div([
-                        html.Div([
-                            dcc.Checklist(
-                                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': row_index},
-                                options=[{'label': '', 'value': checkbox_key}],
-                                value=[],
-                                style={'margin': '0'}
-                            )
-                        ], style={'flex': '0 0 60px', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('商品ID', '')), style={'flex': '1', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('商品名稱', '')), style={'flex': '2', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('預計補貨日期', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('預估數量', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('信心度', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div([
-                            dbc.Button("查看歷史補貨紀錄", 
-                                     id={'type': 'view-button', 'index': customer_index},
-                                     color="warning",
-                                     size="sm",
-                                     n_clicks=0,
-                                     style={'fontSize': '16px', 'whiteSpace': 'nowrap'})
-                        ], style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'})
-                    ], style={'display': 'flex', 'background-color': 'white', 'border-bottom': '1px solid #eee', 'align-items': 'center', 'min-height': '50px'})
-                    
-                    table_rows.append(table_row)
-                    row_index += 1
                 
-                # 可滾動的內容區域
-                scrollable_content = html.Div([
-                    # 固定標題
-                    html.Div([
-                        table_header
-                    ], style={
-                        'position': 'sticky',
-                        'top': '0',
-                        'z-index': '100',
-                        'background-color': 'white',
-                        'border-bottom': '2px solid #ddd',
-                        'box-shadow': '0 2px 4px rgba(0,0,0,0.1)'
-                    }),
-                    # 滾動內容區域
-                    html.Div(table_rows, style={
-                        'max-height': '400px',
-                        'overflow-y': 'auto',
-                        'background-color': 'white'
-                    })
-                ], style={'background-color': 'white'})
-                
-                # 建立 Accordion Item with dynamic title
+                # 建立 Accordion Item
                 accordion_item = dbc.AccordionItem(
-                    scrollable_content,
+                    table,
                     title=title_text,
-                    item_id=f'accordion-{customer_id}'
+                    item_id=f'accordion-{prediction_date}'
                 )
                 
                 accordions.append(accordion_item)
-                customer_index += 1
+                customer_index += len(group)
             
-            # 創建 Accordion 容器
-            accordion_container = html.Div([
-                dbc.Accordion(accordions, id='restock-accordion', start_collapsed=True)
-            ], style={'marginTop': '20px'})
+            # 創建完整的Accordion
+            accordion = dbc.Accordion(
+                accordions,
+                always_open=True,
+                style={'maxHeight': '70vh', 'overflowY': 'auto'}
+            )
             
-            return accordion_container, all_records, False, ""
+            return accordion, all_records, False, ""
         else:
             error_msg = f"API 請求失敗：{response.status_code}"
             return html.Div(), [], True, error_msg
@@ -451,7 +789,8 @@ def toggle_confirm_button(checkbox_values):
     has_selection = False
     if checkbox_values:
         for checkbox_value in checkbox_values:
-            if checkbox_value:  # 如果有勾選值
+            # checkbox_value 是陣列，檢查是否非空
+            if checkbox_value and len(checkbox_value) > 0:
                 has_selection = True
                 break
     
@@ -489,7 +828,8 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                     customer_id = checkbox_ids[i]['customer_id']
                     row_index = checkbox_ids[i]['row_index']
                     checkbox_key = f"{customer_id}-{row_index}"
-                    current_checkbox_state[checkbox_key] = bool(checkbox_value)
+                    # checkbox_value 是陣列，檢查是否包含 checkbox_key
+                    current_checkbox_state[checkbox_key] = checkbox_key in (checkbox_value or [])
         
         # 獲取被選中的項目資訊 - 從Store中的所有勾選狀態收集
         selected_items = []
@@ -513,16 +853,18 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                     'confidence_level': '信心度'
                 })
                 
-                # 按客戶ID分組數據
-                customer_groups = df.groupby(['客戶ID', '客戶名稱', '電話號碼'])
+                # 按預計補貨日期分組數據（與主要顯示邏輯一致）
+                date_groups = df.groupby('預計補貨日期')
                 
                 # 根據Store中的勾選狀態收集所有選中的項目
                 if current_checkbox_state:
-                    for (customer_id, customer_name, phone_number), group in customer_groups:
-                        group = group.sort_values('預計補貨日期', ascending=False)
+                    for prediction_date, group in date_groups:
+                        group = group.sort_values('客戶名稱', ascending=True)
                         group_list = list(group.iterrows())
                         
                         for row_index, (_, row) in enumerate(group_list):
+                            customer_id = row.get('客戶ID', '')
+                            customer_name = row.get('客戶名稱', '')
                             checkbox_key = f"{customer_id}-{row_index}"
                             if current_checkbox_state.get(checkbox_key, False):  # 如果這個項目被勾選
                                 selected_items.append({
@@ -572,7 +914,7 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                     html.Td(str(item['商品名稱']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
                     html.Td(str(item['預測日期']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
                     html.Td(str(item['預估數量']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
-                    html.Td(str(item['信心度']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'})
+                    html.Td(str(item['信心度']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap', 'color': get_confidence_color(item['信心度']), 'fontWeight': 'bold'})
                 ], style={'background-color': 'white'})
                 table_rows.append(table_row)
             
@@ -638,13 +980,27 @@ def toggle_confirm_button(radio_values):
     all_selected = all(value is not None for value in radio_values)
     return not all_selected  # 如果全部選擇則啟用（disabled=False），否則保持禁用
 
+# 設置確認按鈕的載入狀態
+@app.callback(
+    Output("confirm-status-btn-final", "loading"),
+    Input("confirm-status-btn-final", "n_clicks"),
+    prevent_initial_call=True
+)
+def set_loading_state(n_clicks):
+    if n_clicks:
+        return True
+    return dash.no_update
+
 # 處理確認狀態按鈕
 @app.callback(
     [Output("confirm-status-modal", "is_open", allow_duplicate=True),
      Output("restock-reminder-success-toast", "is_open"),
      Output("restock-reminder-success-toast", "children"),
      Output("restock-reminder-error-toast", "is_open", allow_duplicate=True),
-     Output("restock-reminder-error-toast", "children", allow_duplicate=True)],
+     Output("restock-reminder-error-toast", "children", allow_duplicate=True),
+     Output("table-container", "children", allow_duplicate=True),
+     Output("table-data-store", "data", allow_duplicate=True),
+     Output("confirm-status-btn-final", "loading", allow_duplicate=True)],
     Input("confirm-status-btn-final", "n_clicks"),
     [State({"type": "status-radio", "index": dash.ALL}, "value"),
      State("confirm-status-content", "children")],
@@ -686,17 +1042,17 @@ def handle_final_confirm(confirm_clicks, radio_values, modal_content):
                 'confidence_level': '信心度'
             })
             
-            customer_groups = checkbox_df.groupby(['客戶ID', '客戶名稱', '電話號碼'])
+            date_groups = checkbox_df.groupby('預計補貨日期')
             selected_items = []
             
             # 模擬原來選中的邏輯來獲取對應的項目
             checkbox_index = 0
-            for (customer_id, customer_name, phone_number), group in customer_groups:
-                group = group.sort_values('預計補貨日期', ascending=False)
+            for prediction_date, group in date_groups:
+                group = group.sort_values('客戶名稱', ascending=True)
                 for _, row in group.iterrows():
                     if checkbox_index < len(radio_values):
                         selected_items.append({
-                            '客戶ID': customer_id,
+                            '客戶ID': row.get('客戶ID', ''),
                             '商品ID': row.get('商品ID', '')
                         })
                     checkbox_index += 1
@@ -732,19 +1088,23 @@ def handle_final_confirm(confirm_clicks, radio_values, modal_content):
                         print(f"[ERROR] API 調用失敗: {api_error}")
                         failed_count += 1
             
-            # 根據結果返回適當的訊息
+            # 先關閉 modal 並顯示 toast，然後重新載入資料
             if failed_count == 0:
-                return False, True, f"成功更新 {success_count} 筆記錄", False, ""
+                # 重新載入表格資料
+                refreshed_table, refreshed_data, error_flag, error_msg = reload_table_data()
+                return False, True, f"成功更新 {success_count} 筆記錄", False, "", refreshed_table, refreshed_data, False
             elif success_count == 0:
-                return False, False, "", True, f"所有更新失敗，請稍後再試"
+                return False, False, "", True, f"所有更新失敗，請稍後再試", dash.no_update, dash.no_update, False
             else:
-                return False, True, f"成功更新 {success_count} 筆，失敗 {failed_count} 筆", False, ""
+                # 重新載入表格資料
+                refreshed_table, refreshed_data, error_flag, error_msg = reload_table_data()
+                return False, True, f"成功更新 {success_count} 筆，失敗 {failed_count} 筆", False, "", refreshed_table, refreshed_data, False
             
         except Exception as e:
             print(f"[ERROR] 處理確認狀態時發生錯誤: {e}")
-            return False, False, "", True, f"處理過程中發生錯誤: {str(e)}"
+            return False, False, "", True, f"處理過程中發生錯誤: {str(e)}", dash.no_update, dash.no_update, False
     
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 # 輕量的checkbox同步機制 - 只在需要時更新Store
 @app.callback(
@@ -769,7 +1129,8 @@ def sync_checkbox_to_store_on_change(checkbox_values, checkbox_ids, current_stat
                 customer_id = checkbox_ids[i]['customer_id']
                 row_index = checkbox_ids[i]['row_index']
                 checkbox_key = f"{customer_id}-{row_index}"
-                updated_state[checkbox_key] = bool(checkbox_value)
+                # checkbox_value 是陣列，檢查是否包含 checkbox_key
+                updated_state[checkbox_key] = checkbox_key in (checkbox_value or [])
     
     return updated_state
 
@@ -796,7 +1157,8 @@ def update_accordion_with_search(selected_customer_id, checkbox_values, checkbox
                 customer_id = checkbox_ids[i]['customer_id']
                 row_index = checkbox_ids[i]['row_index']
                 checkbox_key = f"{customer_id}-{row_index}"
-                updated_checkbox_state[checkbox_key] = bool(checkbox_value)
+                # checkbox_value 是陣列，檢查是否包含 checkbox_key
+                updated_checkbox_state[checkbox_key] = checkbox_key in (checkbox_value or [])
     
     # 重新獲取數據並重建 accordion
     try:
@@ -824,102 +1186,33 @@ def update_accordion_with_search(selected_customer_id, checkbox_values, checkbox
                 'confidence_level': '信心度'
             })
             
-            # 按客戶ID分組數據
-            customer_groups = df.groupby(['客戶ID', '客戶名稱', '電話號碼'])
+            # 按預計補貨日期分組數據
+            date_groups = df.groupby('預計補貨日期')
             
             # 創建Accordion
             accordions = []
             customer_index = 0
-            for (customer_id, customer_name, phone_number), group in customer_groups:
-                # 按預測日期排序
-                group = group.sort_values('預計補貨日期', ascending=False)
+            for prediction_date, group in date_groups:
+                # 按客戶名稱排序
+                group = group.sort_values('客戶名稱', ascending=True)
                 
-                # 建立標題
+                # 建立標題顯示日期
                 title_text = html.Span([
-                    html.Span(customer_id, style={'color': 'black', 'fontWeight': 'bold'}),
-                    html.Span(' '),
-                    html.Span(customer_name, style={'color': 'black'}),
-                    html.Span(f' ({phone_number})', style={'color': 'black'})
+                    html.Span(f'{prediction_date}', style={'color': 'black', 'fontWeight': 'bold'})
                 ])
                 
-                # 建立accordion內容 - 表格標題
-                table_header = html.Div([
-                    html.Div('選擇', style={'font-weight': 'bold', 'flex': '0 0 60px', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('商品ID', style={'font-weight': 'bold', 'flex': '1', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('商品名稱', style={'font-weight': 'bold', 'flex': '2', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('預計補貨日期', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('預估數量', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('信心度', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                    html.Div('操作', style={'font-weight': 'bold', 'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'})
-                ], style={'display': 'flex', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'align-items': 'center'})
+                # 創建表格
+                table, _ = create_restock_table(group, customer_index)
                 
-                # 建立資料行
-                table_rows = []
-                row_index = 0
-                for _, row in group.iterrows():
-                    # 從Store檢查此項目是否被選中
-                    checkbox_key = f"{customer_id}-{row_index}"
-                    checkbox_checked = []
-                    if updated_checkbox_state and updated_checkbox_state.get(checkbox_key, False):
-                        checkbox_checked = [checkbox_key]
-                    
-                    table_row = html.Div([
-                        html.Div([
-                            dcc.Checklist(
-                                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': row_index},
-                                options=[{'label': '', 'value': f"{customer_id}-{row_index}"}],
-                                value=checkbox_checked,
-                                style={'margin': '0'}
-                            )
-                        ], style={'flex': '0 0 60px', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('商品ID', '')), style={'flex': '1', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('商品名稱', '')), style={'flex': '2', 'padding': '10px', 'text-align': 'center', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('預計補貨日期', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('預估數量', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div(str(row.get('信心度', '')), style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-                        html.Div([
-                            dbc.Button("查看歷史補貨紀錄", 
-                                     id={'type': 'view-button', 'index': customer_index},
-                                     color="warning",
-                                     size="sm",
-                                     n_clicks=0,
-                                     style={'fontSize': '16px', 'whiteSpace': 'nowrap'})
-                        ], style={'text-align': 'center', 'flex': '1', 'padding': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'})
-                    ], style={'display': 'flex', 'background-color': 'white', 'border-bottom': '1px solid #eee', 'align-items': 'center', 'min-height': '50px'})
-                    
-                    table_rows.append(table_row)
-                    row_index += 1
-                
-                # 可滾動的內容區域
-                scrollable_content = html.Div([
-                    # 固定標題
-                    html.Div([
-                        table_header
-                    ], style={
-                        'position': 'sticky',
-                        'top': '0',
-                        'z-index': '100',
-                        'background-color': 'white',
-                        'border-bottom': '2px solid #ddd',
-                        'box-shadow': '0 2px 4px rgba(0,0,0,0.1)'
-                    }),
-                    # 滾動內容區域
-                    html.Div(table_rows, style={
-                        'max-height': '400px',
-                        'overflow-y': 'auto',
-                        'background-color': 'white'
-                    })
-                ], style={'background-color': 'white'})
-                
-                # 建立 Accordion Item 
+                # 建立 Accordion Item
                 accordion_item = dbc.AccordionItem(
-                    scrollable_content,
+                    table,
                     title=title_text,
-                    item_id=f'accordion-{customer_id}'
+                    item_id=f'accordion-{prediction_date}'
                 )
                 
                 accordions.append(accordion_item)
-                customer_index += 1
+                customer_index += len(group)
             
             return accordions, updated_checkbox_state
         else:
