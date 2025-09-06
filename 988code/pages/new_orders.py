@@ -143,7 +143,7 @@ def make_card_item(order):
             html.Div([
                 html.Div([
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if (order.get("status") == "0" and order.get("label") != "INQUIRY") else None
                 ]) if order.get("status") == "0" else html.Div(),
                 html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"})
             ], className="d-flex justify-content-between align-items-center mt-2")
