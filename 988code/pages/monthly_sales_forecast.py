@@ -268,10 +268,10 @@ def generate_hierarchical_table(data, selected_category):
             # 子項目標題行
             sub_header = html.Div([
                 html.Div("子類別", style={"flex": "1", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
-                html.Div("product_id", style={"flex": "1", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
-                html.Div("product_name", style={"flex": "2", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
-                html.Div("month_minus_1", style={"flex": "1", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
-                html.Div("prediction_value", style={"flex": "1", "padding": "10px", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"})
+                html.Div("產品id", style={"flex": "1", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
+                html.Div("產品名稱", style={"flex": "2", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
+                html.Div("上月預測銷量", style={"flex": "1", "padding": "10px", "borderRight": "1px solid #ddd", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"}),
+                html.Div("預測銷量", style={"flex": "1", "padding": "10px", "backgroundColor": "#f0f0f0", "fontWeight": "bold", "fontSize": "14px", "textAlign": "center"})
             ], style={"display": "flex", "border": "1px solid #ddd", "borderTop": "none"})
             
             details_content.append(sub_header)
