@@ -369,7 +369,8 @@ class CustomerUpdate(BaseModel):
     customer_name: Optional[str] = None
     address: Optional[str] = None
     notes: Optional[str] = None
-    delivery_schedule: Optional[str] = None  # 新增此欄位
+    delivery_schedule: Optional[str] = None
+    is_enabled: Optional[bool] = None
     user_role: str
 
 @router.put("/customer/{customer_id}")
@@ -379,6 +380,9 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
+
+    # 自動添加 updated_date
+    update_fields['updated_date'] = datetime.now().date()
 
     set_clause = ", ".join([f"{key} = %s" for key in update_fields])
     sql = f"UPDATE customer SET {set_clause} WHERE customer_id = %s"
@@ -1166,7 +1170,8 @@ class CustomerCreate(BaseModel):
     district: Optional[str] = None
     notes: Optional[str] = None
     delivery_schedule: Optional[str] = None
-    line_id: Optional[str] = None  
+    line_id: Optional[str] = None
+    is_enabled: Optional[bool] = True 
     user_role: str
 
 @router.post("/create_customer")
@@ -1183,11 +1188,11 @@ def create_customer(customer_data: CustomerCreate):
             port='5433'
         ) as conn:
             with conn.cursor() as cursor:
-                # 創建客戶
+                # 創建客戶 - 新增 is_enabled 和 updated_date 欄位
                 customer_sql = """
                 INSERT INTO customer 
-                (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id, is_enabled, updated_date) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 customer_params = (
                     customer_data.customer_id,
@@ -1198,7 +1203,9 @@ def create_customer(customer_data: CustomerCreate):
                     customer_data.district,
                     customer_data.notes,
                     customer_data.delivery_schedule,
-                    customer_data.line_id
+                    customer_data.line_id,
+                    customer_data.is_enabled if customer_data.is_enabled is not None else True,  # 預設為 True
+                    datetime.now().date()  # 設定為今天日期
                 )
                 cursor.execute(customer_sql, customer_params)
                 
