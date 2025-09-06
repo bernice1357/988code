@@ -326,7 +326,7 @@ layout = dbc.Container([
                     # 客戶ID
                     dbc.Row([
                         dbc.Label("客戶ID", width=4),
-                        dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=8)
+                        dbc.Col(dbc.Input(id="new-customer-id", type="text", placeholder="請輸入客戶ID"), width=8)
                     ], className="mb-3"),
                     # 客戶名稱
                     dbc.Row([
@@ -660,23 +660,44 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
         
         if order_id and original_order:
             # 檢查客戶是否存在於customer表中
-            if customer_id and not check_customer_exists(customer_id):
-                # 客戶不存在，需要創建新客戶
+            # 修改檢查邏輯
+            if customer_id:
+                # 如果有 customer_id，檢查是否存在
+                if not check_customer_exists(customer_id):
+                    # 客戶不存在，需要創建新客戶
+                    pending_order_data = {
+                        "order_id": order_id,
+                        "original_order": original_order,
+                        "customer_id": customer_id,  # 使用使用者輸入的 customer_id
+                        "customer_name": customer_name,
+                        "product_id": product_id,
+                        "purchase_record": purchase_record,
+                        "quantity": quantity,
+                        "unit_price": unit_price,
+                        "amount": amount,
+                        "user_role": user_role,
+                        "line_id": original_order.get("line_id")
+                    }
+                    return False, False, dash.no_update, False, False, dash.no_update, dash.no_update, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
+            else:
+                # 如果沒有 customer_id，也需要創建新客戶
                 pending_order_data = {
                     "order_id": order_id,
                     "original_order": original_order,
-                    "customer_id": customer_id,
+                    "customer_id": customer_id or "",  # 修改這裡：使用使用者輸入的 customer_id（即使是空字串）
                     "customer_name": customer_name,
                     "product_id": product_id,
                     "purchase_record": purchase_record,
                     "quantity": quantity,
                     "unit_price": unit_price,
                     "amount": amount,
-                    "user_role": user_role
+                    "user_role": user_role,
+                    "line_id": original_order.get("line_id")
                 }
-                return False, False, dash.no_update, False, False, dash.no_update, dash.no_update, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
-            current_time = datetime.now().isoformat()
+                return False, False, dash.no_update, False, False, dash.no_update, dash.no_update, True, pending_order_data, {"customer_id": customer_id or "", "customer_name": customer_name}
             
+            # 如果程式執行到這裡，表示客戶已存在，可以直接更新訂單
+            current_time = datetime.now().isoformat()
             # 準備更新資料
             update_data = {
                 "customer_id": customer_id,
@@ -746,27 +767,21 @@ def update_district_options(selected_city):
         return district_options, None
     return [], None
 
-# 開啟新客戶Modal時自動產生客戶ID
-@app.callback(
-    Output("new-customer-id", "value", allow_duplicate=True),
-    Input("create-customer-modal", "is_open"),
-    prevent_initial_call=True
-)
-def generate_new_customer_id(is_open):
-    if is_open:
-        return generate_customer_id()
-    return dash.no_update
 
-# 填入當前處理的客戶名稱
+
+# 填入當前處理的客戶資料
 @app.callback(
-    Output("new-customer-name", "value", allow_duplicate=True),
+    [Output("new-customer-name", "value", allow_duplicate=True),
+     Output("new-customer-id", "value", allow_duplicate=True)],  # 新增這個 Output
     Input("current-processing-order", "data"),
     prevent_initial_call=True
 )
-def set_customer_name(order_data):
-    if order_data and order_data.get("customer_name"):
-        return order_data["customer_name"]
-    return dash.no_update
+def set_customer_data(order_data):
+    if order_data:
+        customer_name = order_data.get("customer_name", "")
+        customer_id = order_data.get("customer_id", "")
+        return customer_name, customer_id
+    return dash.no_update, dash.no_update
 
 # 儲存新客戶
 @app.callback(
@@ -804,7 +819,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
         
         # 創建新客戶的資料
         new_customer_data = {
-            "customer_id": customer_id,
+            "customer_id": customer_id,  # 使用用戶輸入的客戶ID
             "customer_name": customer_name,
             "phone_number": phone,
             "address": full_address,
@@ -812,6 +827,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "district": district,
             "notes": notes,
             "delivery_schedule": delivery_schedule_str,
+            "line_id": pending_order.get("line_id"),
             "user_role": user_role or "viewer"
         }
         
@@ -822,8 +838,8 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                 # 客戶創建成功，繼續處理訂單
                 current_time = datetime.now().isoformat()
                 update_data = {
-                    "customer_id": pending_order["customer_id"],
-                    "customer_name": pending_order["customer_name"],
+                    "customer_id": customer_id,  # 修改這裡：使用用戶輸入的客戶ID
+                    "customer_name": customer_name,  # 使用用戶輸入的客戶名稱
                     "product_id": pending_order["product_id"],
                     "purchase_record": pending_order["purchase_record"],
                     "quantity": pending_order["quantity"],
@@ -841,7 +857,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                 if response.status_code == 200:
                     # 更新 order_transactions 表
                     transaction_data = {
-                        "customer_id": pending_order["customer_id"],
+                        "customer_id": customer_id,  # 修改這裡：使用用戶輸入的客戶ID
                         "product_id": pending_order["product_id"],
                         "quantity": pending_order["quantity"],
                         "unit_price": pending_order["unit_price"],

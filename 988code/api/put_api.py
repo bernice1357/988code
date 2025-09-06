@@ -1166,6 +1166,7 @@ class CustomerCreate(BaseModel):
     district: Optional[str] = None
     notes: Optional[str] = None
     delivery_schedule: Optional[str] = None
+    line_id: Optional[str] = None  
     user_role: str
 
 @router.post("/create_customer")
@@ -1174,8 +1175,8 @@ def create_customer(customer_data: CustomerCreate):
     
     sql = """
     INSERT INTO customer 
-    (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
     params = (
@@ -1186,7 +1187,8 @@ def create_customer(customer_data: CustomerCreate):
         customer_data.city,
         customer_data.district,
         customer_data.notes,
-        customer_data.delivery_schedule
+        customer_data.delivery_schedule,
+        customer_data.line_id
     )
     
     try:
