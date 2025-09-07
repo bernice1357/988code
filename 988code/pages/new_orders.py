@@ -54,7 +54,49 @@ def get_orders():
     response = requests.get("http://127.0.0.1:8000/get_new_orders")
     if response.status_code == 200:
         try:
-            return response.json()
+            orders = response.json()
+            # 過濾掉超過一天的已確認和已刪除訂單
+            filtered_orders = []
+            current_time = datetime.now()
+            
+            for order in orders:
+                status = order.get("status")
+                
+                # 如果是未確認狀態，直接保留
+                if status == "0":
+                    filtered_orders.append(order)
+                # 如果是已確認或已刪除狀態，檢查時間
+                elif status in ["1", "2"]:
+                    # 確定要檢查的時間欄位
+                    if status == "1":
+                        # 已確認訂單檢查確認時間
+                        time_field = order.get("confirmed_at")
+                    else:
+                        # 已刪除訂單檢查更新時間（刪除時間）
+                        time_field = order.get("updated_at")
+                    
+                    if time_field:
+                        try:
+                            # 處理時間格式
+                            if 'Z' in time_field:
+                                processed_time = datetime.fromisoformat(time_field.replace('Z', '+00:00'))
+                            else:
+                                processed_time = datetime.fromisoformat(time_field)
+                            
+                            # 如果時間在一天內，保留
+                            if (current_time - processed_time).days < 1:
+                                filtered_orders.append(order)
+                        except:
+                            # 如果時間解析失敗，保留訂單
+                            filtered_orders.append(order)
+                    else:
+                        # 如果沒有時間記錄，保留訂單
+                        filtered_orders.append(order)
+                else:
+                    # 其他狀態直接保留
+                    filtered_orders.append(order)
+            
+            return filtered_orders
         except requests.exceptions.JSONDecodeError:
             print("回應內容不是有效的 JSON")
             return []
