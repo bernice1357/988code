@@ -286,7 +286,11 @@ def check_editor_permission(user_role: str):
 class RecordUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
+    product_id: Optional[str] = None 
     purchase_record: Optional[str] = None
+    quantity: Optional[int] = None     
+    unit_price: Optional[float] = None    
+    amount: Optional[float] = None         
     updated_at: Optional[datetime] = None
     status: Optional[str] = None
     confirmed_by: Optional[str] = None
@@ -296,6 +300,7 @@ class RecordUpdate(BaseModel):
 class OrderTransactionCreate(BaseModel):
     customer_id: Optional[str] = None
     product_id: Optional[str] = None
+    product_name: Optional[str] = None      
     quantity: Optional[int] = None
     unit_price: Optional[float] = None
     amount: Optional[float] = None
@@ -328,10 +333,11 @@ def update_temp(id: int, update_data: RecordUpdate):
 
 # 新增訂單交易記錄
 @router.post("/order_transactions")
+@router.post("/order_transactions")
 def create_order_transaction(transaction_data: OrderTransactionCreate):
     check_editor_permission(transaction_data.user_role)
     
-    # 生成8個字元的transaction_id（數字+小寫英文）
+    # 生成8個字元的transaction_id
     def generate_transaction_id():
         characters = string.ascii_lowercase + string.digits
         return ''.join(random.choice(characters) for _ in range(8))
@@ -340,14 +346,15 @@ def create_order_transaction(transaction_data: OrderTransactionCreate):
     
     sql = """
     INSERT INTO order_transactions 
-    (transaction_id, customer_id, product_id, quantity, unit_price, amount, transaction_date, currency, document_type) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    (transaction_id, customer_id, product_id, product_name, quantity, unit_price, amount, transaction_date, currency, document_type) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
     params = (
         transaction_id,
         transaction_data.customer_id,
         transaction_data.product_id,
+        transaction_data.product_name,    # 新增這行
         transaction_data.quantity,
         transaction_data.unit_price,
         transaction_data.amount,
