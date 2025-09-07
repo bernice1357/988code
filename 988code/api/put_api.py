@@ -1063,8 +1063,7 @@ def update_rag_title(update_data: RAGTitleUpdate):
         raise HTTPException(status_code=500, detail="標題更新失敗")
     
 class RestockPredictionStatusUpdate(BaseModel):
-    customer_id: str
-    product_id: str
+    prediction_id: int
     prediction_status: str
     user_role: str
 
@@ -1078,20 +1077,19 @@ def update_restock_prediction_status(update_data: RestockPredictionStatusUpdate)
         raise HTTPException(status_code=400, detail="prediction_status 必須是 'fulfilled' 或 'cancelled'")
     
     try:
-        # 根據 customer_id 和 product_id 更新 prophet_predictions 表
+        # 根據 prediction_id 更新 prophet_predictions 表
         sql = """
         UPDATE prophet_predictions 
         SET prediction_status = %s 
-        WHERE customer_id = %s AND product_id = %s
+        WHERE prediction_id = %s
         """
-        params = (update_data.prediction_status, update_data.customer_id, update_data.product_id)
+        params = (update_data.prediction_status, update_data.prediction_id)
         
         update_data_to_db(sql, params)
         
         return {
             "message": "補貨預測狀態更新成功",
-            "customer_id": update_data.customer_id,
-            "product_id": update_data.product_id,
+            "prediction_id": update_data.prediction_id,
             "prediction_status": update_data.prediction_status
         }
         

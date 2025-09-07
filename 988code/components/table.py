@@ -60,7 +60,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'zIndex': 10,
                     'backgroundColor': '#edf7ff',
                     'border': '1px solid #ccc',
-                    'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none'
+                    'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none',
+                    'overflow': 'hidden'
                 }
             )
             row_cells.append(checkbox)
@@ -90,7 +91,10 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'whiteSpace': 'nowrap',
                 'backgroundColor': 'white',
                 'width': f'{cell_width}px',
-                'minWidth': f'{cell_width}px'
+                'minWidth': f'{cell_width}px',
+                'maxWidth': f'{cell_width}px',
+                'overflow': 'hidden',
+                'textOverflow': 'ellipsis'
             }
             
             
@@ -113,7 +117,9 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'backgroundColor': "#edf7ff",
                     'width': f'{sticky_widths[col]}px',
                     'minWidth': f'{sticky_widths[col]}px',
-                    'maxWidth': f'{sticky_widths[col]}px'
+                    'maxWidth': f'{sticky_widths[col]}px',
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis'
                 })
                 
                 # 確保使用統一的寬度計算
@@ -155,7 +161,10 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'backgroundColor': 'white',
                         'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
                         'width': f'{button_width}px',
-                        'minWidth': f'{button_width}px'
+                        'minWidth': f'{button_width}px',
+                        'maxWidth': f'{button_width}px',
+                        'overflow': 'hidden',
+                        'textOverflow': 'ellipsis'
                     }
                 )
             )

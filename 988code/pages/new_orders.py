@@ -152,68 +152,74 @@ def make_card_item(order):
 
 def get_modal_fields(customer_id, customer_name, purchase_record, product_id=None, quantity=None, unit_price=None, amount=None):
     # 不管有沒有customer_id，都顯示所有欄位
-    return [
-        dbc.Row([
-            dbc.Label("客戶 ID", width=3),
-            dbc.Col(dbc.Input(
+    return dbc.Form([
+        html.Div([
+            dbc.Label("客戶 ID", html_for="customer-id", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="customer-id", 
                 type="text",
                 value=customer_id if customer_id else "",
-                disabled=bool(customer_id)  # 有customer_id就禁用編輯
-            ), width=9)
+                disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                style={"width": "500px"}
+            )
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("客戶名稱", width=3),
-            dbc.Col(dbc.Input(
+        html.Div([
+            dbc.Label("客戶名稱", html_for="customer-name", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="customer-name", 
                 type="text",
                 value=customer_name if customer_name else "",
-                disabled=bool(customer_id)  # 有customer_id就禁用編輯
-            ), width=9)
+                disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                style={"width": "500px"}
+            )
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("產品 ID", width=3),
-            dbc.Col(dbc.Input(
+        html.Div([
+            dbc.Label("產品 ID", html_for="product-id", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="product-id", 
                 type="text",
-                value=product_id if product_id else ""
-            ), width=9)
+                value=product_id if product_id else "",
+                style={"width": "500px"}
+            )
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("購買品項", width=3),
-            dbc.Col(dbc.Input(id="purchase-record", value=purchase_record), width=9)
+        html.Div([
+            dbc.Label("購買品項", html_for="purchase-record", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(id="purchase-record", value=purchase_record, style={"width": "500px"})
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("數量", width=3),
-            dbc.Col(dbc.Input(
+        html.Div([
+            dbc.Label("數量", html_for="quantity", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="quantity", 
                 type="number",
                 value=quantity if quantity else "",
                 min=0,
-                step=1
-            ), width=9)
+                step=1,
+                style={"width": "500px"}
+            )
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("單價", width=3),
-            dbc.Col(dbc.Input(
+        html.Div([
+            dbc.Label("單價", html_for="unit-price", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="unit-price", 
                 type="number",
                 value=unit_price if unit_price else "",
                 min=0,
-                step=0.01
-            ), width=9)
+                step=0.01,
+                style={"width": "500px"}
+            )
         ], className="mb-3"),
-        dbc.Row([
-            dbc.Label("金額", width=3),
-            dbc.Col(dbc.Input(
+        html.Div([
+            dbc.Label("金額", html_for="amount", className="form-label", style={"fontSize": "14px"}),
+            dbc.Input(
                 id="amount", 
                 type="number",
                 value=amount if amount else "",
                 min=0,
-                step=0.01
-            ), width=9)
+                step=0.01,
+                style={"width": "500px"}
+            )
         ], className="mb-3")
-    ]
+    ])
 
 def group_orders_by_customer(orders):
     """按客戶名稱分組訂單"""
@@ -304,7 +310,7 @@ layout = dbc.Container([
             dbc.Button("取消", id="cancel-modal", color="secondary", outline=True),
             dbc.Button("確認", id="submit-confirm", color="primary")
         ])
-    ], id="confirm-modal", is_open=False, centered=True),
+    ], id="confirm-modal", is_open=False, size="xl", centered=True, style={"fontSize": "18px"}),
     dbc.Modal([
         dbc.ModalHeader("確認刪除", style={"fontWeight": "bold", "fontSize": "24px"}),
         dbc.ModalBody(id="delete-modal-body", children="確定要刪除這筆訂單嗎？"),

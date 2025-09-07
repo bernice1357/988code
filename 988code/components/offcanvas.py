@@ -47,7 +47,7 @@ def create_search_offcanvas(
                 htmlFor=field_id, 
                 style={"fontSize": "0.9rem", "marginBottom": "4px"}
             )
-        ], className="mb-3")
+        ], className="mb-3", style={"width": "100%"})
         
         # 根据类型创建不同的输入组件
         if field.get("type") == "dropdown":
@@ -56,6 +56,21 @@ def create_search_offcanvas(
                 options=field.get("options", []),
                 placeholder=field.get("placeholder", ""),
                 className="w-100"
+            )
+        elif field.get("type") == "date":
+            component = dbc.Input(
+                id=field_id,
+                type="date",
+                value=field.get("value", ""),
+                min="1900-01-01",
+                max="2100-12-31",
+                className="w-100",
+                style={
+                    "width": "100%",
+                    "minWidth": "366.59px",
+                    "maxWidth": "100%",
+                    "boxSizing": "border-box"
+                }
             )
         elif field.get("type") == "date_range":
             # 为开始和结束日期创建唯一的 ID
@@ -144,7 +159,7 @@ def create_search_offcanvas(
     
     # Offcanvas
     offcanvas = dbc.Offcanvas(
-        offcanvas_children,
+        html.Div(offcanvas_children, style={"width": "100%"}),
         id=offcanvas_id,
         title=title,
         is_open=False,
@@ -229,6 +244,9 @@ def register_offcanvas_callback(
                         elif field.get("type") == "dropdown":
                             # 下拉框返回 None
                             default_values.append(None)
+                        elif field.get("type") == "date":
+                            # 單一日期選擇器返回空字符串
+                            default_values.append("")
                         else:
                             # 其他字段返回空字符串
                             default_values.append("")
