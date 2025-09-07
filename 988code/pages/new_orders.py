@@ -678,8 +678,8 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                         "customer_name": customer_name,
                         "product_id": product_id,
                         "purchase_record": purchase_record,
-                        "quantity": quantity,
-                        "unit_price": unit_price,
+                        "quantity": quantity,        
+                        "unit_price": unit_price,    
                         "amount": amount,
                         "user_role": user_role,
                         "line_id": original_order.get("line_id")
@@ -731,6 +731,7 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                         transaction_data = {
                             "customer_id": customer_id,
                             "product_id": product_id,
+                            "product_name": purchase_record,
                             "quantity": quantity,
                             "unit_price": unit_price,
                             "amount": amount,
@@ -825,7 +826,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
         
         # 創建新客戶的資料
         new_customer_data = {
-            "customer_id": customer_id,  # 使用用戶輸入的客戶ID
+            "customer_id": customer_id,
             "customer_name": customer_name,
             "phone_number": phone,
             "address": full_address,
@@ -833,7 +834,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "district": district,
             "notes": notes,
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id"),
+            "line_id": pending_order.get("line_id"),  # 確保傳遞 line_id
             "user_role": user_role or "viewer"
         }
         
@@ -865,6 +866,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                     transaction_data = {
                         "customer_id": customer_id,  # 修改這裡：使用用戶輸入的客戶ID
                         "product_id": pending_order["product_id"],
+                        "product_name": pending_order["purchase_record"],
                         "quantity": pending_order["quantity"],
                         "unit_price": pending_order["unit_price"],
                         "amount": pending_order["amount"],
@@ -901,3 +903,22 @@ def skip_customer_creation(n_clicks):
     if n_clicks:
         return False, False, True, "已跳過客戶創建，請重新確認訂單"
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+
+# 新增：數量×單價自動計算金額
+@app.callback(
+    Output("amount", "value"),
+    [Input("quantity", "value"),
+     Input("unit-price", "value")],
+    prevent_initial_call=True
+)
+def calculate_amount(quantity, unit_price):
+    if quantity is not None and unit_price is not None:
+        try:
+            quantity = float(quantity) if quantity != "" else 0
+            unit_price = float(unit_price) if unit_price != "" else 0
+            amount = quantity * unit_price
+            return round(amount, 2)  # 四捨五入到小數點後兩位
+        except (ValueError, TypeError):
+            return None
+    return None

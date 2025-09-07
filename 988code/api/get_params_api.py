@@ -323,3 +323,25 @@ def check_customer_exists(customer_id: str):
     except Exception as e:
         print(f"[API ERROR] check_customer_exists: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 根據 customer_id 獲取對應的 line_id
+@router.get("/get_line_id_by_customer/{customer_id}")
+def get_line_id_by_customer(customer_id: str):
+    try:
+        query = "SELECT line_id, created_date, notes FROM customer_line_mapping WHERE customer_id = %s"
+        df = get_data_from_db_with_params(query, (customer_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 根據 line_id 獲取對應的 customer_id
+@router.get("/get_customer_id_by_line/{line_id}")
+def get_customer_id_by_line(line_id: str):
+    try:
+        query = "SELECT customer_id, created_date, notes FROM customer_line_mapping WHERE line_id = %s"
+        df = get_data_from_db_with_params(query, (line_id,))
+        return df.to_dict(orient="records")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

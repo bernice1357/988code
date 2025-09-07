@@ -286,7 +286,11 @@ def check_editor_permission(user_role: str):
 class RecordUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
+    product_id: Optional[str] = None 
     purchase_record: Optional[str] = None
+    quantity: Optional[int] = None     
+    unit_price: Optional[float] = None    
+    amount: Optional[float] = None         
     updated_at: Optional[datetime] = None
     status: Optional[str] = None
     confirmed_by: Optional[str] = None
@@ -296,6 +300,7 @@ class RecordUpdate(BaseModel):
 class OrderTransactionCreate(BaseModel):
     customer_id: Optional[str] = None
     product_id: Optional[str] = None
+    product_name: Optional[str] = None      
     quantity: Optional[int] = None
     unit_price: Optional[float] = None
     amount: Optional[float] = None
@@ -328,10 +333,11 @@ def update_temp(id: int, update_data: RecordUpdate):
 
 # 新增訂單交易記錄
 @router.post("/order_transactions")
+@router.post("/order_transactions")
 def create_order_transaction(transaction_data: OrderTransactionCreate):
     check_editor_permission(transaction_data.user_role)
     
-    # 生成8個字元的transaction_id（數字+小寫英文）
+    # 生成8個字元的transaction_id
     def generate_transaction_id():
         characters = string.ascii_lowercase + string.digits
         return ''.join(random.choice(characters) for _ in range(8))
@@ -340,14 +346,15 @@ def create_order_transaction(transaction_data: OrderTransactionCreate):
     
     sql = """
     INSERT INTO order_transactions 
-    (transaction_id, customer_id, product_id, quantity, unit_price, amount, transaction_date, currency, document_type) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    (transaction_id, customer_id, product_id, product_name, quantity, unit_price, amount, transaction_date, currency, document_type) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     
     params = (
         transaction_id,
         transaction_data.customer_id,
         transaction_data.product_id,
+        transaction_data.product_name,    # 新增這行
         transaction_data.quantity,
         transaction_data.unit_price,
         transaction_data.amount,
@@ -369,7 +376,8 @@ class CustomerUpdate(BaseModel):
     customer_name: Optional[str] = None
     address: Optional[str] = None
     notes: Optional[str] = None
-    delivery_schedule: Optional[str] = None  # 新增此欄位
+    delivery_schedule: Optional[str] = None
+    is_enabled: Optional[bool] = None
     user_role: str
 
 @router.put("/customer/{customer_id}")
@@ -379,6 +387,9 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
+
+    # 自動添加 updated_date
+    update_fields['updated_date'] = datetime.now().date()
 
     set_clause = ", ".join([f"{key} = %s" for key in update_fields])
     sql = f"UPDATE customer SET {set_clause} WHERE customer_id = %s"
@@ -1164,34 +1175,64 @@ class CustomerCreate(BaseModel):
     district: Optional[str] = None
     notes: Optional[str] = None
     delivery_schedule: Optional[str] = None
-    line_id: Optional[str] = None  
+    line_id: Optional[str] = None
+    is_enabled: Optional[bool] = True 
     user_role: str
 
 @router.post("/create_customer")
 def create_customer(customer_data: CustomerCreate):
     check_editor_permission(customer_data.user_role)
     
-    sql = """
-    INSERT INTO customer 
-    (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    
-    params = (
-        customer_data.customer_id,
-        customer_data.customer_name,
-        customer_data.phone_number,
-        customer_data.address,
-        customer_data.city,
-        customer_data.district,
-        customer_data.notes,
-        customer_data.delivery_schedule,
-        customer_data.line_id
-    )
-    
     try:
-        update_data_to_db(sql, params)
+        # 使用事務確保資料一致性
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                # 創建客戶 - 新增 is_enabled 和 updated_date 欄位
+                customer_sql = """
+                INSERT INTO customer 
+                (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id, is_enabled, updated_date) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                customer_params = (
+                    customer_data.customer_id,
+                    customer_data.customer_name,
+                    customer_data.phone_number,
+                    customer_data.address,
+                    customer_data.city,
+                    customer_data.district,
+                    customer_data.notes,
+                    customer_data.delivery_schedule,
+                    customer_data.line_id,
+                    customer_data.is_enabled if customer_data.is_enabled is not None else True,  # 預設為 True
+                    datetime.now().date()  # 設定為今天日期
+                )
+                cursor.execute(customer_sql, customer_params)
+                
+                # 如果有 line_id，則寫入 customer_line_mapping 表
+                if customer_data.line_id:
+                    mapping_sql = """
+                    INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes) 
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (customer_id, line_id) DO NOTHING
+                    """
+                    mapping_params = (
+                        customer_data.customer_id,
+                        customer_data.line_id,
+                        datetime.now(),
+                        f"從新訂單系統創建客戶時建立對應關係 - {customer_data.customer_name}"
+                    )
+                    cursor.execute(mapping_sql, mapping_params)
+                
+                # 提交事務
+                conn.commit()
+        
         return {"message": "客戶創建成功", "customer_id": customer_data.customer_id}
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[ERROR] 客戶創建失敗: {e}")
         raise HTTPException(status_code=500, detail="客戶創建失敗")
