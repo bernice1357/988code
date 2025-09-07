@@ -331,7 +331,16 @@ layout = dbc.Container([
     warning_toast("new_orders", message=""),
     dcc.Store(id='user-role-store'),
     html.Div([
-        html.Div(),  # 空的div佔位
+        # 左側：新增訂單按鈕
+        dbc.Button(
+            ["新增訂單"],
+            id="add-new-order-btn",
+            color="success",
+            outline=True,
+            size="sm",
+            style={"fontWeight": "500","fontSize": "16px"}
+        ),
+        # 右側：篩選按鈕群組
         dbc.ButtonGroup([
             dbc.Button("全部", id="filter-all", color="primary", outline=False),
             dbc.Button("未確認", id="filter-unconfirmed", color="primary", outline=True),
@@ -339,6 +348,7 @@ layout = dbc.Container([
             dbc.Button("已刪除", id="filter-deleted", color="primary", outline=True)
         ])
     ], className="d-flex justify-content-between align-items-center mb-4"),
+
     dcc.Loading(
         id="loading-orders",
         type="dot",
@@ -370,6 +380,18 @@ layout = dbc.Container([
             dbc.Button("刪除", id="submit-delete", color="danger")
         ])
     ], id="delete-modal", is_open=False),
+
+    # **新增訂單 Modal - 在這裡添加**
+    dbc.Modal([
+        dbc.ModalHeader("新增訂單", style={"fontWeight": "bold", "fontSize": "24px"}),
+        dbc.ModalBody([
+            get_modal_fields("", "", "", None, None, None, None)
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("取消", id="cancel-add-order", color="secondary", outline=True),
+            dbc.Button("新增", id="submit-add-order", color="success")
+        ])
+    ], id="add-order-modal", is_open=False, size="xl", centered=True, style={"fontSize": "18px"}),
 
     # 新增客戶創建 Modal
     dbc.Modal([
@@ -973,3 +995,81 @@ def calculate_amount(quantity, unit_price):
         except (ValueError, TypeError):
             return None
     return None
+
+
+# 開啟新增訂單 Modal
+@app.callback(
+    Output("add-order-modal", "is_open", allow_duplicate=True),
+    Input("add-new-order-btn", "n_clicks"),
+    [State("add-order-modal", "is_open")],
+    prevent_initial_call=True
+)
+def toggle_add_order_modal(n_clicks, is_open):
+    if n_clicks:
+        return not is_open
+    return is_open
+
+# 關閉新增訂單 Modal
+@app.callback(
+    Output("add-order-modal", "is_open", allow_duplicate=True),
+    Input("cancel-add-order", "n_clicks"),
+    prevent_initial_call=True
+)
+def close_add_order_modal(n_clicks):
+    if n_clicks:
+        return False
+    return dash.no_update
+
+# 處理新增訂單提交（您需要根據實際需求實作）
+@app.callback(
+    [Output("add-order-modal", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "children", allow_duplicate=True),
+     Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("orders-container", "children", allow_duplicate=True)],
+    Input("submit-add-order", "n_clicks"),
+    [State("customer-id", "value"),
+     State("customer-name", "value"),
+     State("product-id", "value"),
+     State("purchase-record", "value"),
+     State("quantity", "value"),
+     State("unit-price", "value"),
+     State("amount", "value"),
+     State("user-role-store", "data")],
+    prevent_initial_call=True
+)
+def submit_add_order(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, user_role):
+    if n_clicks:
+        # 驗證必填欄位
+        if not purchase_record:
+            return dash.no_update, False, dash.no_update, True, dash.no_update
+        
+        # 準備新增訂單資料
+        new_order_data = {
+            "customer_id": customer_id,
+            "customer_name": customer_name,
+            "product_id": product_id,
+            "purchase_record": purchase_record,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "amount": amount,
+            "user_role": user_role or "viewer"
+        }
+        
+        try:
+            response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
+            if response.status_code == 200:
+                # 重新載入訂單列表
+                orders = get_orders()
+                updated_orders = create_grouped_orders_layout(orders)
+                return False, True, "訂單新增成功", False, updated_orders
+            elif response.status_code == 403:
+                return dash.no_update, False, dash.no_update, True, dash.no_update
+            else:
+                return dash.no_update, False, dash.no_update, True, dash.no_update
+        except Exception as e:
+            print(f"API 呼叫失敗：{e}")
+            return dash.no_update, False, dash.no_update, True, dash.no_update
+    
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
