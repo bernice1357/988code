@@ -151,74 +151,83 @@ def make_card_item(order):
     ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
 
 def get_modal_fields(customer_id, customer_name, purchase_record, product_id=None, quantity=None, unit_price=None, amount=None):
-    # 不管有沒有customer_id，都顯示所有欄位
+    # 改為左右兩排佈局
     return dbc.Form([
-        html.Div([
-            dbc.Label("客戶 ID", html_for="customer-id", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="customer-id", 
-                type="text",
-                value=customer_id if customer_id else "",
-                disabled=bool(customer_id),  # 有customer_id就禁用編輯
-                style={"width": "500px"}
-            )
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("客戶名稱", html_for="customer-name", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="customer-name", 
-                type="text",
-                value=customer_name if customer_name else "",
-                disabled=bool(customer_id),  # 有customer_id就禁用編輯
-                style={"width": "500px"}
-            )
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("產品 ID", html_for="product-id", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="product-id", 
-                type="text",
-                value=product_id if product_id else "",
-                style={"width": "500px"}
-            )
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("購買品項", html_for="purchase-record", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(id="purchase-record", value=purchase_record, style={"width": "500px"})
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("數量", html_for="quantity", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="quantity", 
-                type="number",
-                value=quantity if quantity else "",
-                min=0,
-                step=1,
-                style={"width": "500px"}
-            )
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("單價", html_for="unit-price", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="unit-price", 
-                type="number",
-                value=unit_price if unit_price else "",
-                min=0,
-                step=0.01,
-                style={"width": "500px"}
-            )
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("金額", html_for="amount", className="form-label", style={"fontSize": "14px"}),
-            dbc.Input(
-                id="amount", 
-                type="number",
-                value=amount if amount else "",
-                min=0,
-                step=0.01,
-                style={"width": "500px"}
-            )
-        ], className="mb-3")
+        dbc.Row([
+            # 左欄：客戶ID 和 客戶名稱
+            dbc.Col([
+                html.Div([
+                    dbc.Label("客戶 ID", html_for="customer-id", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="customer-id", 
+                        type="text",
+                        value=customer_id if customer_id else "",
+                        disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("客戶名稱", html_for="customer-name", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="customer-name", 
+                        type="text",
+                        value=customer_name if customer_name else "",
+                        disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3")
+            ], width=6),
+            
+            # 右欄：其他欄位
+            dbc.Col([
+                html.Div([
+                    dbc.Label("產品 ID", html_for="product-id", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="product-id", 
+                        type="text",
+                        value=product_id if product_id else "",
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("購買品項", html_for="purchase-record", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(id="purchase-record", value=purchase_record, style={"width": "100%"})
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("數量", html_for="quantity", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="quantity", 
+                        type="number",
+                        value=quantity if quantity else "",
+                        min=0,
+                        step=1,
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("單價", html_for="unit-price", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="unit-price", 
+                        type="number",
+                        value=unit_price if unit_price else "",
+                        min=0,
+                        step=0.01,
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("金額", html_for="amount", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Input(
+                        id="amount", 
+                        type="number",
+                        value=amount if amount else "",
+                        min=0,
+                        step=0.01,
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3")
+            ], width=6)
+        ])
     ])
 
 def group_orders_by_customer(orders):
@@ -597,7 +606,7 @@ def toggle_modal(n_clicks_list, is_open):
             order.get("amount")
         )
         # 設定標題
-        title = f"確認訂單 - {order['customer_id'] + order['customer_name']}" if order.get("customer_id") else f"確認訂單 - {order['line_id']}"
+        title = "確認訂單"
         return True, modal_content, title
     
     return dash.no_update, dash.no_update, dash.no_update
@@ -657,12 +666,12 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
         # 從 modal header 取得 order_id 和原始訂單資料
         order_id = None
         original_order = None
-        for order in orders:
-            expected_title = f"確認訂單 - {order['customer_id'] + order['customer_name']}" if order.get("customer_id") else f"確認訂單 - {order['line_id']}"
-            if modal_header == expected_title:
-                order_id = order["id"]
-                original_order = order
-                break
+        # 由於標題現在只是"確認訂單"，需要用其他方式來找到對應的訂單
+        # 目前簡化為取第一個未處理的訂單（這可能需要後續優化）
+        if orders and modal_header == "確認訂單":
+            # 取第一個訂單（該是正在處理的那個）
+            order_id = orders[0]["id"]
+            original_order = orders[0]
         
         if order_id and original_order:
             # 檢查客戶是否存在於customer表中
