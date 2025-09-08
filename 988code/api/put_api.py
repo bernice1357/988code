@@ -312,13 +312,17 @@ class OrderTransactionCreate(BaseModel):
 def update_temp(id: int, update_data: RecordUpdate):
     check_editor_permission(update_data.user_role)
     update_fields = update_data.dict(exclude_none=True, exclude={'user_role'})
-
+    
+    print(f"更新訂單ID: {id}, 更新欄位: {update_fields}")  # 添加調試
+    
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
 
     set_clause = ", ".join([f"{key} = %s" for key in update_fields])
     sql = f"UPDATE temp_customer_records SET {set_clause} WHERE id = %s"
     params = tuple(update_fields.values()) + (id,)
+    
+    print(f"執行SQL: {sql}, 參數: {params}")  # 添加調試
 
     try:
         update_data_to_db(sql, params)

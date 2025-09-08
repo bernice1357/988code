@@ -185,7 +185,7 @@ def make_card_item(order):
             html.Div([
                 html.Div([
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if (order.get("status") == "0" and order.get("label") != "INQUIRY") else None
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
                 ]) if order.get("status") == "0" else html.Div(),
                 html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"})
             ], className="d-flex justify-content-between align-items-center mt-2")
@@ -604,17 +604,28 @@ def close_delete_modal(n_clicks):
 )
 def confirm_delete(n_clicks, modal_body, user_role):
     if n_clicks:
+        print(f"收到刪除確認，modal_body: {modal_body}")  # 添加調試
         orders = get_orders()
-        # 從modal body取得order資訊並找到order_id
         order_id = None
         for order in orders:
-            customer_info = order['customer_id'] + order['customer_name'] if order.get("customer_id") else order['line_id']
+            # 使用與 toggle_delete_modal 相同的邏輯
+            if order.get("customer_id") and order.get("customer_name"):
+                customer_info = order['customer_id'] + order['customer_name']
+            elif order.get("line_id"):
+                customer_info = order['line_id']
+            else:
+                customer_info = "未知客戶"
+            
             expected_message = f"確定要刪除訂單：{customer_info} 嗎？"
+            print(f"檢查訂單ID {order['id']}: expected='{expected_message}', actual='{modal_body}'")  # 添加調試
+            
             if modal_body == expected_message:
                 order_id = order["id"]
+                print(f"找到匹配的訂單ID: {order_id}")  # 添加調試
                 break
         
         if order_id:
+            print(f"準備刪除訂單ID: {order_id}")
             current_time = datetime.now().isoformat()
             
             # 準備更新資料，只更新status為2
@@ -623,10 +634,15 @@ def confirm_delete(n_clicks, modal_body, user_role):
                 "updated_at": current_time
             }
             
+            print(f"更新數據: {update_data}")
+            
             # 呼叫API更新資料
             try:
                 update_data["user_role"] = user_role or "viewer"
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
+                print(f"API回應狀態碼: {response.status_code}")
+                print(f"API回應內容: {response.text}")
+                
                 if response.status_code == 200:
                     print("訂單刪除成功")
                     orders = get_orders()
@@ -640,8 +656,10 @@ def confirm_delete(n_clicks, modal_body, user_role):
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
                 return False, False, dash.no_update, True, False, "", dash.no_update
-        
-        return False, False, dash.no_update, True, False, "", dash.no_update
+        else:
+            print("未找到匹配的訂單ID")
+            return False, False, dash.no_update, True, False, "", dash.no_update
+            
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
@@ -1113,4 +1131,3 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
             return dash.no_update, False, dash.no_update, True, dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
