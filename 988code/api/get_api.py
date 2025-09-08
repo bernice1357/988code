@@ -931,3 +931,26 @@ def check_customer_exists(customer_id: str):
     except Exception as e:
         print(f"[API ERROR] check_customer_exists: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+    
+# 在 get_api.py 或 get_params_api.py 中添加
+@router.get("/get_customer_notes/{customer_id}")
+def get_customer_notes(customer_id: str):
+    try:
+        query = "SELECT notes FROM customer WHERE customer_id = %s"
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (customer_id,))
+                result = cursor.fetchone()
+                if result:
+                    return {"notes": result[0] if result[0] else ""}
+                else:
+                    return {"notes": ""}
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")

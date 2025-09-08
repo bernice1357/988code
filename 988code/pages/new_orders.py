@@ -193,6 +193,16 @@ def make_card_item(order):
     ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
 
 def get_modal_fields(customer_id, customer_name, purchase_record, product_id=None, quantity=None, unit_price=None, amount=None):
+    # 獲取客戶備註
+    customer_notes = ""
+    if customer_id:
+        try:
+            notes_response = requests.get(f"http://127.0.0.1:8000/get_customer_notes/{customer_id}")
+            if notes_response.status_code == 200:
+                notes_data = notes_response.json()
+                customer_notes = notes_data.get("notes", "")
+        except:
+            customer_notes = ""
     # 改為左右兩排佈局
     return dbc.Form([
         dbc.Row([
@@ -215,6 +225,16 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                         type="text",
                         value=customer_name if customer_name else "",
                         disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("歷史備註", html_for="customer-notes", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Textarea(
+                        id="customer-notes",
+                        value=customer_notes,
+                        rows=4,
+                        placeholder="請輸入客戶備註...",
                         style={"width": "100%"}
                     )
                 ], className="mb-3")
@@ -684,6 +704,7 @@ def toggle_modal(n_clicks_list, is_open):
     Input("cancel-modal", "n_clicks"),
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("customer-notes", "value"),
      State("product-id", "value"),
      State("purchase-record", "value"),
      State("quantity", "value"),
@@ -694,7 +715,7 @@ def toggle_modal(n_clicks_list, is_open):
     prevent_initial_call=True
 )
 
-def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
+def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
         # 直接關閉確認modal，不執行任何其他操作
         return False, False, dash.no_update, dash.no_update
@@ -715,6 +736,7 @@ def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_recor
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("customer-notes", "value"),
      State("product-id", "value"),
      State("purchase-record", "value"),
      State("quantity", "value"),
@@ -724,35 +746,44 @@ def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_recor
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
+def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
         orders = get_orders()
-        # 從 modal header 取得 order_id 和原始訂單資料
         order_id = None
         original_order = None
-        # 由於標題現在只是"確認訂單"，需要用其他方式來找到對應的訂單
-        # 目前簡化為取第一個未處理的訂單（這可能需要後續優化）
         if orders and modal_header == "確認訂單":
-            # 取第一個訂單（該是正在處理的那個）
             order_id = orders[0]["id"]
             original_order = orders[0]
         
         if order_id and original_order:
+            # 如果有customer_id且存在，更新客戶備註
+            if customer_id and check_customer_exists(customer_id):
+                try:
+                    # 更新客戶備註
+                    notes_update_data = {
+                        "notes": customer_notes,
+                        "user_role": user_role
+                    }
+                    notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
+                    if notes_response.status_code != 200:
+                        print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
+                except Exception as e:
+                    print(f"客戶備註更新異常：{str(e)}")
+            
             # 檢查客戶是否存在於customer表中
-            # 修改檢查邏輯
             if customer_id:
-                # 如果有 customer_id，檢查是否存在
                 if not check_customer_exists(customer_id):
                     # 客戶不存在，需要創建新客戶
                     pending_order_data = {
                         "order_id": order_id,
                         "original_order": original_order,
-                        "customer_id": customer_id,  # 使用使用者輸入的 customer_id
+                        "customer_id": customer_id,
                         "customer_name": customer_name,
+                        "customer_notes": customer_notes,  # 新增這一行
                         "product_id": product_id,
                         "purchase_record": purchase_record,
-                        "quantity": quantity,        
-                        "unit_price": unit_price,    
+                        "quantity": quantity,
+                        "unit_price": unit_price,
                         "amount": amount,
                         "user_role": user_role,
                         "line_id": original_order.get("line_id")
@@ -763,8 +794,9 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                 pending_order_data = {
                     "order_id": order_id,
                     "original_order": original_order,
-                    "customer_id": customer_id or "",  # 修改這裡：使用使用者輸入的 customer_id（即使是空字串）
+                    "customer_id": customer_id or "",
                     "customer_name": customer_name,
+                    "customer_notes": customer_notes,  # 新增這一行
                     "product_id": product_id,
                     "purchase_record": purchase_record,
                     "quantity": quantity,
@@ -777,7 +809,6 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
             
             # 如果程式執行到這裡，表示客戶已存在，可以直接更新訂單
             current_time = datetime.now().isoformat()
-            # 準備更新資料
             update_data = {
                 "customer_id": customer_id,
                 "customer_name": customer_name,
@@ -789,12 +820,12 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                 "updated_at": current_time,
                 "status": "1",
                 "confirmed_by": "user",
-                "confirmed_at": current_time
+                "confirmed_at": current_time,
+                "user_role": user_role
             }
             
             # 呼叫API更新資料
             try:
-                update_data["user_role"] = user_role
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單確認成功")
@@ -833,7 +864,6 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
         return False, False, dash.no_update, True, False, "", dash.no_update, False, dash.no_update, dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
 # 縣市區域聯動
 @app.callback(
     [Output("new-customer-district", "options", allow_duplicate=True),
@@ -897,6 +927,16 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
         # 處理配送日程
         delivery_schedule_str = ",".join(delivery_schedule) if delivery_schedule else ""
         
+        # 合併新客戶表單中的備註和從訂單傳來的備註
+        combined_notes = ""
+        if notes:
+            combined_notes += notes
+        if pending_order.get("customer_notes"):
+            if combined_notes:
+                combined_notes += "\n" + pending_order.get("customer_notes")
+            else:
+                combined_notes = pending_order.get("customer_notes")
+        
         # 創建新客戶的資料
         new_customer_data = {
             "customer_id": customer_id,
@@ -905,9 +945,9 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "address": full_address,
             "city": city,
             "district": district,
-            "notes": notes,
+            "notes": combined_notes,  # 使用合併後的備註
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id"),  # 確保傳遞 line_id
+            "line_id": pending_order.get("line_id"),
             "user_role": user_role or "viewer"
         }
         
@@ -1030,6 +1070,7 @@ def close_add_order_modal(n_clicks):
     Input("submit-add-order", "n_clicks"),
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("customer-notes", "value"),
      State("product-id", "value"),
      State("purchase-record", "value"),
      State("quantity", "value"),
@@ -1038,7 +1079,7 @@ def close_add_order_modal(n_clicks):
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_add_order(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, user_role):
+def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, user_role):
     if n_clicks:
         # 驗證必填欄位
         if not purchase_record:
