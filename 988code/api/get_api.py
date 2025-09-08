@@ -182,12 +182,12 @@ def get_inventory_data():
         SELECT pm.category,
             pm.subcategory,
             COALESCE(SUM(inv.stock_quantity), 0) as total_stock_quantity,
-            pm.updated_at
+            MAX(pm.updated_at) as updated_at
         FROM product_master pm
         LEFT JOIN inventory inv ON pm.product_id = inv.product_id 
                             AND pm.warehouse_id = inv.warehouse_id
         WHERE pm.is_active = 'active'
-        GROUP BY pm.category, pm.subcategory, pm.updated_at
+        GROUP BY pm.category, pm.subcategory
         ORDER BY pm.category, pm.subcategory;
         """
         df = get_data_from_db(query)
