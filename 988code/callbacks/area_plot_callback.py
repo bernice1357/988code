@@ -358,7 +358,16 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
         height=chart_height_plotly,
         margin=margin_config,
         xaxis=dict(
-            tickformat='%Y年%m月'  # 橫軸顯示中文格式：2025年01月
+            type='date',                # 設定為日期類型
+            tickformat='%Y年%m月',      # 橫軸顯示中文格式：2025年01月
+            dtick='M1',                 # 每個月顯示一個刻度
+            ticklabelmode='instant',    # 瞬時標籤模式，確保標籤對齊到具體時間點
+            tickson='labels',           # 刻度線對齊到標籤
+            showgrid=True,              # 顯示網格線
+            gridcolor='lightgray',      # 設定網格線顏色
+            gridwidth=1,                # 設定網格線寬度
+            tick0='2025-01-01',         # 設定第一個刻度的起始點
+            tickmode='linear'           # 線性刻度模式
         )
     )
     

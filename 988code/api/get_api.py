@@ -697,7 +697,7 @@ def get_delivery_schedule_by_category(category: str):
 def get_counties():
     print("[API] get_counties 被呼叫")
     try:
-        query = "SELECT DISTINCT city FROM customer WHERE city IS NOT NULL ORDER BY city"
+        query = "SELECT DISTINCT city FROM customer WHERE city IS NOT NULL AND city != '' ORDER BY city"
         df = get_data_from_db(query)
         # 將欄位名稱從 city 改為 county 以符合前端期望
         result = [{"county": row["city"]} for _, row in df.iterrows()]
@@ -720,7 +720,7 @@ def get_regions(county: str = Query(..., description="縣市名稱")):
             port='5433'
         ) as conn:
             with conn.cursor() as cursor:
-                query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL ORDER BY district"
+                query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL AND district != '' ORDER BY district"
                 cursor.execute(query, (county,))
                 rows = cursor.fetchall()
                 # 將結果轉換為所需格式
