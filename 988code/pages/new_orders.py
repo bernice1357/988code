@@ -54,7 +54,49 @@ def get_orders():
     response = requests.get("http://127.0.0.1:8000/get_new_orders")
     if response.status_code == 200:
         try:
-            return response.json()
+            orders = response.json()
+            # 過濾掉超過一天的已確認和已刪除訂單
+            filtered_orders = []
+            current_time = datetime.now()
+            
+            for order in orders:
+                status = order.get("status")
+                
+                # 如果是未確認狀態，直接保留
+                if status == "0":
+                    filtered_orders.append(order)
+                # 如果是已確認或已刪除狀態，檢查時間
+                elif status in ["1", "2"]:
+                    # 確定要檢查的時間欄位
+                    if status == "1":
+                        # 已確認訂單檢查確認時間
+                        time_field = order.get("confirmed_at")
+                    else:
+                        # 已刪除訂單檢查更新時間（刪除時間）
+                        time_field = order.get("updated_at")
+                    
+                    if time_field:
+                        try:
+                            # 處理時間格式
+                            if 'Z' in time_field:
+                                processed_time = datetime.fromisoformat(time_field.replace('Z', '+00:00'))
+                            else:
+                                processed_time = datetime.fromisoformat(time_field)
+                            
+                            # 如果時間在一天內，保留
+                            if (current_time - processed_time).days < 1:
+                                filtered_orders.append(order)
+                        except:
+                            # 如果時間解析失敗，保留訂單
+                            filtered_orders.append(order)
+                    else:
+                        # 如果沒有時間記錄，保留訂單
+                        filtered_orders.append(order)
+                else:
+                    # 其他狀態直接保留
+                    filtered_orders.append(order)
+            
+            return filtered_orders
         except requests.exceptions.JSONDecodeError:
             print("回應內容不是有效的 JSON")
             return []
@@ -143,7 +185,7 @@ def make_card_item(order):
             html.Div([
                 html.Div([
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if (order.get("status") == "0" and order.get("label") != "INQUIRY") else None
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
                 ]) if order.get("status") == "0" else html.Div(),
                 html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"})
             ], className="d-flex justify-content-between align-items-center mt-2")
@@ -151,6 +193,16 @@ def make_card_item(order):
     ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
 
 def get_modal_fields(customer_id, customer_name, purchase_record, product_id=None, quantity=None, unit_price=None, amount=None):
+    # 獲取客戶備註
+    customer_notes = ""
+    if customer_id:
+        try:
+            notes_response = requests.get(f"http://127.0.0.1:8000/get_customer_notes/{customer_id}")
+            if notes_response.status_code == 200:
+                notes_data = notes_response.json()
+                customer_notes = notes_data.get("notes", "")
+        except:
+            customer_notes = ""
     # 改為左右兩排佈局
     return dbc.Form([
         dbc.Row([
@@ -173,6 +225,16 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                         type="text",
                         value=customer_name if customer_name else "",
                         disabled=bool(customer_id),  # 有customer_id就禁用編輯
+                        style={"width": "100%"}
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    dbc.Label("歷史備註", html_for="customer-notes", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Textarea(
+                        id="customer-notes",
+                        value=customer_notes,
+                        rows=4,
+                        placeholder="請輸入客戶備註...",
                         style={"width": "100%"}
                     )
                 ], className="mb-3")
@@ -289,7 +351,16 @@ layout = dbc.Container([
     warning_toast("new_orders", message=""),
     dcc.Store(id='user-role-store'),
     html.Div([
-        html.Div(),  # 空的div佔位
+        # 左側：新增訂單按鈕
+        dbc.Button(
+            ["新增訂單"],
+            id="add-new-order-btn",
+            color="success",
+            outline=True,
+            size="sm",
+            style={"fontWeight": "500","fontSize": "16px"}
+        ),
+        # 右側：篩選按鈕群組
         dbc.ButtonGroup([
             dbc.Button("全部", id="filter-all", color="primary", outline=False),
             dbc.Button("未確認", id="filter-unconfirmed", color="primary", outline=True),
@@ -297,6 +368,7 @@ layout = dbc.Container([
             dbc.Button("已刪除", id="filter-deleted", color="primary", outline=True)
         ])
     ], className="d-flex justify-content-between align-items-center mb-4"),
+
     dcc.Loading(
         id="loading-orders",
         type="dot",
@@ -328,6 +400,18 @@ layout = dbc.Container([
             dbc.Button("刪除", id="submit-delete", color="danger")
         ])
     ], id="delete-modal", is_open=False),
+
+    # **新增訂單 Modal - 在這裡添加**
+    dbc.Modal([
+        dbc.ModalHeader("新增訂單", style={"fontWeight": "bold", "fontSize": "24px"}),
+        dbc.ModalBody([
+            get_modal_fields("", "", "", None, None, None, None)
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("取消", id="cancel-add-order", color="secondary", outline=True),
+            dbc.Button("新增", id="submit-add-order", color="success")
+        ])
+    ], id="add-order-modal", is_open=False, size="xl", centered=True, style={"fontSize": "18px"}),
 
     # 新增客戶創建 Modal
     dbc.Modal([
@@ -520,17 +604,28 @@ def close_delete_modal(n_clicks):
 )
 def confirm_delete(n_clicks, modal_body, user_role):
     if n_clicks:
+        print(f"收到刪除確認，modal_body: {modal_body}")  # 添加調試
         orders = get_orders()
-        # 從modal body取得order資訊並找到order_id
         order_id = None
         for order in orders:
-            customer_info = order['customer_id'] + order['customer_name'] if order.get("customer_id") else order['line_id']
+            # 使用與 toggle_delete_modal 相同的邏輯
+            if order.get("customer_id") and order.get("customer_name"):
+                customer_info = order['customer_id'] + order['customer_name']
+            elif order.get("line_id"):
+                customer_info = order['line_id']
+            else:
+                customer_info = "未知客戶"
+            
             expected_message = f"確定要刪除訂單：{customer_info} 嗎？"
+            print(f"檢查訂單ID {order['id']}: expected='{expected_message}', actual='{modal_body}'")  # 添加調試
+            
             if modal_body == expected_message:
                 order_id = order["id"]
+                print(f"找到匹配的訂單ID: {order_id}")  # 添加調試
                 break
         
         if order_id:
+            print(f"準備刪除訂單ID: {order_id}")
             current_time = datetime.now().isoformat()
             
             # 準備更新資料，只更新status為2
@@ -539,10 +634,15 @@ def confirm_delete(n_clicks, modal_body, user_role):
                 "updated_at": current_time
             }
             
+            print(f"更新數據: {update_data}")
+            
             # 呼叫API更新資料
             try:
                 update_data["user_role"] = user_role or "viewer"
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
+                print(f"API回應狀態碼: {response.status_code}")
+                print(f"API回應內容: {response.text}")
+                
                 if response.status_code == 200:
                     print("訂單刪除成功")
                     orders = get_orders()
@@ -556,8 +656,10 @@ def confirm_delete(n_clicks, modal_body, user_role):
             except Exception as e:
                 print(f"API 呼叫失敗：{e}")
                 return False, False, dash.no_update, True, False, "", dash.no_update
-        
-        return False, False, dash.no_update, True, False, "", dash.no_update
+        else:
+            print("未找到匹配的訂單ID")
+            return False, False, dash.no_update, True, False, "", dash.no_update
+            
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
@@ -620,6 +722,7 @@ def toggle_modal(n_clicks_list, is_open):
     Input("cancel-modal", "n_clicks"),
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("customer-notes", "value"),
      State("product-id", "value"),
      State("purchase-record", "value"),
      State("quantity", "value"),
@@ -630,7 +733,7 @@ def toggle_modal(n_clicks_list, is_open):
     prevent_initial_call=True
 )
 
-def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
+def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
         # 直接關閉確認modal，不執行任何其他操作
         return False, False, dash.no_update, dash.no_update
@@ -651,6 +754,7 @@ def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_recor
     [Input("submit-confirm", "n_clicks")],
     [State("customer-id", "value"),
      State("customer-name", "value"),
+     State("customer-notes", "value"),
      State("product-id", "value"),
      State("purchase-record", "value"),
      State("quantity", "value"),
@@ -660,35 +764,44 @@ def close_modal(n_clicks, customer_id, customer_name, product_id, purchase_recor
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
+def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
     if n_clicks:
         orders = get_orders()
-        # 從 modal header 取得 order_id 和原始訂單資料
         order_id = None
         original_order = None
-        # 由於標題現在只是"確認訂單"，需要用其他方式來找到對應的訂單
-        # 目前簡化為取第一個未處理的訂單（這可能需要後續優化）
         if orders and modal_header == "確認訂單":
-            # 取第一個訂單（該是正在處理的那個）
             order_id = orders[0]["id"]
             original_order = orders[0]
         
         if order_id and original_order:
+            # 如果有customer_id且存在，更新客戶備註
+            if customer_id and check_customer_exists(customer_id):
+                try:
+                    # 更新客戶備註
+                    notes_update_data = {
+                        "notes": customer_notes,
+                        "user_role": user_role
+                    }
+                    notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
+                    if notes_response.status_code != 200:
+                        print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
+                except Exception as e:
+                    print(f"客戶備註更新異常：{str(e)}")
+            
             # 檢查客戶是否存在於customer表中
-            # 修改檢查邏輯
             if customer_id:
-                # 如果有 customer_id，檢查是否存在
                 if not check_customer_exists(customer_id):
                     # 客戶不存在，需要創建新客戶
                     pending_order_data = {
                         "order_id": order_id,
                         "original_order": original_order,
-                        "customer_id": customer_id,  # 使用使用者輸入的 customer_id
+                        "customer_id": customer_id,
                         "customer_name": customer_name,
+                        "customer_notes": customer_notes,  # 新增這一行
                         "product_id": product_id,
                         "purchase_record": purchase_record,
-                        "quantity": quantity,        
-                        "unit_price": unit_price,    
+                        "quantity": quantity,
+                        "unit_price": unit_price,
                         "amount": amount,
                         "user_role": user_role,
                         "line_id": original_order.get("line_id")
@@ -699,8 +812,9 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                 pending_order_data = {
                     "order_id": order_id,
                     "original_order": original_order,
-                    "customer_id": customer_id or "",  # 修改這裡：使用使用者輸入的 customer_id（即使是空字串）
+                    "customer_id": customer_id or "",
                     "customer_name": customer_name,
+                    "customer_notes": customer_notes,  # 新增這一行
                     "product_id": product_id,
                     "purchase_record": purchase_record,
                     "quantity": quantity,
@@ -713,7 +827,6 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
             
             # 如果程式執行到這裡，表示客戶已存在，可以直接更新訂單
             current_time = datetime.now().isoformat()
-            # 準備更新資料
             update_data = {
                 "customer_id": customer_id,
                 "customer_name": customer_name,
@@ -725,12 +838,12 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
                 "updated_at": current_time,
                 "status": "1",
                 "confirmed_by": "user",
-                "confirmed_at": current_time
+                "confirmed_at": current_time,
+                "user_role": user_role
             }
             
             # 呼叫API更新資料
             try:
-                update_data["user_role"] = user_role
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
                 if response.status_code == 200:
                     print("訂單確認成功")
@@ -769,7 +882,6 @@ def submit_confirm(n_clicks, customer_id, customer_name, product_id, purchase_re
         return False, False, dash.no_update, True, False, "", dash.no_update, False, dash.no_update, dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
 # 縣市區域聯動
 @app.callback(
     [Output("new-customer-district", "options", allow_duplicate=True),
@@ -833,6 +945,16 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
         # 處理配送日程
         delivery_schedule_str = ",".join(delivery_schedule) if delivery_schedule else ""
         
+        # 合併新客戶表單中的備註和從訂單傳來的備註
+        combined_notes = ""
+        if notes:
+            combined_notes += notes
+        if pending_order.get("customer_notes"):
+            if combined_notes:
+                combined_notes += "\n" + pending_order.get("customer_notes")
+            else:
+                combined_notes = pending_order.get("customer_notes")
+        
         # 創建新客戶的資料
         new_customer_data = {
             "customer_id": customer_id,
@@ -841,9 +963,9 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "address": full_address,
             "city": city,
             "district": district,
-            "notes": notes,
+            "notes": combined_notes,  # 使用合併後的備註
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id"),  # 確保傳遞 line_id
+            "line_id": pending_order.get("line_id"),
             "user_role": user_role or "viewer"
         }
         
@@ -931,3 +1053,81 @@ def calculate_amount(quantity, unit_price):
         except (ValueError, TypeError):
             return None
     return None
+
+
+# 開啟新增訂單 Modal
+@app.callback(
+    Output("add-order-modal", "is_open", allow_duplicate=True),
+    Input("add-new-order-btn", "n_clicks"),
+    [State("add-order-modal", "is_open")],
+    prevent_initial_call=True
+)
+def toggle_add_order_modal(n_clicks, is_open):
+    if n_clicks:
+        return not is_open
+    return is_open
+
+# 關閉新增訂單 Modal
+@app.callback(
+    Output("add-order-modal", "is_open", allow_duplicate=True),
+    Input("cancel-add-order", "n_clicks"),
+    prevent_initial_call=True
+)
+def close_add_order_modal(n_clicks):
+    if n_clicks:
+        return False
+    return dash.no_update
+
+# 處理新增訂單提交（您需要根據實際需求實作）
+@app.callback(
+    [Output("add-order-modal", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-success-toast", "children", allow_duplicate=True),
+     Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("orders-container", "children", allow_duplicate=True)],
+    Input("submit-add-order", "n_clicks"),
+    [State("customer-id", "value"),
+     State("customer-name", "value"),
+     State("customer-notes", "value"),
+     State("product-id", "value"),
+     State("purchase-record", "value"),
+     State("quantity", "value"),
+     State("unit-price", "value"),
+     State("amount", "value"),
+     State("user-role-store", "data")],
+    prevent_initial_call=True
+)
+def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, user_role):
+    if n_clicks:
+        # 驗證必填欄位
+        if not purchase_record:
+            return dash.no_update, False, dash.no_update, True, dash.no_update
+        
+        # 準備新增訂單資料
+        new_order_data = {
+            "customer_id": customer_id,
+            "customer_name": customer_name,
+            "product_id": product_id,
+            "purchase_record": purchase_record,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "amount": amount,
+            "user_role": user_role or "viewer"
+        }
+        
+        try:
+            response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
+            if response.status_code == 200:
+                # 重新載入訂單列表
+                orders = get_orders()
+                updated_orders = create_grouped_orders_layout(orders)
+                return False, True, "訂單新增成功", False, updated_orders
+            elif response.status_code == 403:
+                return dash.no_update, False, dash.no_update, True, dash.no_update
+            else:
+                return dash.no_update, False, dash.no_update, True, dash.no_update
+        except Exception as e:
+            print(f"API 呼叫失敗：{e}")
+            return dash.no_update, False, dash.no_update, True, dash.no_update
+    
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update

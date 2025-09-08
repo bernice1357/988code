@@ -312,13 +312,17 @@ class OrderTransactionCreate(BaseModel):
 def update_temp(id: int, update_data: RecordUpdate):
     check_editor_permission(update_data.user_role)
     update_fields = update_data.dict(exclude_none=True, exclude={'user_role'})
-
+    
+    print(f"更新訂單ID: {id}, 更新欄位: {update_fields}")  # 添加調試
+    
     if not update_fields:
         raise HTTPException(status_code=400, detail="沒有提供要更新的欄位")
 
     set_clause = ", ".join([f"{key} = %s" for key in update_fields])
     sql = f"UPDATE temp_customer_records SET {set_clause} WHERE id = %s"
     params = tuple(update_fields.values()) + (id,)
+    
+    print(f"執行SQL: {sql}, 參數: {params}")  # 添加調試
 
     try:
         update_data_to_db(sql, params)
@@ -1236,3 +1240,103 @@ def create_customer(customer_data: CustomerCreate):
     except Exception as e:
         print(f"[ERROR] 客戶創建失敗: {e}")
         raise HTTPException(status_code=500, detail="客戶創建失敗")
+
+class TempOrderCreate(BaseModel):
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    line_id: Optional[str] = None
+    product_id: Optional[str] = None
+    purchase_record: str
+    quantity: Optional[int] = None
+    unit_price: Optional[float] = None
+    amount: Optional[float] = None
+    conversation_record: str = "手動新增訂單"
+    order_note: Optional[str] = None
+    label: str = "ORDER"
+    is_new_product: bool = False
+    status: str = "0"  # 預設為未確認
+    user_role: str
+
+@router.post("/create_temp_order")
+def create_temp_order(order_data: TempOrderCreate):
+    check_editor_permission(order_data.user_role)
+    
+    current_time = datetime.now().isoformat()
+    
+    # 生成8個字元的transaction_id（與 create_order_transaction 相同邏輯）
+    def generate_transaction_id():
+        characters = string.ascii_lowercase + string.digits
+        return ''.join(random.choice(characters) for _ in range(8))
+    
+    try:
+        # 使用事務確保資料一致性
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                # 1. 先插入到 temp_customer_records
+                temp_sql = """
+                INSERT INTO temp_customer_records 
+                (customer_id, customer_name, line_id, product_id, purchase_record, quantity, 
+                 unit_price, amount, conversation_record, order_note, label, is_new_product, 
+                 status, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                temp_params = (
+                    order_data.customer_id,
+                    order_data.customer_name,
+                    order_data.line_id,
+                    order_data.product_id,
+                    order_data.purchase_record,
+                    order_data.quantity,
+                    order_data.unit_price,
+                    order_data.amount,
+                    order_data.conversation_record,
+                    order_data.order_note,
+                    order_data.label,
+                    order_data.is_new_product,
+                    order_data.status,
+                    current_time,
+                    current_time
+                )
+                
+                cursor.execute(temp_sql, temp_params)
+                
+                # 2. 如果訂單狀態是已確認(status = "1")，同時插入到 order_transactions
+                if order_data.status == "1":
+                    transaction_id = generate_transaction_id()
+                    
+                    transaction_sql = """
+                    INSERT INTO order_transactions 
+                    (transaction_id, customer_id, product_id, product_name, quantity, unit_price, amount, transaction_date, currency, document_type) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    
+                    transaction_params = (
+                        transaction_id,
+                        order_data.customer_id,
+                        order_data.product_id,
+                        order_data.purchase_record,  # 使用 purchase_record 作為 product_name
+                        order_data.quantity,
+                        order_data.unit_price,
+                        order_data.amount,
+                        current_time,  # 使用當前時間作為交易日期
+                        'NTD',
+                        '銷貨'
+                    )
+                    
+                    cursor.execute(transaction_sql, transaction_params)
+                
+                # 提交事務
+                conn.commit()
+        
+        return {"message": "訂單新增成功"}
+        
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        raise HTTPException(status_code=500, detail="訂單新增失敗")
