@@ -2,7 +2,9 @@ from .common import *
 from components.table import custom_table
 import requests
 from dash import ALL
+from datetime import datetime
 
+current_month = datetime.now().strftime("%Y-%m")
 # 初始空的 DataFrame，將由 callback 動態載入
 monthly_forecast_df = pd.DataFrame()
 
@@ -19,7 +21,7 @@ tab_content = html.Div([
                     html.Label("預測期間：", style={"marginRight": "10px", "fontWeight": "normal"}),
                     dbc.Input(
                         type="month",
-                        value="2025-05",
+                        value=current_month,
                         id="monthly-forecast-period",
                         style={"width": "120px", "display": "inline-block", "marginRight": "20px"}
                     )
@@ -85,13 +87,14 @@ tab_content = html.Div([
 @app.callback(
     [Output('monthly-forecast-data', 'data'),
      Output('monthly-category-select', 'options')],
-    Input('update-monthly-forecast-btn', 'n_clicks'),
+    [Input('update-monthly-forecast-btn', 'n_clicks'),
+    Input('monthly-forecast-period', 'value')],
     prevent_initial_call=False
 )
-def load_monthly_forecast_data(n_clicks):
+def load_monthly_forecast_data(n_clicks, selected_period):
     try:
         # 呼叫 API 獲取每月銷量預測資料
-        response = requests.get('http://127.0.0.1:8000/get_monthly_sales_predictions')
+        response = requests.get(f'http://127.0.0.1:8000/get_monthly_sales_predictions?period={selected_period}')
         
         if response.status_code == 200:
             data = response.json()

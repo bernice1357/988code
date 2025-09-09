@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Form, Query
 import psycopg2
 import pandas as pd
 from datetime import datetime
+from fastapi import Query
 
 router = APIRouter()
 
@@ -378,60 +379,78 @@ def get_rag_content(title: str):
     
 # 得到每月銷量預測資料
 @router.get("/get_monthly_sales_predictions")
-def get_monthly_sales_predictions():
-    print("[API] get_monthly_sales_predictions 被呼叫")
+def get_monthly_sales_predictions(period: str = Query(None, description="預測期間，格式：YYYY-MM")):
+    print(f"[API] get_monthly_sales_predictions 被呼叫，期間：{period}")
     try:
-        query = """
-        SELECT 
-            product_id,
-            product_name,
-            subcategory,
-            prediction_level,
-            prediction_value,
-            volatility_group,
-            month_minus_3,
-            month_minus_2,
-            month_minus_1,
-            cv_value,
-            allocation_ratio,
-            prediction_method,
-            batch_id,
-            created_at,
-            updated_at
-        FROM monthly_sales_predictions
-        ORDER BY subcategory, product_id
-        """
-        df = get_data_from_db(query)
+        # 根據傳入的期間參數修改查詢
+        if period:
+            period_date = f"{period}-01"
+            query = """
+            SELECT 
+                product_id,
+                product_name,
+                subcategory,
+                prediction_level,
+                prediction_value,
+                volatility_group,
+                month_minus_3,
+                month_minus_2,
+                month_minus_1,
+                cv_value,
+                allocation_ratio,
+                prediction_method,
+                batch_id,
+                created_at,
+                updated_at
+            FROM monthly_sales_predictions
+            WHERE prediction_month = %s  -- 改為使用 prediction_month 欄位
+            ORDER BY subcategory, product_id
+            """
+            # 使用參數化查詢
+            with psycopg2.connect(
+                dbname='988',
+                user='n8n',
+                password='1234',
+                host='26.210.160.206',
+                port='5433'
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, (period_date,))
+                    rows = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    df = pd.DataFrame(rows, columns=columns)
+        else:
+            # 沒有指定期間時，使用現有的查詢
+            query = """
+            SELECT 
+                product_id,
+                product_name,
+                subcategory,
+                prediction_level,
+                prediction_value,
+                volatility_group,
+                month_minus_3,
+                month_minus_2,
+                month_minus_1,
+                cv_value,
+                allocation_ratio,
+                prediction_method,
+                batch_id,
+                created_at,
+                updated_at
+            FROM monthly_sales_predictions
+            ORDER BY subcategory, product_id
+            """
+            df = get_data_from_db(query)
+        
         result = df.to_dict(orient="records")
         print(f"[API] 返回 {len(result)} 筆資料")
-        if result:
-            print(f"[API] 第一筆資料: {result[0]}")
         return result
+        
     except Exception as e:
         print(f"[API ERROR] get_monthly_sales_predictions: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-    
-# 獲取每日配送預測資料 - 適配現有表結構
-@router.get("/get_delivery_schedule")
-def get_delivery_schedule():
-    print("[API] get_delivery_schedule 被呼叫")
-    try:
-        query = """
-        SELECT ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-               ds.created_at, ds.updated_at, ds.scheduled_at,
-               COALESCE(ot.customer_id, 'N/A') as customer_id,
-               COALESCE(ot.customer_name, '未知客戶') as customer_name,
-               COALESCE(ot.product_name, '未知產品') as product_name
-        FROM delivery_schedule ds
-        LEFT JOIN order_transactions ot ON ds.source_order_id::text = ot.id::text
-        ORDER BY ds.delivery_date DESC, ds.id
-        """
-        df = get_data_from_db(query)
-        return df.to_dict(orient="records")
-    except Exception as e:
-        print(f"[API ERROR] get_delivery_schedule: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 根據日期篩選配送預測 - 適配現有表結構
