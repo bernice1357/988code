@@ -50,7 +50,8 @@ current_data_type = None
 uploaded_files_store = {
     "customer": [],
     "sales": [],
-    "inventory": []
+    "inventory": [],
+    "line_zip": []
 }
 
 def get_file_icon(filename):
@@ -137,16 +138,18 @@ def convert_delivery_schedule_to_numbers(schedule_list):
 @app.callback(
     [Output("sales-item", "style"), 
      Output("inventory-item", "style"),
+     Output("line-zip-item", "style"),  
      Output("current-data-type", "children")],
     [Input("sales-item", "n_clicks"),
-     Input("inventory-item", "n_clicks")],
+     Input("inventory-item", "n_clicks"),
+     Input("line-zip-item", "n_clicks")], 
     prevent_initial_call=True
 )
-def update_sidebar_selection(sales_clicks, inventory_clicks):
+def update_sidebar_selection(sales_clicks, inventory_clicks, line_zip_clicks):  
     global current_data_type
     ctx = dash.callback_context
     if not ctx.triggered:
-        return [no_update] * 3
+        return [no_update] * 4  
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
@@ -173,7 +176,7 @@ def update_sidebar_selection(sales_clicks, inventory_clicks):
     })
     
     # 返回樣式列表
-    styles = [base_style, base_style]
+    styles = [base_style, base_style, base_style]
     title = "請選擇資料類型"
     
     if button_id == "sales-item":
@@ -184,7 +187,11 @@ def update_sidebar_selection(sales_clicks, inventory_clicks):
         styles[1] = selected_style
         title = "庫存資料上傳"
         current_data_type = "inventory"
-    
+    elif button_id == "line-zip-item":  
+        styles[2] = selected_style
+        title = "Line.zip 資料上傳"
+        current_data_type = "line_zip"
+
     return styles + [title]
 
 # 控制上傳區域狀態的回調
@@ -280,13 +287,21 @@ def update_upload_area_state(current_title):
             "margin": "0.5rem 0 0 0"
         }
         
+        # 根據資料類型設定不同的文字內容
+        if current_data_type == "line_zip":
+            main_text = "拖拽檔案到此處或點擊上傳"
+            sub_text = "支援 .zip 檔案"
+        else:
+            main_text = "拖拽檔案到此處或點擊上傳"
+            sub_text = "支援.xlsx, .xls檔案"
+        
         return (
             False,  # disabled
             enabled_style,
             enabled_icon_style,
-            "拖拽檔案到此處或點擊上傳",
+            main_text,
             enabled_text_main_style,
-            "支援.xlsx, .xls檔案",
+            sub_text,
             enabled_text_sub_style
         )
 
@@ -362,9 +377,18 @@ def update_upload_output(contents, filename, last_modified):
         # 檢查檔案格式
         if filename:
             extension = filename.lower().split('.')[-1] if '.' in filename else ''
-            if extension not in ['xls', 'xlsx']:
+            
+            # 根據資料類型允許不同的檔案格式
+            if current_data_type == "line_zip":
+                allowed_extensions = ['zip', 'xlsx', 'xls', 'csv', 'txt']  # line_zip 允許更多格式
+            else:
+                allowed_extensions = ['xls', 'xlsx']  # 其他類型維持原有限制
+            
+            if extension not in allowed_extensions:
+                supported_formats = ', '.join([f'.{ext}' for ext in allowed_extensions])
+                error_msg = f"不支援的檔案格式，僅支援 {supported_formats} 檔案"
                 return html.Div([
-                    html.Span("不支援的檔案格式，僅支援.xlsx, .xls檔案", style={
+                    html.Span(error_msg, style={
                         "color": "#dc3545",
                         "fontWeight": "500",
                         "fontSize": "1rem"
@@ -372,7 +396,7 @@ def update_upload_output(contents, filename, last_modified):
                 ], style={
                     "textAlign": "center",
                     "padding": "1rem"
-                }), None, True, "不支援的檔案格式，僅支援.xlsx, .xls檔案"
+                }), None, True, error_msg
             
             # 檢查檔案欄位是否匹配 (暫時關閉驗證)
             is_valid, validation_message = validate_file_columns(contents, filename, current_data_type)
@@ -469,7 +493,8 @@ def update_upload_output(contents, filename, last_modified):
         type_names = {
             "customer": "客戶資料",
             "sales": "銷貨資料",
-            "inventory": "庫存資料"
+            "inventory": "庫存資料",
+            "line_zip": "Line.zip 資料"
         }
         type_name = type_names.get(current_data_type, "資料")
         
@@ -570,7 +595,8 @@ def delete_file(n_clicks_list):
             type_names = {
                 "customer": "客戶資料",
                 "sales": "銷貨資料",
-                "inventory": "庫存資料"
+                "inventory": "庫存資料",
+                "line_zip": "Line.zip 資料"
             }
             type_name = type_names.get(current_data_type, "資料")
             
@@ -657,7 +683,8 @@ def update_file_list_on_selection(current_title):
         type_names = {
             "customer": "客戶資料",
             "sales": "銷貨資料",
-            "inventory": "庫存資料"
+            "inventory": "庫存資料",
+            "line_zip": "Line.zip 資料"
         }
         type_name = type_names.get(current_data_type, "資料")
         
@@ -969,7 +996,8 @@ def save_current_files(n_clicks, session_data, user_role):
         if current_files:
             type_names = {
                 "sales": "銷貨資料", 
-                "inventory": "庫存資料"
+                "inventory": "庫存資料",
+                "line_zip": "Line.zip 資料"
             }
             type_name = type_names.get(current_data_type, "資料")
             
@@ -1035,6 +1063,63 @@ def save_current_files(n_clicks, session_data, user_role):
                     error_message = f"處理銷貨資料時發生錯誤: {str(e)}"
                     return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
                             False, "", True, error_message, False, "", [], {}, False)
+            elif current_data_type == "line_zip":
+                # 簡單的檔案儲存邏輯
+                try:
+                    import os
+                    
+                    # 創建目標資料夾
+                    upload_folder = "/home/chou_fish_988/Documents/988"
+                    os.makedirs(upload_folder, exist_ok=True)
+                    
+                    saved_files = []
+                    for file_info in current_files:
+                        # 解碼並儲存檔案
+                        content_type, content_string = file_info['contents'].split(',')
+                        decoded = base64.b64decode(content_string)
+                        
+                        file_path = os.path.join(upload_folder, file_info['filename'])
+                        with open(file_path, 'wb') as f:
+                            f.write(decoded)
+                        saved_files.append(file_info['filename'])
+                    
+                    # 清空已上傳的檔案
+                    uploaded_files_store[current_data_type] = []
+                    
+                    success_message = f"✅ 已成功儲存 {len(saved_files)} 個檔案到 {upload_folder} 資料夾\n\n檔案清單:\n" + "\n".join(saved_files)
+                    return (
+                        "匯入上傳檔案",  # button text
+                        False,  # disabled
+                        {"display": "none"},  # overlay style
+                        session_data,  # session data
+                        True,  # success toast open
+                        success_message,  # success message
+                        False,  # error toast open
+                        "",  # error message
+                        False,  # warning toast open
+                        "",  # warning message
+                        [],  # missing products
+                        {},  # current file store
+                        False  # modal open
+                    )
+                    
+                except Exception as e:
+                    error_message = f"儲存檔案時發生錯誤: {str(e)}"
+                    return (
+                        "匯入上傳檔案",
+                        False,
+                        {"display": "none"},
+                        session_data,
+                        False,
+                        "",
+                        True,
+                        error_message,
+                        False,
+                        "",
+                        [],
+                        {},
+                        False
+                    )    
             elif current_data_type == "inventory":
                 # 處理庫存資料 - 先檢查產品
                 try:

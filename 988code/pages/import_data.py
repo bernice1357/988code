@@ -326,6 +326,34 @@ layout = html.Div([
                 "cursor": "pointer",
                 "transition": "all 0.2s ease",
                 "boxShadow": "rgb(204, 219, 232) 3px 3px 6px 0px inset, rgba(255, 255, 255, 0.5) -3px -3px 6px 1px inset"
+            }),
+            # line.zip資料項目
+            html.Div([
+                html.Div([
+                    html.H4("Line.zip 資料", style={
+                        "fontSize": "1.2rem",
+                        "fontWeight": "500",
+                        "color": "#333",
+                        "margin": "0 0 0.25rem 0"
+                    }),
+                    html.P("匯入 Line 相關檔案", style={
+                        "color": "#333",
+                        "fontSize": "0.9rem",
+                        "margin": "0"
+                    })
+                ])
+            ], id="line-zip-item", style={
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "space-between",
+                "padding": "1.2rem",
+                "backgroundColor": "white",
+                "borderRadius": "8px",
+                "border": "1px solid #e0e6ed",
+                "marginBottom": "0.8rem",
+                "cursor": "pointer",
+                "transition": "all 0.2s ease",
+                "boxShadow": "rgb(204, 219, 232) 3px 3px 6px 0px inset, rgba(255, 255, 255, 0.5) -3px -3px 6px 1px inset"
             })
             
         ], style={
