@@ -265,13 +265,29 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'minWidth': f'{button_width}px'
                 })] if show_button else [])
             )
-        ]),
-        html.Tbody(rows)
+        ],style={
+            # 新增：確保表格頭部緊貼容器頂部
+            'margin': '0',
+            'padding': '0',
+            'position': 'sticky',
+            'top': '0',
+            'zIndex': 10
+        }),
+        html.Tbody(rows, style={
+            # 新增：確保表格內容無間隙
+            'margin': '0',
+            'padding': '0'
+        })
     ], style={
         "width": "max-content",  # 讓表格根據內容自動調整寬度
         "minWidth": "100%",      # 最小寬度為容器寬度
         "borderCollapse": "collapse",
-        'border': '1px solid #ccc'
+        'border': '1px solid #ccc',
+        'margin': '0',       
+        'padding': '0',
+        "borderSpacing": "0px",
+        'display': 'table',
+        'tableLayout': 'auto'
     })
 
     table_div = html.Div([
@@ -290,7 +306,10 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         'padding': '0',                      # 新增：移除內邊距
         'margin': '0',
         'lineHeight': '1',
-        'fontSize': '0'
+        'fontSize': '0',
+        "borderSpacing": "0px",
+        'boxSizing': 'border-box',            
+        'background': 'white'
         
     })
     
