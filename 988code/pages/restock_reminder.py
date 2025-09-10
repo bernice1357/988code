@@ -284,7 +284,12 @@ def create_restock_table(df, customer_index_start=0):
     ], style={
         'width': '100%',
         'maxWidth': '100%',
-        'position': 'relative'
+        'position': 'relative',
+        'border': '2px solid #dee2e6',        # 新增：外框
+        'borderRadius': '8px',
+        'padding': '0',                      # 新增：移除內邊距
+        'margin': '0',
+        'lineHeight': '1'
     })
     
     return table_div, df_reset
