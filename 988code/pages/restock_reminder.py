@@ -195,7 +195,7 @@ def create_restock_table(df, customer_index_start=0):
     headers = [
         html.Th('', style={
             "position": "sticky",
-            "top": "0px",
+            "top": "-1px",
             "left": "0px",
             "zIndex": 100,  # 提高z-index
             'backgroundColor': '#bcd1df',
@@ -209,7 +209,7 @@ def create_restock_table(df, customer_index_start=0):
         }),
         html.Th('客戶ID', style={
             "position": "sticky",
-            "top": "0px",
+            "top": "-1px",
             "left": "50px",
             "zIndex": 99,  # 提高z-index
             'backgroundColor': '#bcd1df',
@@ -230,7 +230,7 @@ def create_restock_table(df, customer_index_start=0):
         col_width = column_widths[header_text]
         headers.append(html.Th(header_text, style={
             "position": "sticky",
-            "top": "0px",
+            "top": "-1px",
             "zIndex": 50,  # 提高z-index
             'backgroundColor': '#bcd1df',
             'fontWeight': 'bold',
@@ -245,7 +245,7 @@ def create_restock_table(df, customer_index_start=0):
     # 操作欄標頭
     headers.append(html.Th('操作', style={
         "position": "sticky",
-        "top": "0px",
+        "top": "-1px",
         "right": "0px",
         "zIndex": 98,  # 提高z-index
         'backgroundColor': '#bcd1df',
@@ -262,34 +262,52 @@ def create_restock_table(df, customer_index_start=0):
     
     # 創建完整表格
     table = html.Table([
-        html.Thead([html.Tr(headers)]),
-        html.Tbody(rows)
+        html.Thead([html.Tr(headers)], style={
+            'margin': '0',
+            'padding': '0',
+            'lineHeight': '1',
+            "borderSpacing": "0",
+            "borderCollapse": "collapse"
+        }),
+        html.Tbody(rows, style={
+            'margin': '0',
+            'padding': '0'
+        })
     ], style={
         "width": "max-content",
         "minWidth": "100%",
         "borderCollapse": "collapse",
-        'border': '1px solid #ccc'
+        'border': '1px solid #ccc',
+        'margin': '0',
+        'padding': '0',
+        "borderSpacing": "0px",
+        "border": "none"
     })
 
     table_div = html.Div([
-        html.Div([table], style={
+    html.Div([table], style={
             'overflowX': 'auto',
             'overflowY': 'auto',
             'maxHeight': '76vh',
             'minHeight': '76vh',
             'position': 'relative',
             'width': '100%',
-            'contain': 'layout'
+            'contain': 'layout',
+            'margin': '0',
+            'padding': '0'
         })
     ], style={
         'width': '100%',
         'maxWidth': '100%',
         'position': 'relative',
-        'border': '2px solid #dee2e6',        # 新增：外框
+        'border': '2px solid #dee2e6',
         'borderRadius': '8px',
-        'padding': '0',                      # 新增：移除內邊距
+        'padding': '0',
         'margin': '0',
-        'lineHeight': '1'
+        'lineHeight': '0',
+        'fontSize': '0',
+        'boxSizing': 'border-box',
+        'background': 'white'
     })
     
     return table_div, df_reset
