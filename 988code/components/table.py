@@ -179,7 +179,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             html.Tr(
                 ([html.Th('', style={
                     "position": "sticky",
-                    "top": "0px",
+                    "top": "-1px",
                     "left": "0px",
                     "zIndex": 10,
                     'backgroundColor': '#bcd1df',
@@ -233,7 +233,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     ) if col in sortable_columns else col,
                     style={
                         "position": "sticky",
-                        "top": "0px",
+                        "top": "-1px",
                         "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
                         "zIndex": (10 + sticky_columns.index(col)) if col in sticky_columns else 1,
                         'backgroundColor': '#bcd1df',
@@ -250,7 +250,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 ) for col in df.columns] +
                 ([html.Th('操作', style={
                     "position": "sticky",
-                    "top": "0px",
+                    "top": "-1px",
                     "right": "0px",
                     "zIndex": 2,
                     'backgroundColor': '#bcd1df',
