@@ -965,7 +965,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "district": district,
             "notes": combined_notes,  # 使用合併後的備註
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id"),
+            "line_id": pending_order.get("line_id")or "",
             "user_role": user_role or "viewer"
         }
         
@@ -973,6 +973,22 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             # 先創建客戶
             create_response = requests.post("http://127.0.0.1:8000/create_customer", json=new_customer_data)
             if create_response.status_code == 200:
+                
+                # 如果有 line_id，則將對應關係儲存到 customer_line_mapping
+                if pending_order.get("line_id"):
+                    try:
+                        mapping_data = {
+                            "customer_id": customer_id,
+                            "line_id": pending_order.get("line_id"),
+                            "user_role": user_role or "viewer"
+                        }
+                        mapping_response = requests.post("http://127.0.0.1:8000/customer_line_mapping", json=mapping_data)
+                        if mapping_response.status_code != 200:
+                            print(f"customer_line_mapping 新增失敗，狀態碼：{mapping_response.status_code}")
+                    except Exception as e:
+                        print(f"customer_line_mapping 新增異常：{str(e)}")
+                
+                
                 # 客戶創建成功，繼續處理訂單
                 current_time = datetime.now().isoformat()
                 

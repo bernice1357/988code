@@ -337,7 +337,6 @@ def update_temp(id: int, update_data: RecordUpdate):
 
 # 新增訂單交易記錄
 @router.post("/order_transactions")
-@router.post("/order_transactions")
 def create_order_transaction(transaction_data: OrderTransactionCreate):
     check_editor_permission(transaction_data.user_role)
     
@@ -1263,13 +1262,7 @@ def create_temp_order(order_data: TempOrderCreate):
     
     current_time = datetime.now().isoformat()
     
-    # 生成8個字元的transaction_id（與 create_order_transaction 相同邏輯）
-    def generate_transaction_id():
-        characters = string.ascii_lowercase + string.digits
-        return ''.join(random.choice(characters) for _ in range(8))
-    
     try:
-        # 使用事務確保資料一致性
         with psycopg2.connect(
             dbname='988',
             user='n8n',
@@ -1278,7 +1271,7 @@ def create_temp_order(order_data: TempOrderCreate):
             port='5433'
         ) as conn:
             with conn.cursor() as cursor:
-                # 1. 先插入到 temp_customer_records
+                # 只插入到 temp_customer_records
                 temp_sql = """
                 INSERT INTO temp_customer_records 
                 (customer_id, customer_name, line_id, product_id, purchase_record, quantity, 
@@ -1307,32 +1300,6 @@ def create_temp_order(order_data: TempOrderCreate):
                 
                 cursor.execute(temp_sql, temp_params)
                 
-                # 2. 如果訂單狀態是已確認(status = "1")，同時插入到 order_transactions
-                if order_data.status == "1":
-                    transaction_id = generate_transaction_id()
-                    
-                    transaction_sql = """
-                    INSERT INTO order_transactions 
-                    (transaction_id, customer_id, product_id, product_name, quantity, unit_price, amount, transaction_date, currency, document_type) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """
-                    
-                    transaction_params = (
-                        transaction_id,
-                        order_data.customer_id,
-                        order_data.product_id,
-                        order_data.purchase_record,  # 使用 purchase_record 作為 product_name
-                        order_data.quantity,
-                        order_data.unit_price,
-                        order_data.amount,
-                        current_time,  # 使用當前時間作為交易日期
-                        'NTD',
-                        '銷貨'
-                    )
-                    
-                    cursor.execute(transaction_sql, transaction_params)
-                
-                # 提交事務
                 conn.commit()
         
         return {"message": "訂單新增成功"}
@@ -1340,3 +1307,52 @@ def create_temp_order(order_data: TempOrderCreate):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="訂單新增失敗")
+    
+# 新增客戶Line對應關係的 Pydantic 模型
+class CustomerLineMappingCreate(BaseModel):
+    customer_id: str
+    line_id: str
+    user_role: str
+
+@router.post("/customer_line_mapping")
+def create_customer_line_mapping(mapping_data: CustomerLineMappingCreate):
+    check_editor_permission(mapping_data.user_role)
+    
+    try:
+        current_time = datetime.now().isoformat()
+        
+        # 檢查是否已存在對應關係
+        check_sql = "SELECT COUNT(*) FROM customer_line_mapping WHERE customer_id = %s AND line_id = %s"
+        
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(check_sql, (mapping_data.customer_id, mapping_data.line_id))
+                exists = cursor.fetchone()[0] > 0
+                
+                if not exists:
+                    # 新增對應關係
+                    insert_sql = """
+                    INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes)
+                    VALUES (%s, %s, %s, %s)
+                    """
+                    cursor.execute(insert_sql, (
+                        mapping_data.customer_id, 
+                        mapping_data.line_id, 
+                        current_time, 
+                        f"由 {mapping_data.user_role} 創建"
+                    ))
+                    conn.commit()
+                    
+                    return {"success": True, "message": "客戶Line對應關係已建立"}
+                else:
+                    return {"success": True, "message": "對應關係已存在"}
+                    
+    except Exception as e:
+        print(f"[ERROR] create_customer_line_mapping: {e}")
+        raise HTTPException(status_code=500, detail="建立對應關係失敗")
