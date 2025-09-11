@@ -965,7 +965,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             "district": district,
             "notes": combined_notes,  # 使用合併後的備註
             "delivery_schedule": delivery_schedule_str,
-            "line_id": pending_order.get("line_id")or "",
+            "line_id": pending_order.get("line_id"),
             "user_role": user_role or "viewer"
         }
         
