@@ -975,43 +975,84 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
             if create_response.status_code == 200:
                 # 客戶創建成功，繼續處理訂單
                 current_time = datetime.now().isoformat()
-                update_data = {
-                    "customer_id": customer_id,  # 修改這裡：使用用戶輸入的客戶ID
-                    "customer_name": customer_name,  # 使用用戶輸入的客戶名稱
-                    "product_id": pending_order["product_id"],
-                    "purchase_record": pending_order["purchase_record"],
-                    "quantity": pending_order["quantity"],
-                    "unit_price": pending_order["unit_price"],
-                    "amount": pending_order["amount"],
-                    "updated_at": current_time,
-                    "status": "1",
-                    "confirmed_by": "user",
-                    "confirmed_at": current_time,
-                    "user_role": user_role or "viewer"
-                }
                 
-                # 更新訂單
-                response = requests.put(f"http://127.0.0.1:8000/temp/{pending_order['order_id']}", json=update_data)
-                if response.status_code == 200:
-                    # 更新 order_transactions 表
-                    transaction_data = {
-                        "customer_id": customer_id,  # 修改這裡：使用用戶輸入的客戶ID
+                # 檢查是否為新增訂單
+                if pending_order.get("is_new_order"):
+                    # 這是新增訂單，直接創建新訂單
+                    new_order_data = {
+                        "customer_id": customer_id,
+                        "customer_name": customer_name,
                         "product_id": pending_order["product_id"],
-                        "product_name": pending_order["purchase_record"],
+                        "purchase_record": pending_order["purchase_record"],
                         "quantity": pending_order["quantity"],
                         "unit_price": pending_order["unit_price"],
                         "amount": pending_order["amount"],
-                        "transaction_date": pending_order["original_order"]['created_at'],
+                        "status": "1",
+                        "confirmed_by": "user",
+                        "confirmed_at": current_time,
                         "user_role": user_role or "viewer"
                     }
                     
-                    transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
-                    
-                    orders = get_orders()
-                    updated_orders = create_grouped_orders_layout(orders)
-                    return False, True, "新客戶創建成功，訂單已確認", False, updated_orders
+                    response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
+                    if response.status_code == 200:
+                        # 新增到 order_transactions 表
+                        transaction_data = {
+                            "customer_id": customer_id,
+                            "product_id": pending_order["product_id"],
+                            "product_name": pending_order["purchase_record"],
+                            "quantity": pending_order["quantity"],
+                            "unit_price": pending_order["unit_price"],
+                            "amount": pending_order["amount"],
+                            "transaction_date": current_time,
+                            "user_role": user_role or "viewer"
+                        }
+                        
+                        transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                        
+                        orders = get_orders()
+                        updated_orders = create_grouped_orders_layout(orders)
+                        return False, True, "新客戶創建成功，訂單已新增", False, updated_orders
+                    else:
+                        return dash.no_update, False, dash.no_update, True, dash.no_update
                 else:
-                    return dash.no_update, False, dash.no_update, True, dash.no_update
+                    # 這是確認訂單，使用原有的更新邏輯
+                    update_data = {
+                        "customer_id": customer_id,
+                        "customer_name": customer_name,
+                        "product_id": pending_order["product_id"],
+                        "purchase_record": pending_order["purchase_record"],
+                        "quantity": pending_order["quantity"],
+                        "unit_price": pending_order["unit_price"],
+                        "amount": pending_order["amount"],
+                        "updated_at": current_time,
+                        "status": "1",
+                        "confirmed_by": "user",
+                        "confirmed_at": current_time,
+                        "user_role": user_role or "viewer"
+                    }
+                    
+                    # 更新訂單
+                    response = requests.put(f"http://127.0.0.1:8000/temp/{pending_order['order_id']}", json=update_data)
+                    if response.status_code == 200:
+                        # 更新 order_transactions 表
+                        transaction_data = {
+                            "customer_id": customer_id,
+                            "product_id": pending_order["product_id"],
+                            "product_name": pending_order["purchase_record"],
+                            "quantity": pending_order["quantity"],
+                            "unit_price": pending_order["unit_price"],
+                            "amount": pending_order["amount"],
+                            "transaction_date": pending_order["original_order"]['created_at'],
+                            "user_role": user_role or "viewer"
+                        }
+                        
+                        transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                        
+                        orders = get_orders()
+                        updated_orders = create_grouped_orders_layout(orders)
+                        return False, True, "新客戶創建成功，訂單已確認", False, updated_orders
+                    else:
+                        return dash.no_update, False, dash.no_update, True, dash.no_update
             else:
                 return dash.no_update, False, dash.no_update, True, dash.no_update
                 
@@ -1084,7 +1125,10 @@ def close_add_order_modal(n_clicks):
      Output("new_orders-success-toast", "is_open", allow_duplicate=True),
      Output("new_orders-success-toast", "children", allow_duplicate=True),
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
-     Output("orders-container", "children", allow_duplicate=True)],
+     Output("orders-container", "children", allow_duplicate=True),
+     Output("create-customer-modal", "is_open", allow_duplicate=True),
+     Output("pending-order-store", "data", allow_duplicate=True),
+     Output("current-processing-order", "data", allow_duplicate=True)],
     Input("submit-add-order", "n_clicks"),
     [State("customer-id", "value"),
      State("customer-name", "value"),
@@ -1101,7 +1145,54 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
     if n_clicks:
         # 驗證必填欄位
         if not purchase_record:
-            return dash.no_update, False, dash.no_update, True, dash.no_update
+            return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
+        
+        # 檢查客戶是否存在
+        if customer_id:
+            if not check_customer_exists(customer_id):
+                # 客戶不存在，需要創建新客戶
+                pending_order_data = {
+                    "is_new_order": True,  # 標記這是新增訂單
+                    "customer_id": customer_id,
+                    "customer_name": customer_name,
+                    "customer_notes": customer_notes,
+                    "product_id": product_id,
+                    "purchase_record": purchase_record,
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "amount": amount,
+                    "user_role": user_role
+                }
+                return False, False, dash.no_update, False, dash.no_update, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
+        else:
+            # 如果沒有 customer_id，也需要創建新客戶
+            pending_order_data = {
+                "is_new_order": True,  # 標記這是新增訂單
+                "customer_id": customer_id or "",
+                "customer_name": customer_name,
+                "customer_notes": customer_notes,
+                "product_id": product_id,
+                "purchase_record": purchase_record,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "amount": amount,
+                "user_role": user_role
+            }
+            return False, False, dash.no_update, False, dash.no_update, True, pending_order_data, {"customer_id": customer_id or "", "customer_name": customer_name}
+        
+        # 如果客戶存在，直接創建訂單
+        # 先更新客戶備註
+        if customer_id and customer_notes:
+            try:
+                notes_update_data = {
+                    "notes": customer_notes,
+                    "user_role": user_role
+                }
+                notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
+                if notes_response.status_code != 200:
+                    print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
+            except Exception as e:
+                print(f"客戶備註更新異常：{str(e)}")
         
         # 準備新增訂單資料
         new_order_data = {
@@ -1112,22 +1203,44 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
             "quantity": quantity,
             "unit_price": unit_price,
             "amount": amount,
+            "status": "1",
+            "confirmed_by": "user",  
+            "confirmed_at": datetime.now().isoformat(),
             "user_role": user_role or "viewer"
         }
         
         try:
             response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
             if response.status_code == 200:
+                # 新增到 order_transactions 表
+                try:
+                    transaction_data = {
+                        "customer_id": customer_id,
+                        "product_id": product_id,
+                        "product_name": purchase_record,
+                        "quantity": quantity,
+                        "unit_price": unit_price,
+                        "amount": amount,
+                        "transaction_date": datetime.now().isoformat(),
+                        "user_role": user_role
+                    }
+                    
+                    transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                    if transaction_response.status_code != 200:
+                        print(f"order_transactions 更新失敗，狀態碼：{transaction_response.status_code}")
+                except Exception as e:
+                    print(f"order_transactions 更新異常：{str(e)}")
+                
                 # 重新載入訂單列表
                 orders = get_orders()
                 updated_orders = create_grouped_orders_layout(orders)
-                return False, True, "訂單新增成功", False, updated_orders
+                return False, True, "訂單新增成功", False, updated_orders, False, dash.no_update, dash.no_update
             elif response.status_code == 403:
-                return dash.no_update, False, dash.no_update, True, dash.no_update
+                return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
             else:
-                return dash.no_update, False, dash.no_update, True, dash.no_update
+                return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
         except Exception as e:
             print(f"API 呼叫失敗：{e}")
-            return dash.no_update, False, dash.no_update, True, dash.no_update
+            return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
     
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
