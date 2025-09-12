@@ -120,8 +120,8 @@ class IntegratedScheduler:
         try:
             # 獲取任務名稱
             task_names = {
-                "prophet_training": "Prophet模型訓練",
-                "daily_prediction": "每日預測生成", 
+                "daily_prediction": "每日預測生成",
+                "weekly_model_training": "週度模型訓練", 
                 "trigger_health_check": "觸發器健康檢查",
                 "sales_change_check": "銷量變化檢查",
                 "monthly_prediction": "月銷售預測",
@@ -150,7 +150,7 @@ class IntegratedScheduler:
         
         # 補貨排程 (restock)
         schedule.every().saturday.at("08:00").do(
-            self.execute_task_with_logging, "prophet_training", "restock"
+            self.execute_task_with_logging, "weekly_model_training", "restock"
         )
         schedule.every().day.at("22:00").do(
             self.execute_task_with_logging, "daily_prediction", "restock"
@@ -171,7 +171,7 @@ class IntegratedScheduler:
         )
         
         # 推薦排程 (recommendation)
-        schedule.every().sunday.at("02:00").do(
+        schedule.every().sunday.at("08:00").do(
             self.execute_task_with_logging, "weekly_recommendation", "recommendation"
         )
         
@@ -186,13 +186,13 @@ class IntegratedScheduler:
         self.logger.info("Schedule setup completed with updated times:")
         self.logger.info("- Monthly 1st 00:30: Sales reset")
         self.logger.info("- Monthly 1st 01:00: Monthly prediction")
+        self.logger.info("- Saturday 08:00: Weekly model training (UTC+8)")
         self.logger.info("- Daily 02:00: Trigger health check")
         self.logger.info("- Daily 02:30: Inactive customer check")
         self.logger.info("- Daily 04:00: Repurchase reminder")
         self.logger.info("- Daily 06:00: Sales change check")
-        self.logger.info("- Daily 22:00: Daily prediction")
-        self.logger.info("- Saturday 08:00: Prophet training")
-        self.logger.info("- Sunday 02:00: Weekly recommendation")
+        self.logger.info("- Daily 22:00: CatBoost daily prediction (use trained model)")
+        self.logger.info("- Sunday 08:00: Weekly recommendation")
     
     def refresh_schedule_states(self):
         """刷新排程狀態"""

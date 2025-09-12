@@ -48,7 +48,7 @@ class SchedulerConfig:
         'daily_prediction': '22:00',          # 每日預測生成
         
         # 每週任務
-        'prophet_training': 'saturday.08:00',     # Prophet模型訓練
+        'weekly_model_training': 'sunday.01:00',  # 模型重新訓練
         'weekly_recommendation': 'sunday.02:00', # 推薦系統更新
         
         # 每月任務
@@ -60,7 +60,7 @@ class SchedulerConfig:
     SCHEDULE_CATEGORIES = {
         'restock': {
             'enabled': True,
-            'tasks': ['prophet_training', 'daily_prediction', 'trigger_health_check']
+            'tasks': ['daily_prediction', 'weekly_model_training', 'trigger_health_check']
         },
         'sales': {
             'enabled': True,
@@ -137,11 +137,13 @@ class SystemConfig:
 class TaskConfig:
     """任務配置類"""
     
-    # Prophet系統配置
-    PROPHET_CONFIG = {
-        'prediction_days': 7,
-        'model_save_path': 'models',
-        'backup_enabled': True,
+    # CatBoost系統配置
+    CATBOOST_CONFIG = {
+        'training_data_months': 12,      # 訓練使用12個月數據
+        'feature_calculation_days': 90,  # 特徵計算使用90天數據
+        'prediction_days': 7,            # 預測未來7天
+        'prediction_threshold': 0.7,     # 預測閾值
+        'model_retrain_frequency': 'weekly',  # 每週重新訓練
         'csv_output_enabled': True
     }
     
@@ -238,5 +240,5 @@ if __name__ == "__main__":
     # 測試配置
     init_config()
     print("\nDatabase Config:", get_db_config())
-    print("Prophet Training Time:", get_schedule_time('prophet_training'))
+    print("Daily Prediction Time:", get_schedule_time('daily_prediction'))
     print("Restock Category Enabled:", is_category_enabled('restock'))

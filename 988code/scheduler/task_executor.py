@@ -28,8 +28,8 @@ class TaskExecutor:
     def __init__(self):
         self.task_map = {
             # 補貨排程 (restock)
-            "prophet_training": self.execute_prophet_training,
             "daily_prediction": self.execute_daily_prediction,
+            "weekly_model_training": self.execute_weekly_model_training,
             "trigger_health_check": self.execute_trigger_health_check,
             
             # 銷售排程 (sales)
@@ -86,39 +86,83 @@ class TaskExecutor:
                 "error": str(e)
             }
     
-    # 補貨排程任務
-    def execute_prophet_training(self):
-        """執行 Prophet 模型訓練"""
-        try:
-            from tasks.prophet_system import ProphetPredictionSystem
-            # ProphetPredictionSystem doesn't accept db_config parameter
-            system = ProphetPredictionSystem()
-            return system.saturday_model_training()
-        except Exception as e:
-            logging.error(f"Prophet training error: {e}")
-            return {"error": str(e)}
     
     def execute_daily_prediction(self):
-        """執行每日預測生成"""
+        """執行每日預測（使用優化後的模型配置）"""
         try:
-            from tasks.prophet_system import ProphetPredictionSystem
+            import os
+            import subprocess
             
-            # ProphetPredictionSystem doesn't accept db_config parameter
-            system = ProphetPredictionSystem()
+            # 直接在 ml_system 目錄中執行預測腳本
+            current_dir = os.path.dirname(__file__)
+            ml_system_dir = os.path.join(current_dir, 'ml_system')
             
-            # Load trained models first
-            if not system.load_latest_models():
-                return {"status": "failed", "message": "Failed to load Prophet models"}
+            logging.info("=== 執行每日預測 (優化配置) ===")
             
-            # Generate predictions
-            result = system.generate_daily_predictions(prediction_days=7)
+            # 創建臨時腳本來執行預測
+            script_content = '''
+from model_service import CatBoostPredictor
+from config import MLConfig
+
+predictor = CatBoostPredictor()
+result = predictor.daily_prediction_process()
+
+if result:
+    print("PREDICTION_SUCCESS")
+    print(f"THRESHOLD:{MLConfig.PREDICTION_THRESHOLD}")
+    print(f"WEIGHTS:{MLConfig.CATBOOST_PARAMS['class_weights']}")
+else:
+    print("PREDICTION_FAILED")
+'''
             
-            if result is None:
-                return {"status": "failed", "message": "Daily prediction generation failed"}
+            script_path = os.path.join(ml_system_dir, 'temp_daily_prediction.py')
+            with open(script_path, 'w', encoding='utf-8') as f:
+                f.write(script_content)
             
-            return {"status": "completed", "message": "Daily prediction completed successfully"}
+            try:
+                # 在 ml_system 目錄中執行預測
+                result = subprocess.run([
+                    'python', 'temp_daily_prediction.py'
+                ], cwd=ml_system_dir, capture_output=True, text=True, timeout=300)
+                
+                # 清理臨時文件
+                if os.path.exists(script_path):
+                    os.remove(script_path)
+                
+                if result.returncode == 0:
+                    output_lines = result.stdout.strip().split('\n')
+                    if 'PREDICTION_SUCCESS' in output_lines:
+                        threshold_line = [line for line in output_lines if line.startswith('THRESHOLD:')]
+                        weights_line = [line for line in output_lines if line.startswith('WEIGHTS:')]
+                        
+                        config_info = {}
+                        if threshold_line:
+                            config_info['threshold'] = threshold_line[0].split(':', 1)[1]
+                        if weights_line:
+                            config_info['weights'] = weights_line[0].split(':', 1)[1]
+                        
+                        logging.info("每日預測執行成功")
+                        return {
+                            "status": "completed", 
+                            "message": "CatBoost每日預測完成", 
+                            "config": config_info
+                        }
+                    else:
+                        logging.error("預測執行失敗")
+                        return {"status": "failed", "message": "CatBoost每日預測失敗"}
+                else:
+                    logging.error(f"預測執行出錯: {result.stderr}")
+                    return {"status": "failed", "message": f"預測執行錯誤: {result.stderr[:100]}"}
+                    
+            except subprocess.TimeoutExpired:
+                logging.error("預測執行超時")
+                return {"status": "failed", "message": "預測執行超時"}
+            except Exception as e:
+                logging.error(f"執行預測時發生錯誤: {e}")
+                return {"error": str(e)}
+                    
         except Exception as e:
-            logging.error(f"Daily prediction error: {e}")
+            logging.error(f"CatBoost每日預測錯誤: {e}")
             return {"error": str(e)}
     
     def execute_trigger_health_check(self):
@@ -153,40 +197,42 @@ class TaskExecutor:
             return {"error": str(e)}
     
     def execute_monthly_prediction(self):
-        """執行月銷售預測"""
+        """執行月銷售預測（僅在每月1號執行）"""
         try:
             from datetime import datetime
             from dateutil.relativedelta import relativedelta
             from tasks.monthly_prediction import MonthlyPredictionDB
             
-            # Add predict_product_main to path
-            import sys
-            import os
-            predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'predict_product_main'))
-            if predict_main_path not in sys.path:
-                sys.path.insert(0, predict_main_path)
+            # 檢查是否為每月1號
+            current_date = datetime.now().date()
+            if current_date.day != 1:
+                logging.info(f"今天是 {current_date}，不是月初，跳過月銷售預測")
+                return {"status": "skipped", "message": f"非月初日期({current_date})，月銷售預測已跳過"}
             
-            from hybrid_cv_optimized_system import HybridCVOptimizedSystem
+            logging.info(f"月初執行月銷售預測: {current_date}")
+            
+            # 導入本地的混合CV優化預測系統
+            from tasks.hybrid_cv_system import HybridCVOptimizedSystem
             
             # Use unified config
             db_config = get_db_config()
             
             current_time = datetime.now()
-            next_month = current_time + relativedelta(months=1)
+            current_month = current_time  # 預測當月而不是下月
             
             # Create prediction system
-            monthly_system = HybridCVOptimizedSystem(db_config, prediction_month=next_month)
+            monthly_system = HybridCVOptimizedSystem(db_config, prediction_month=current_month)
             monthly_db = MonthlyPredictionDB(db_config)
             
             # Execute prediction
-            logging.info(f"Executing monthly prediction for {next_month.strftime('%Y-%m')}")
+            logging.info(f"Executing monthly prediction for {current_month.strftime('%Y-%m')} (當月預測)")
             subcategory_df, sku_df = monthly_system.run_prediction()
             
             if subcategory_df is None:
                 return {"status": "failed", "message": "Monthly prediction execution failed"}
             
             # Upload to database
-            batch_id = f"monthly_{next_month.strftime('%Y%m%d')}_{current_time.strftime('%H%M%S')}"
+            batch_id = f"monthly_{current_month.strftime('%Y%m%d')}_{current_time.strftime('%H%M%S')}"
             upload_success = monthly_db.save_predictions(subcategory_df, sku_df, batch_id)
             
             result_msg = f"Prediction completed: {len(subcategory_df)} subcategories, {len(sku_df)} SKUs"
@@ -201,9 +247,18 @@ class TaskExecutor:
             return {"error": str(e)}
     
     def execute_monthly_sales_reset(self):
-        """執行銷量重置"""
+        """執行銷量重置（僅在每月1號執行）"""
         try:
+            from datetime import datetime
             from tasks.sales_change import SalesChangeManager
+            
+            # 檢查是否為每月1號
+            current_date = datetime.now().date()
+            if current_date.day != 1:
+                logging.info(f"今天是 {current_date}，不是月初，跳過銷量重置")
+                return {"status": "skipped", "message": f"非月初日期({current_date})，銷量重置已跳過"}
+            
+            logging.info(f"月初執行銷量重置: {current_date}")
             
             # Use unified config
             db_config = get_db_config()
@@ -280,6 +335,91 @@ class TaskExecutor:
         except Exception as e:
             logging.error(f"Repurchase reminder error: {e}")
             return {"error": str(e)}
+    
+    def execute_weekly_model_training(self):
+        """執行週度模型訓練 - 使用優化的TwoStageCatBoostTrainer"""
+        try:
+            import sys
+            import os
+            
+            # 確保能找到 ml_system 模組
+            current_dir = os.path.dirname(__file__)
+            ml_system_dir = os.path.join(current_dir, 'ml_system')
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
+            if ml_system_dir not in sys.path:
+                sys.path.insert(0, ml_system_dir)
+            
+            # 添加 ml_system 到 sys.path 並直接導入
+            sys.path.insert(0, ml_system_dir)
+            
+            from two_stage_trainer import TwoStageCatBoostTrainer
+            from model_manager import ModelManager
+            
+            # 導入 MLConfig - 使用完整模組路徑
+            import importlib.util
+            config_path = os.path.join(ml_system_dir, 'config.py')
+            spec = importlib.util.spec_from_file_location("ml_config", config_path)
+            ml_config_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ml_config_module)
+            MLConfig = ml_config_module.MLConfig
+            
+            # 使用統一配置
+            db_config = get_db_config()
+            
+            # 記錄優化配置
+            logging.info("=== 週度模型訓練 (優化配置) ===")
+            logging.info(f"預測閾值: {MLConfig.PREDICTION_THRESHOLD}")
+            logging.info(f"類別權重: {MLConfig.CATBOOST_PARAMS['class_weights']}")
+            logging.info("使用TwoStageCatBoostTrainer進行真實前瞻性預測訓練")
+            
+            trainer = TwoStageCatBoostTrainer()
+            
+            # 使用優化的兩段式訓練
+            logging.info("開始優化的兩段式模型訓練")
+            training_success = trainer.train_with_real_prediction()
+            
+            if training_success and hasattr(trainer, 'prediction_metrics'):
+                # 獲取優化後的性能指標
+                metrics = trainer.prediction_metrics
+                f1_score = metrics.get('f1_score', 0)
+                precision = metrics.get('precision', 0)
+                recall = metrics.get('recall', 0)
+                tp = metrics.get('true_positives', 0)
+                fp = metrics.get('false_positives', 0)
+                fn = metrics.get('false_negatives', 0)
+                
+                result_message = f"優化模型訓練完成: F1={f1_score:.3f}, P={precision:.3f}, R={recall:.3f}, TP={tp}, FP={fp}, FN={fn}"
+                
+                # 模型管理與清理
+                try:
+                    manager = ModelManager()
+                    manager.cleanup_old_models(keep_count=3)
+                except Exception as e:
+                    logging.warning(f"Model cleanup failed: {e}")
+                
+                return {
+                    "status": "completed", 
+                    "message": result_message,
+                    "metrics": metrics,
+                    "config": {
+                        "threshold": MLConfig.PREDICTION_THRESHOLD,
+                        "weights": MLConfig.CATBOOST_PARAMS['class_weights']
+                    },
+                    "validation_method": "real_forward_prediction",
+                    "no_data_leakage": True,
+                    "optimized": True
+                }
+            else:
+                return {"status": "failed", "message": "優化模型訓練失敗"}
+                
+        except Exception as e:
+            logging.error(f"週度優化模型訓練錯誤: {e}")
+            return {"error": str(e)}
+        finally:
+            # 清理 sys.path
+            if ml_system_dir in sys.path:
+                sys.path.remove(ml_system_dir)
 
 # 創建全域執行器實例
 task_executor = TaskExecutor()

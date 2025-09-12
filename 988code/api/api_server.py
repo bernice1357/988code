@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -27,4 +28,11 @@ app.include_router(update_data_router)
 app.include_router(role_router)
 app.include_router(import_data_router)
 app.include_router(sales_predict_router)
-app.include_router(schedule_router)
+
+# 環境變數控制是否在8000端口暴露scheduler API
+# 設為 "1" 時才會在8000端口註冊scheduler路由，預設隔離到9000端口
+if os.getenv("EXPOSE_SCHEDULER_ON_8000") == "1":
+    app.include_router(schedule_router)
+    print("INFO: Scheduler API exposed on port 8000")
+else:
+    print("INFO: Scheduler API isolated to port 9000 (recommended)")

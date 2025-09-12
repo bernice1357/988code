@@ -163,8 +163,13 @@ layout = html.Div([
     )
 ])
 
-# 後端API基地址
+# 後端API基地址配置
+# 主API服務 - 一般業務功能
 API_BASE_URL = "http://127.0.0.1:8000"
+
+# Scheduler API配置 - 隔離scheduler操作到專用端口
+SCHEDULER_BASE_POST = "http://127.0.0.1:9000"  # POST操作（execute, toggle, start/stop）
+SCHEDULER_BASE_GET = "http://127.0.0.1:9000"   # GET查詢（tasks, status, history）
 
 # 排程分類對應關係
 SCHEDULE_MAPPING = {
@@ -187,7 +192,7 @@ SCHEDULE_MAPPING = {
 def load_schedule_status(n_intervals):
     """從後端載入排程狀態"""
     try:
-        response = requests.get(f'{API_BASE_URL}/schedule/tasks')
+        response = requests.get(f'{SCHEDULER_BASE_GET}/schedule/tasks')
         if response.status_code == 200:
             data = response.json().get('data', {})
             
@@ -243,7 +248,7 @@ def toggle_restock(value):
 def toggle_schedule_category(category, value):
     """通用的排程開關函數"""
     try:
-        response = requests.post(f'{API_BASE_URL}/schedule/toggle', 
+        response = requests.post(f'{SCHEDULER_BASE_POST}/schedule/toggle', 
                                json={"category": category, "enabled": value})
         if response.status_code == 200:
             status_text = 'enabled' if value else 'disabled'

@@ -20,14 +20,18 @@ import subprocess
 def run_task(task_id: str) -> dict:
     """在子進程中執行任務，避免記憶體衝突"""
     try:
-        # 構建Python命令
+        # 構建Python命令 - 使用動態路徑而非硬編碼
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        scheduler_path = os.path.join(os.path.dirname(current_file_dir), 'scheduler')
+        scheduler_path = scheduler_path.replace('\\', '\\\\')  # Windows路徑轉義
+        
         python_code = f"""
 import sys
 import json
 import os
 
-# 添加scheduler路徑
-scheduler_path = r'C:\\Users\\user\\Desktop\\988\\988code\\988code\\scheduler'
+# 動態添加scheduler路徑
+scheduler_path = r'{scheduler_path}'
 sys.path.insert(0, scheduler_path)
 
 try:
@@ -57,8 +61,17 @@ except Exception as e:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# 保留原來的變數名稱相容性
-integrated_scheduler = None  # 這個暫時不實作
+# 導入並實例化integrated_scheduler
+try:
+    scheduler_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scheduler')
+    scheduler_path = os.path.abspath(scheduler_path)
+    sys.path.insert(0, scheduler_path)
+    
+    from integrated_scheduler import integrated_scheduler
+    logging.info("Integrated scheduler imported successfully")
+except Exception as e:
+    logging.error(f"Failed to import integrated_scheduler: {e}")
+    integrated_scheduler = None
 
 router = APIRouter()
 
@@ -68,8 +81,8 @@ SCHEDULE_TASKS = {
     "restock": {
         "name": "補貨排程",
         "tasks": [
-            {"id": "prophet_training", "name": "Prophet模型訓練", "schedule": "週六 08:00", "description": "訓練時間序列預測模型"},
-            {"id": "daily_prediction", "name": "每日預測生成", "schedule": "每天 22:00", "description": "生成明天的購買預測"},
+            {"id": "weekly_model_training", "name": "週度模型訓練", "schedule": "週六 08:00", "description": "使用CatBoost進行週度模型訓練"},
+            {"id": "daily_prediction", "name": "每日預測生成", "schedule": "每天 22:00", "description": "使用CatBoost生成明天的購買預測"},
             {"id": "trigger_health_check", "name": "觸發器健康檢查", "schedule": "每天 02:00", "description": "檢查資料庫觸發器狀態"}
         ]
     },
@@ -502,10 +515,16 @@ def get_scheduler_status():
 # 初始化資料表
 init_schedule_tables()
 
-# 啟動整合排程器 (在 API 啟動時自動啟動)
-if integrated_scheduler:
+# 環境變數控制自動啟動整合排程器
+# 設定 SCHEDULER_AUTOSTART=1 時才自動啟動，避免在8000和9000端口重複啟動
+if integrated_scheduler and os.getenv("SCHEDULER_AUTOSTART") == "1":
     try:
         integrated_scheduler.start_scheduler()
-        logging.info("Integrated scheduler auto-started with API")
+        logging.info("Integrated scheduler auto-started with API (SCHEDULER_AUTOSTART=1)")
     except Exception as e:
         logging.error(f"Failed to auto-start scheduler: {e}")
+else:
+    if integrated_scheduler:
+        logging.info("Scheduler available but not auto-started (set SCHEDULER_AUTOSTART=1 to enable)")
+    else:
+        logging.warning("Integrated scheduler not available")
