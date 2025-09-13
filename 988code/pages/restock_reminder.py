@@ -604,8 +604,13 @@ def show_detail_modal(view_clicks, table_data):
                     # 根據圖表寬度判斷是否需要滾動（modal 寬度大約1200px）
                     modal_width = 1200
                     scrollable = chart_width > modal_width
-                    
-                    # 設定圖表樣式
+                    min_date = history_df['transaction_date'].min()
+                    max_date = history_df['transaction_date'].max()
+                    total_days = (max_date - min_date).days
+
+                    # 設定顯示範圍：始終顯示從最小到最大日期的完整範圍
+                    initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
+
                     fig.update_layout(
                         showlegend=False,
                         xaxis=dict(
@@ -616,7 +621,8 @@ def show_detail_modal(view_clicks, table_data):
                             tickformat='%Y/%m',  # 只顯示年/月格式
                             showgrid=True,
                             gridcolor="lightgray",
-                            gridwidth=1
+                            gridwidth=1,
+                            range=initial_range  # 設定初始顯示範圍，自動聚焦最初日期
                         ),
                         yaxis=dict(showticklabels=False, range=[-0.2, 2.5]),
                         height=300,
@@ -625,11 +631,32 @@ def show_detail_modal(view_clicks, table_data):
                         paper_bgcolor="white",
                         margin=dict(l=20, r=20, t=50, b=50)
                     )
-                    
                     if scrollable:
                         timeline_chart = html.Div([
-                            dcc.Graph(figure=fig, id="timeline-chart", style={"width": f"{chart_width}px"}, config={'displayModeBar': False}),
-                            dcc.Download(id="download-chart")
+                            dcc.Graph(
+                                figure=fig, 
+                                id="timeline-chart", 
+                                style={"width": f"{chart_width}px"}, 
+                                config={'displayModeBar': False}
+                            ),
+                            dcc.Download(id="download-chart"),
+                            # 添加自動滾動的 JavaScript
+                            html.Script(f"""
+                                setTimeout(function() {{
+                                    var chartDiv = document.getElementById('timeline-chart');
+                                    if (chartDiv) {{
+                                        var scrollContainer = chartDiv.closest('[style*="overflowX"]');
+                                        if (scrollContainer) {{
+                                            var maxDate = new Date('{max_date.strftime('%Y-%m-%d')}');
+                                            var chartWidth = {chart_width};
+                                            var containerWidth = scrollContainer.clientWidth;
+                                            // 計算最新日期對應的滾動位置
+                                            var scrollPosition = chartWidth - containerWidth + 100;
+                                            scrollContainer.scrollLeft = Math.max(0, scrollPosition);
+                                        }}
+                                    }}
+                                }}, 500);
+                            """)
                         ], style={"overflowX": "auto", "width": "100%"})
                     else:
                         timeline_chart = html.Div([
