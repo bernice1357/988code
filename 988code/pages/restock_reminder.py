@@ -581,8 +581,12 @@ def show_detail_modal(view_clicks, table_data):
                         mode="markers+text",
                         text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in history_df['transaction_date']],
                         textposition="top center",
-                        hovertemplate='%{customdata}<extra></extra>',
-                        customdata=[d.strftime('%Y-%m-%d') for d in history_df['transaction_date']],
+                        hovertemplate='<b>%{customdata[0]}</b><br>' +
+                                    '商品：%{customdata[1]}<br>' +
+                                    '數量：%{customdata[2]}<br>' +
+                                    '<extra></extra>',
+                        customdata=[[d.strftime('%Y-%m-%d'), row['product_name'], row['quantity']] 
+                                    for d, (_, row) in zip(history_df['transaction_date'], history_df.iterrows())],
                         marker=dict(size=12, color="#564dff", symbol="circle"),
                         name="補貨日期"
                     ))
