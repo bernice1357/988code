@@ -97,7 +97,6 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'textOverflow': 'ellipsis'
             }
             
-            
             if col in sticky_columns:
                 sticky_index = sticky_columns.index(col)
                 # 計算前面所有欄位的寬度總和（使用統一的寬度計算）
@@ -107,6 +106,14 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 for j in range(sticky_index):
                     left_offset += sticky_widths[sticky_columns[j]]
                 
+                # 設定 sticky column 的背景顏色
+                sticky_bg_color = "#edf7ff"  # 預設 sticky 背景色
+                if col == '提醒狀態':
+                    if row[col] == '未提醒':
+                        sticky_bg_color = '#ffebee'  # 淺紅色背景
+                    elif row[col] == '已提醒':
+                        sticky_bg_color = '#e8f5e8'  # 淺綠色背景
+
                 # 右邊的 sticky column 應該有更高的 z-index
                 sticky_z_index = 5 + sticky_index  # 第0個是5，第1個是6，以此類推
                 
@@ -114,7 +121,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'position': 'sticky',
                     'left': f'{left_offset}px',
                     'zIndex': sticky_z_index,
-                    'backgroundColor': "#edf7ff",
+                    'backgroundColor': sticky_bg_color,
                     'width': f'{sticky_widths[col]}px',
                     'minWidth': f'{sticky_widths[col]}px',
                     'maxWidth': f'{sticky_widths[col]}px',
@@ -122,6 +129,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'textOverflow': 'ellipsis'
                 })
                 
+
+
                 # 確保使用統一的寬度計算
                 cell_width = sticky_widths[col]
                 
