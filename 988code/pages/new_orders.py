@@ -571,7 +571,14 @@ def toggle_delete_modal(n_clicks_list, is_open):
     orders = get_orders()
     order = next((o for o in orders if str(o["id"]) == str(order_id)), None)
     if order:
-        customer_info = order['customer_id'] + order['customer_name'] if order.get("customer_id") else order['line_id']
+        # 修正：使用與 confirm_delete 相同的邏輯
+        if order.get("customer_id") and order.get("customer_name"):
+            customer_info = order['customer_id'] + order['customer_name']
+        elif order.get("line_id"):
+            customer_info = order['line_id']
+        else:
+            customer_info = "未知客戶"
+        
         message = f"確定要刪除訂單：{customer_info} 嗎？"
         return True, message
     

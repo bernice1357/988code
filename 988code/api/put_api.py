@@ -1254,6 +1254,8 @@ class TempOrderCreate(BaseModel):
     label: str = "ORDER"
     is_new_product: bool = False
     status: str = "0"  # 預設為未確認
+    confirmed_by: Optional[str] = None  
+    confirmed_at: Optional[str] = None
     user_role: str
 
 @router.post("/create_temp_order")
@@ -1275,9 +1277,9 @@ def create_temp_order(order_data: TempOrderCreate):
                 temp_sql = """
                 INSERT INTO temp_customer_records 
                 (customer_id, customer_name, line_id, product_id, purchase_record, quantity, 
-                 unit_price, amount, conversation_record, order_note, label, is_new_product, 
-                 status, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                unit_price, amount, conversation_record, order_note, label, is_new_product, 
+                status, confirmed_by, confirmed_at, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 
                 temp_params = (
@@ -1294,6 +1296,8 @@ def create_temp_order(order_data: TempOrderCreate):
                     order_data.label,
                     order_data.is_new_product,
                     order_data.status,
+                    order_data.confirmed_by,
+                    order_data.confirmed_at,
                     current_time,
                     current_time
                 )
