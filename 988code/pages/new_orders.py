@@ -350,6 +350,7 @@ layout = dbc.Container([
     error_toast("new_orders", message=""),
     warning_toast("new_orders", message=""),
     dcc.Store(id='user-role-store'),
+    dcc.Store(id='current-order-id-store'),
     html.Div([
         # 左側：新增訂單按鈕
         dbc.Button(
@@ -672,7 +673,8 @@ def confirm_delete(n_clicks, modal_body, user_role):
 @app.callback(
     [Output("confirm-modal", "is_open", allow_duplicate=True),
      Output("modal-body-content", "children", allow_duplicate=True),
-     Output("modal-header", "children", allow_duplicate=True)],
+     Output("modal-header", "children", allow_duplicate=True),
+     Output("current-order-id-store", "data", allow_duplicate=True)],
     [Input({"type": "confirm-btn", "index": ALL}, "n_clicks")],
     [State("confirm-modal", "is_open")],
     prevent_initial_call=True
@@ -680,25 +682,45 @@ def confirm_delete(n_clicks, modal_body, user_role):
 def toggle_modal(n_clicks_list, is_open):
     ctx = dash.callback_context
     if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update
-    
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update  # 新增一個 no_update
+
     # 檢查是否真的是confirm-btn被點擊
     triggered_prop = ctx.triggered[0]["prop_id"]
     if not triggered_prop or "confirm-btn" not in triggered_prop:
-        return dash.no_update, dash.no_update, dash.no_update
-    
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update  # 新增一個 no_update
+
     # 檢查點擊值是否存在且大於0
     triggered_value = ctx.triggered[0]["value"]
     if not triggered_value or triggered_value == 0:
-        return dash.no_update, dash.no_update, dash.no_update
-    
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update  # 新增一個 no_update
+
     # 解析 order_id
     import json
     try:
         button_id = json.loads(triggered_prop.split('.')[0])
         order_id = button_id["index"]
     except:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update  # 新增一個 no_update
+
+    orders = get_orders()
+    # 根據 order_id 找到對應的訂單資料
+    order = next((o for o in orders if str(o["id"]) == str(order_id)), None)
+    if order:
+        # 傳入所有需要的欄位
+        modal_content = get_modal_fields(
+            order.get("customer_id"), 
+            order.get("customer_name"), 
+            order["purchase_record"],
+            order.get("product_id"),
+            order.get("quantity"),
+            order.get("unit_price"),
+            order.get("amount")
+        )
+        # 設定標題
+        title = "確認訂單"
+        return True, modal_content, title, order_id  # 新增 order_id
+    
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update  # 新增一個 no_update
     
     orders = get_orders()
     # 根據 order_id 找到對應的訂單資料
@@ -768,18 +790,18 @@ def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id
      State("unit-price", "value"),
      State("amount", "value"),
      State("modal-header", "children"),
+     State("current-order-id-store", "data"),
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, user_role):
+def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, current_order_id, user_role):
     if n_clicks:
         orders = get_orders()
-        order_id = None
+        order_id = current_order_id
         original_order = None
-        if orders and modal_header == "確認訂單":
-            order_id = orders[0]["id"]
-            original_order = orders[0]
-        
+
+        if order_id:
+            original_order = next((o for o in orders if str(o["id"]) == str(order_id)), None)
         if order_id and original_order:
             # 如果有customer_id且存在，更新客戶備註
             if customer_id and check_customer_exists(customer_id):
