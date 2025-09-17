@@ -1135,7 +1135,7 @@ def calculate_amount(quantity, unit_price):
             quantity = float(quantity) if quantity != "" else 0
             unit_price = float(unit_price) if unit_price != "" else 0
             amount = quantity * unit_price
-            return round(amount, 2)  # 四捨五入到小數點後兩位
+            return round(amount, 2)
         except (ValueError, TypeError):
             return None
     return None
