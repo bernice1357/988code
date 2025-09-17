@@ -19,7 +19,7 @@ def get_sales_change_data():
         # 重新命名欄位和格式化資料
         if not df.empty:
             # 檢查必要欄位是否存在
-            required_columns = ['product_name', 'last_month_sales', 'current_month_sales', 
+            required_columns = ['product_id', 'product_name', 'last_month_sales', 'current_month_sales', 
                                   'change_percentage', 'stock_quantity', 'status']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
@@ -374,7 +374,7 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
         df = df[df['商品名稱'] == product_name_filter]  # 改為精確匹配
     
     # 只保留需要的欄位
-    columns_to_keep = ['商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
+    columns_to_keep = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
     df = df[columns_to_keep]
     
     # 確保所有需要的欄位都存在
@@ -467,7 +467,7 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             df['變化比例'] = df.apply(apply_percentage_style, axis=1)
         
         # 只保留表格顯示的欄位
-        display_columns = ['商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
+        display_columns = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
         # 確保所有欄位都存在
         available_columns = [col for col in display_columns if col in df.columns]
         df_display = df[available_columns].copy()
@@ -627,7 +627,8 @@ def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, f
         
         if selected_indices and filtered_data:
             df = pd.DataFrame(filtered_data)
-            selected_products = [df.iloc[index]['商品名稱'] for index in selected_indices if index < len(df)]
+            # 顯示商品名稱，但內部使用 product_id
+            selected_products = [f"{df.iloc[index]['product_id']} - {df.iloc[index]['商品名稱']}" for index in selected_indices if index < len(df)]
             
             # 顯示選中的商品
             product_info = html.Div([
@@ -675,11 +676,40 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
     
     try:
         df = pd.DataFrame(filtered_data)
-        product_names = [df.iloc[index]['商品名稱'] for index in selected_indices if index < len(df)]
+        # 改為獲取 product_id 而不是商品名稱
+        product_ids = [df.iloc[index]['product_id'] for index in selected_indices if index < len(df)]
         
-        success_count = len(product_names)
+        # 新增：實際呼叫 API 更新資料庫
+        success_count = 0
+        failed_products = []
         
-        return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
+        for product_id in product_ids:
+            try:
+                # 呼叫新的 API 更新 sales_change_table 的 status
+                response = requests.put(
+                    f'http://127.0.0.1:8000/update_sales_change_status_by_id',
+                    json={
+                        "product_id": product_id,  # 改用 product_id
+                        "status": True,
+                        "processed_by": processor_name or "系統管理員",
+                        "user_role": "editor"
+                    }
+                )
+                
+                if response.status_code == 200:
+                    success_count += 1
+                else:
+                    failed_products.append(product_id)
+                    
+            except Exception as e:
+                print(f"更新 {product_id} 失敗: {e}")
+                failed_products.append(product_id)
+        
+        if failed_products:
+            error_msg = f"部分商品更新失敗: {', '.join(failed_products)}"
+            return True, f"成功處理 {success_count} 項，失敗 {len(failed_products)} 項", True, error_msg, True, False
+        else:
+            return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", dash.no_update, False
