@@ -281,19 +281,6 @@ tab_content = html.Div([
             dbc.ModalHeader("確認處理滯銷商品", style={"fontWeight": "bold", "fontSize": "24px"}),
             dbc.ModalBody([
                 html.Div(id="selected-products-info", style={"marginBottom": "20px"}),
-                dbc.Row([
-                    dbc.Label("處理人員", width=3),
-                    dbc.Col(dbc.Input(
-                        id="sales-modal-processor-name",
-                        type="text",
-                        placeholder="輸入處理人員姓名",
-                        value="系統管理員"
-                    ), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("處理時間", width=3),
-                    dbc.Col(html.Div(id="sales-process-datetime", style={"padding": "8px", "backgroundColor": "#f8f9fa", "border": "1px solid #ced4da", "borderRadius": "4px"}), width=9)
-                ], className="mb-3"),
             ]),
             dbc.ModalFooter([
                 dbc.Button("取消", id="sales-modal-cancel-btn", color="secondary", className="me-2"),
@@ -692,55 +679,7 @@ def toggle_product_detail_modal(detail_clicks, close_clicks, filtered_data, btn_
     
     return False, "", ""
 
-# 顯示處理確認 Modal
-@app.callback(
-    [Output('sales-process-confirm-modal', 'is_open'),
-     Output('selected-products-info', 'children'),
-     Output('sales-process-datetime', 'children')],
-    [Input('sales_confirm_btn', 'n_clicks'),
-     Input('sales-modal-cancel-btn', 'n_clicks')],
-    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
-     State("filtered-sales-data", "data"),
-     State('sales-process-confirm-modal', 'is_open')],
-    prevent_initial_call=True
-)
-def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, is_open):
-    ctx = callback_context
-    if not ctx.triggered:
-        return False, "", ""
-    
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    if button_id == 'sales_confirm_btn' and confirm_clicks:
-        # 獲取選中的商品
-        selected_indices = []
-        for i, values in enumerate(checkbox_values):
-            if values:
-                selected_indices.extend(values)
-        
-        if selected_indices and filtered_data:
-            df = pd.DataFrame(filtered_data)
-            # 顯示商品名稱，但內部使用 product_id
-            selected_products = [f"{df.iloc[index]['product_id']} - {df.iloc[index]['商品名稱']}" for index in selected_indices if index < len(df)]
-            
-            # 顯示選中的商品
-            product_info = html.Div([
-                html.H6(f"將處理以下 {len(selected_products)} 項商品：", style={"marginBottom": "10px"}),
-                html.Ul([html.Li(product) for product in selected_products])
-            ])
-            
-            # 顯示當前時間
-            from datetime import datetime
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            return True, product_info, current_time
-    
-    elif button_id == 'sales-modal-cancel-btn':
-        return False, "", ""
-    
-    return is_open, dash.no_update, dash.no_update
-
-# 處理確認已處理的邏輯
+# 修正後的處理確認已處理邏輯
 @app.callback(
     [Output('sales_change-success-toast', 'is_open'),
      Output('sales_change-success-toast', 'children'),
@@ -751,10 +690,12 @@ def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, f
     Input('sales-modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-sales-data", "data"),
-     State("sales-modal-processor-name", "value")],
+     State("btn-all-products", "n_clicks"),
+     State("btn-unprocessed-products", "n_clicks"),
+     State("btn-processed-products", "n_clicks")],
     prevent_initial_call=True
 )
-def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data, processor_name):
+def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed):
     if not modal_confirm_clicks:
         return False, "", False, "", dash.no_update, dash.no_update
     
@@ -768,9 +709,27 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         return False, "", True, "沒有選擇任何商品", dash.no_update, False
     
     try:
+        # 重要：需要重新應用與表格顯示相同的篩選邏輯
         df = pd.DataFrame(filtered_data)
-        # 改為獲取 product_id 而不是商品名稱
-        product_ids = [df.iloc[index]['product_id'] for index in selected_indices if index < len(df)]
+        
+        # 根據按鈕狀態篩選資料（與display_sales_table相同的邏輯）
+        if btn_unprocessed and not btn_all and not btn_processed:
+            df = df[df['狀態'] == '未處理']
+        elif btn_processed and not btn_all and not btn_unprocessed:
+            df = df[df['狀態'] == '已處理']
+        # 如果是全部商品，則不需額外篩選
+        
+        # 重置索引，確保索引從0開始連續（與表格顯示一致）
+        df = df.reset_index(drop=True)
+        
+        # 根據重置後的索引獲取正確的 product_id
+        product_ids = []
+        for index in selected_indices:
+            if index < len(df):
+                product_ids.append(df.iloc[index]['product_id'])
+        
+        if not product_ids:
+            return False, "", True, "無法獲取選中商品的ID", dash.no_update, False
         
         # 新增：實際呼叫 API 更新資料庫
         success_count = 0
@@ -782,9 +741,8 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
                 response = requests.put(
                     f'http://127.0.0.1:8000/update_sales_change_status_by_id',
                     json={
-                        "product_id": product_id,  # 改用 product_id
+                        "product_id": product_id,
                         "status": True,
-                        "processed_by": processor_name or "系統管理員",
                         "user_role": "editor"
                     }
                 )
@@ -806,6 +764,67 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", dash.no_update, False
+
+# 同時也需要修正顯示處理確認 Modal 的邏輯
+@app.callback(
+    [Output('sales-process-confirm-modal', 'is_open'),
+     Output('selected-products-info', 'children')],
+    [Input('sales_confirm_btn', 'n_clicks'),
+     Input('sales-modal-cancel-btn', 'n_clicks')],
+    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     State("filtered-sales-data", "data"),
+     State("btn-all-products", "n_clicks"),
+     State("btn-unprocessed-products", "n_clicks"),
+     State("btn-processed-products", "n_clicks"),
+     State('sales-process-confirm-modal', 'is_open')],
+    prevent_initial_call=True
+)
+def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed, is_open):
+    ctx = callback_context
+    if not ctx.triggered:
+        return False, ""
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if button_id == 'sales_confirm_btn' and confirm_clicks:
+        # 獲取選中的商品
+        selected_indices = []
+        for i, values in enumerate(checkbox_values):
+            if values:
+                selected_indices.extend(values)
+        
+        if selected_indices and filtered_data:
+            # 重要：需要重新應用與表格顯示相同的篩選邏輯
+            df = pd.DataFrame(filtered_data)
+            
+            # 根據按鈕狀態篩選資料（與display_sales_table和confirm_sales_processed相同的邏輯）
+            if btn_unprocessed and not btn_all and not btn_processed:
+                df = df[df['狀態'] == '未處理']
+            elif btn_processed and not btn_all and not btn_unprocessed:
+                df = df[df['狀態'] == '已處理']
+            # 如果是全部商品，則不需額外篩選
+            
+            # 重置索引，確保索引從0開始連續（與表格顯示一致）
+            df = df.reset_index(drop=True)
+            
+            # 根據重置後的索引獲取正確的商品名稱
+            selected_products = []
+            for index in selected_indices:
+                if index < len(df):
+                    selected_products.append(df.iloc[index]['商品名稱'])
+            
+            # 顯示選中的商品
+            product_info = html.Div([
+                html.H6(f"將處理以下 {len(selected_products)} 項商品：", style={"marginBottom": "10px"}),
+                html.Ul([html.Li(product) for product in selected_products])
+            ])
+            
+            return True, product_info
+    
+    elif button_id == 'sales-modal-cancel-btn':
+        return False, ""
+    
+    return is_open, dash.no_update
     
 # 更新商品名稱下拉選單選項
 @app.callback(
