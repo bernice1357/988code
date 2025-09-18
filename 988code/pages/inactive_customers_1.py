@@ -197,6 +197,87 @@ def update_stats(filtered_data):
         html.H5(f"未處理: {unprocessed_customers}")
     ]
 
+def create_custom_inactive_table(df, show_checkbox=False, show_button=False, table_height='47vh'):
+    """專門為不活躍客戶創建的自定義表格，可以控制標題高度"""
+    from dash import html
+    
+    if df.empty:
+        return html.Div("暫無資料")
+    
+    # 自定義標題樣式
+    header_style = {
+        "position": "sticky",
+        "top": "-1px",
+        "zIndex": 2,
+        'backgroundColor': '#bcd1df',
+        'fontWeight': 'bold',
+        'fontSize': '16px',
+        'padding': '2px',              
+        'height': '5px',               
+        'minHeight': '5px',            
+        'verticalAlign': 'middle',      
+        'textAlign': 'center',
+        'border': '1px solid #ccc',
+        'whiteSpace': 'nowrap'
+    }
+    
+    # 手動建立表格標題
+    headers = []
+    if show_checkbox:
+        headers.append(html.Th('', style={**header_style, 'width': '50px'}))
+    
+    for col in df.columns:
+        headers.append(html.Th(col, style=header_style))
+    
+    # 建立表格主體
+    rows = []
+    for i, row in df.iterrows():
+        row_cells = []
+        if show_checkbox:
+            row_cells.append(html.Td(
+                dcc.Checklist(
+                    id={'type': 'status-checkbox', 'index': i},
+                    options=[{'label': '', 'value': i}],
+                    value=[]
+                ), style={'textAlign': 'center', 'padding': '8px'}
+            ))
+        
+        for col in df.columns:
+            # 只有狀態欄位需要特殊背景顏色
+            if col == '狀態':
+                if row[col] == '已處理':
+                    cell_bg_color = '#d4edda'  # 淺綠色背景
+                elif row[col] == '未處理':
+                    cell_bg_color = '#f8d7da'  # 淺紅色背景
+                else:
+                    cell_bg_color = 'white'
+            else:
+                cell_bg_color = 'white'  # 其他欄位保持白色背景
+                
+            row_cells.append(html.Td(
+                row[col], 
+                style={
+                    'padding': '8px', 
+                    'textAlign': 'center',
+                    'backgroundColor': cell_bg_color
+                }
+            ))
+        
+        rows.append(html.Tr(row_cells))
+    
+    # 建立完整表格
+    table = html.Table([
+        html.Thead([html.Tr(headers)]),
+        html.Tbody(rows)
+    ], style={'width': '100%', 'borderCollapse': 'collapse'})
+    
+    return html.Div([table], style={
+        'overflowY': 'auto',
+        'maxHeight': table_height,
+        'border': '1px solid #ccc',
+        'borderRadius': '8px'
+    })
+
 # 顯示表格的 callback
 @app.callback(
     Output("inactive-customer-table-container", "children"),
@@ -230,7 +311,7 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
     df = df.reset_index(drop=True)
     
     # 使用 custom_table 的新 table_height 參數
-    return custom_table(df, show_checkbox=show_checkbox, show_button=False, table_height="47vh")
+    return create_custom_inactive_table(df, show_checkbox=show_checkbox, show_button=False, table_height="47vh")
 
 # 顯示確認已處理按鈕
 @app.callback(

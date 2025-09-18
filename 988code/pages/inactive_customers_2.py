@@ -406,6 +406,99 @@ def update_sales_stats(filtered_data):
         html.H5(f"未處理: {unprocessed_products}")
     ]
 
+def create_custom_sales_table(df, show_checkbox=False, show_button=False, button_text="詳情", button_id_type="sales_detail_button", table_height='47vh'):
+    """專門為滯銷品創建的自定義表格，可以控制標題高度和狀態背景顏色"""
+    from dash import html
+    
+    if df.empty:
+        return html.Div("暫無資料")
+    
+    # 自定義標題樣式
+    header_style = {
+        "position": "sticky",
+        "top": "-1px",
+        "zIndex": 2,
+        'backgroundColor': '#bcd1df',
+        'fontWeight': 'bold',
+        'fontSize': '16px',
+        'padding': '2px',              
+        'height': '5px',               
+        'minHeight': '5px',            
+        'verticalAlign': 'middle',      
+        'textAlign': 'center',
+        'border': '1px solid #ccc',
+        'whiteSpace': 'nowrap'
+    }
+    
+    # 手動建立表格標題
+    headers = []
+    if show_checkbox:
+        headers.append(html.Th('', style={**header_style, 'width': '50px'}))
+    
+    for col in df.columns:
+        headers.append(html.Th(col, style=header_style))
+    
+    if show_button:
+        headers.append(html.Th('操作', style={**header_style, 'width': '100px'}))
+    
+    # 建立表格主體
+    rows = []
+    for i, row in df.iterrows():
+        row_cells = []
+        if show_checkbox:
+            row_cells.append(html.Td(
+                dcc.Checklist(
+                    id={'type': 'status-checkbox', 'index': i},
+                    options=[{'label': '', 'value': i}],
+                    value=[]
+                ), style={'textAlign': 'center', 'padding': '8px'}
+            ))
+        
+        for col in df.columns:
+            # 只有狀態欄位需要特殊背景顏色
+            if col == '狀態':
+                if row[col] == '已處理':
+                    cell_bg_color = '#d4edda'  # 淺綠色背景
+                elif row[col] == '未處理':
+                    cell_bg_color = '#f8d7da'  # 淺紅色背景
+                else:
+                    cell_bg_color = 'white'
+            else:
+                cell_bg_color = 'white'  # 其他欄位保持白色背景
+                
+            row_cells.append(html.Td(
+                row[col], 
+                style={
+                    'padding': '8px', 
+                    'textAlign': 'center',
+                    'backgroundColor': cell_bg_color
+                }
+            ))
+        
+        if show_button:
+            row_cells.append(html.Td(
+                html.Button(
+                    button_text,
+                    id={'type': button_id_type, 'index': i},
+                    className="btn btn-warning btn-sm"
+                ), style={'textAlign': 'center', 'padding': '8px'}
+            ))
+        
+        rows.append(html.Tr(row_cells))
+    
+    # 建立完整表格
+    table = html.Table([
+        html.Thead([html.Tr(headers)]),
+        html.Tbody(rows)
+    ], style={'width': '100%', 'borderCollapse': 'collapse'})
+    
+    return html.Div([table], style={
+        'overflowY': 'auto',
+        'maxHeight': table_height,
+        'border': '1px solid #ccc',
+        'borderRadius': '8px'
+    })
+
 # 表格顯示的 callback
 @app.callback(
     Output("sales-table-container", "children"),
@@ -475,8 +568,8 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
         if df_display.empty:
             return html.Div("暫無資料")
         
-        # 使用 custom_table 的新 table_height 參數
-        return custom_table(
+        # 使用自定義表格函數
+        return create_custom_sales_table(
             df_display, 
             show_checkbox=show_checkbox, 
             show_button=True,
@@ -484,7 +577,7 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             button_id_type="sales_detail_button",
             table_height="47vh"
         )
-    
+            
     except Exception as e:
         return html.Div(f"表格顯示錯誤: {str(e)}")
 
