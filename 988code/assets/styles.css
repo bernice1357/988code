@@ -1,14 +1,14 @@
-/* 全局字體統一設定 - 排除圖標字體 */
+﻿/* ?典?摮?蝯曹?閮剖? - ???摮? */
 *:not([class*="fa"]):not([class*="icon"]):not(i[class]) {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
 
-/* 針對特定元素設定字體，避免過於廣泛的選擇器 */
+/* ???孵???閮剖?摮?嚗???澆誨瘜??豢???*/
 body, p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
 
-/* 強制 pre 標籤也使用相同字體，而不是等寬字體 */
+/* 撘瑕 pre 璅惜銋蝙?函??擃????舐?撖砍?擃?*/
 pre {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
@@ -24,15 +24,15 @@ div.card .card-header {
 }
 
 .accordion .accordion-item {
-    background-color: #fff3cd;  /* 整個 item 背景色 */
+    background-color: #fff3cd;  /* ?游?item ???*/
 }
 
 .accordion .accordion-header {
-    background-color: #ffeeba !important;  /* header 背景色 */
+    background-color: #ffeeba !important;  /* header ???*/
 }
 
 .accordion .accordion-body {
-    background-color: #fff3cd !important;  /* body 背景色 */
+    background-color: #fff3cd !important;  /* body ???*/
 }
 
 .dropdown-menu.show {
@@ -60,7 +60,7 @@ div.card .card-header {
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     padding: 16px;
-    background-color: #fff;
+    background-color: #fff !important;
 }
 
 input[type="month"], input[type="date"] {
@@ -68,7 +68,7 @@ input[type="month"], input[type="date"] {
     padding: 12px 12px;
 }
 
-/* Modal 置中樣式 */
+/* Modal 蝵桐葉璅?? */
 .modal {
     display: flex !important;
     align-items: center !important;
@@ -103,7 +103,7 @@ input[type="month"], input[type="date"] {
     margin: 0 !important;
 }
 
-/* Dropdown 文字靠左對齊 */
+/* Dropdown ???椰撠? */
 .Select-control .Select-value-label,
 .Select-control .Select-placeholder {
     text-align: left !important;
@@ -125,7 +125,7 @@ div[id*="status-dropdown"] .Select-value-label {
     z-index: 10000000 !important;
 }
 
-/* 側邊欄下拉選單項目的 hover 效果 */
+/* ?湧?甈???桅??桃? hover ?? */
 #sidebar .dropdown-item:hover {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
@@ -135,3 +135,19 @@ div[id*="status-dropdown"] .Select-value-label {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
 }
+.pagination-dropdown-menu .dropdown-menu {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.pagination-dropdown-item {
+    color: #333;
+}
+.pagination-dropdown-item.active {
+    font-weight: 600;
+    background-color: #343a40 !important;
+    color: #fff !important;
+}
+
+
+

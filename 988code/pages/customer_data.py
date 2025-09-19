@@ -2,6 +2,7 @@ from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from callbacks.export_callback import create_export_callback, add_download_component
 from dash import ALL, callback_context
+import json
 
 # 配送日轉換函數
 def convert_delivery_schedule_to_chinese(schedule_str):
@@ -122,28 +123,6 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     ),
 
     html.Div(id="pagination-controls-bottom", className="mt-3 d-flex justify-content-center align-items-center"),
-    dbc.Modal(
-        id="page-selection-modal",
-        is_open=False,
-        centered=True,
-        size="sm",
-        children=[
-            dbc.ModalHeader("跳至指定頁面"),
-            dbc.ModalBody([
-                html.Label("輸入頁碼", className="form-label"),
-                dbc.Input(
-                    id="page-selection-input",
-                    type="number",
-                    min=1,
-                    step=1,
-                ),
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("取消", id="page-selection-cancel", color="secondary", className="me-2"),
-                dbc.Button("前往", id="page-selection-confirm", color="primary"),
-            ]),
-        ],
-    ),
     dbc.Modal(
         id="customer_data_modal",
         is_open=False,
@@ -646,115 +625,160 @@ def toggle_missing_data_filter(n_clicks, current_filter, customer_data):
 def update_pagination_controls(pagination_info):
     if not pagination_info:
         return ""
-    
+
     current_page = pagination_info.get("current_page", 1)
     total_pages = pagination_info.get("total_pages", 1)
     total_count = pagination_info.get("total_count", 0)
     has_prev = pagination_info.get("has_prev", False)
     has_next = pagination_info.get("has_next", False)
-    
+
+    try:
+        total_pages = int(total_pages)
+    except (TypeError, ValueError):
+        total_pages = 1
+    total_pages = max(total_pages, 1)
+
+    try:
+        current_page = int(current_page)
+    except (TypeError, ValueError):
+        current_page = 1
+    current_page = max(1, min(current_page, total_pages))
+
+    menu_items = [
+        dbc.DropdownMenuItem(
+            f"第 {page} 頁",
+            id={"type": "page-selection-item", "index": page},
+            disabled=(page == current_page),
+            className="pagination-dropdown-item active" if page == current_page else "pagination-dropdown-item",
+        )
+        for page in range(1, total_pages + 1)
+    ]
+
+    dropdown = dbc.DropdownMenu(
+        label=f"第 {current_page} 頁 / 共 {total_pages} 頁",
+        id="page-selection-dropdown",
+        color="light",
+        direction="up",
+        caret=False,
+        className="pagination-dropdown-menu",
+        children=menu_items,
+    )
+
     controls = html.Div([
         dbc.ButtonGroup([
-            dbc.Button("⏮ 最前頁", 
-                      id="first-page-btn", 
+            dbc.Button("⏮ 最前頁",
+                      id="first-page-btn",
                       disabled=not has_prev,
                       outline=True,
                       color="primary"),
-            dbc.Button("◀ 上一頁", 
-                      id="prev-page-btn", 
+            dbc.Button("◀ 上一頁",
+                      id="prev-page-btn",
                       disabled=not has_prev,
                       outline=True,
                       color="primary"),
-            dbc.Button(
-                f"第 {current_page} 頁 / 共 {total_pages} 頁",
-                id="page-indicator-btn",
-                color="light",
-            ),
-            dbc.Button("下一頁 ▶", 
-                      id="next-page-btn", 
+            dropdown,
+            dbc.Button("下一頁 ▶",
+                      id="next-page-btn",
                       disabled=not has_next,
                       outline=True,
                       color="primary"),
-            dbc.Button("最末頁 ⏭", 
-                      id="last-page-btn", 
+            dbc.Button("最末頁 ⏭",
+                      id="last-page-btn",
                       disabled=not has_next,
                       outline=True,
                       color="primary")
         ]),
-        html.Span(f"共 {total_count} 筆資料", 
+        html.Span(f"共 {total_count} 筆資料",
                  className="ms-3",
                  style={"alignSelf": "center", "color": "#666"})
     ], style={"display": "flex", "alignItems": "center"})
-    
+
     return controls
-
-# 分頁按鈕點擊處理
-@app.callback(
-    Output("page-selection-modal", "is_open"),
-    Output("page-selection-input", "value"),
-    Input("page-indicator-btn", "n_clicks"),
-    Input("page-selection-confirm", "n_clicks"),
-    Input("page-selection-cancel", "n_clicks"),
-    State("page-selection-modal", "is_open"),
-    State("current-page", "data"),
-    prevent_initial_call=True,
-)
-def toggle_page_selection_modal(indicator_clicks, confirm_clicks, cancel_clicks, is_open, current_page):
-    ctx = callback_context
-    if not ctx.triggered:
-        return is_open, dash.no_update
-
-    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-
-    if button_id == "page-indicator-btn" and (indicator_clicks or 0) > 0:
-        return True, current_page or 1
-
-    if button_id == "page-selection-confirm" and (confirm_clicks or 0) > 0:
-        return False, dash.no_update
-
-    if button_id == "page-selection-cancel" and (cancel_clicks or 0) > 0:
-        return False, dash.no_update
-
-    return is_open, dash.no_update
 
 @app.callback(
     Output("current-page", "data"),
     [Input("first-page-btn", "n_clicks"),
      Input("prev-page-btn", "n_clicks"),
      Input("next-page-btn", "n_clicks"),
-     Input("last-page-btn", "n_clicks"),
-     Input("page-selection-confirm", "n_clicks")],
+     Input("last-page-btn", "n_clicks")],
     [State("current-page", "data"),
-     State("pagination-info", "data"),
-     State("page-selection-input", "value")],
+     State("pagination-info", "data")],
     prevent_initial_call=True
 )
-def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, confirm_clicks, current_page, pagination_info, selected_page):
+def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, current_page, pagination_info):
     ctx = callback_context
     if not ctx.triggered:
         return current_page or 1
 
     pagination_info = pagination_info or {}
+
+    def _to_int(value, default=1):
+        try:
+            return max(1, int(value))
+        except (TypeError, ValueError):
+            return default
+
+    def _to_bool(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return False
+
+    api_current_page = pagination_info.get("current_page")
+    current_page = _to_int(api_current_page, default=_to_int(current_page or 1))
+    total_pages = _to_int(pagination_info.get("total_pages", 1))
+    current_page = min(current_page, total_pages)
+
+    has_prev = _to_bool(pagination_info.get("has_prev"))
+    has_next = _to_bool(pagination_info.get("has_next"))
+
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    if button_id == "first-page-btn" and pagination_info.get("has_prev"):
+    if button_id == "first-page-btn" and has_prev:
         return 1
-    elif button_id == "prev-page-btn" and pagination_info.get("has_prev"):
-        return max(1, (current_page or 1) - 1)
-    elif button_id == "next-page-btn" and pagination_info.get("has_next"):
-        return min(pagination_info.get("total_pages", 1), (current_page or 1) + 1)
-    elif button_id == "last-page-btn" and pagination_info.get("has_next"):
-        return pagination_info.get("total_pages", 1)
-    elif button_id == "page-selection-confirm":
-        try:
-            target_page = int(selected_page)
-        except (TypeError, ValueError):
-            return current_page or 1
-        total_pages = pagination_info.get("total_pages", 1)
-        target_page = max(1, min(total_pages, target_page))
-        return target_page
+    if button_id == "prev-page-btn" and has_prev:
+        return max(1, current_page - 1)
+    if button_id == "next-page-btn" and has_next:
+        return min(total_pages, current_page + 1)
+    if button_id == "last-page-btn" and has_next:
+        return total_pages
 
     return current_page
+
+@app.callback(
+    Output("current-page", "data", allow_duplicate=True),
+    Input({"type": "page-selection-item", "index": ALL}, "n_clicks"),
+    State("current-page", "data"),
+    prevent_initial_call=True
+)
+def handle_page_selection_dropdown(item_clicks, current_page):
+    ctx = callback_context
+    if not ctx.triggered:
+        return dash.no_update
+
+    triggered = ctx.triggered[0]
+    if not triggered.get("value"):
+        return dash.no_update
+
+    try:
+        triggered_id = json.loads(triggered["prop_id"].split(".")[0])
+    except (json.JSONDecodeError, IndexError):
+        return dash.no_update
+
+    target_index = triggered_id.get("index")
+    try:
+        target_page = int(target_index)
+    except (TypeError, ValueError):
+        return dash.no_update
+
+    if target_page < 1:
+        return dash.no_update
+
+    return target_page
+
 
 @app.callback(
     Output("current-page", "data", allow_duplicate=True),
