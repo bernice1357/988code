@@ -1,9 +1,10 @@
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
-from callbacks.export_callback import create_export_callback, add_download_component
+from callbacks.export_callback import add_download_component
 from dash import ALL, callback_context
 import json
 
+from datetime import datetime
 # 配送日轉換函數
 def convert_delivery_schedule_to_chinese(schedule_str):
     if not schedule_str or schedule_str.strip() == "":
@@ -99,11 +100,24 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         
         # 右邊：匯出按鈕
         html.Div([
-            dbc.Button("匯出列表資料", 
-                    id="customer_data-export-button", 
-                    n_clicks=0, 
-                    outline=True, 
-                    color="primary")
+            dbc.DropdownMenu(
+                label="匯出列表資料",
+                color="primary",
+                direction="down",
+                class_name="customer-export-dropdown",
+                toggle_class_name="btn btn-primary",
+                toggle_style={
+                    "borderRadius": "0.375rem",
+                    "width": "100%",
+                    "backgroundColor": "#0d6efd",
+                    "borderColor": "#0d6efd",
+                    "color": "#fff"
+                },
+                children=[
+                    dbc.DropdownMenuItem("匯出當前列表", id="customer_data-export-current"),
+                    dbc.DropdownMenuItem("匯出全部列表", id="customer_data-export-all")
+                ]
+            )
         ], style={"display": "flex", "alignItems": "center"})
     ], className="mb-3 d-flex justify-content-between align-items-center"),
 
@@ -187,8 +201,139 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 register_offcanvas_callback(app, "customer_data")
 
 
-# 註冊匯出功能 - 使用當前表格資料
-create_export_callback(app, "customer_data", "current-table-data", "客戶資料")
+# 匯出相關工具函式
+def fetch_all_customer_records(selected_customer_id, selected_customer_name):
+    """Retrieve every page of customer data with optional filters."""
+    page = 1
+    page_size = 200
+    aggregated = []
+
+    while True:
+        params = {"page": page, "page_size": page_size}
+        if selected_customer_id:
+            params["customer_id"] = selected_customer_id
+        if selected_customer_name:
+            params["customer_name"] = selected_customer_name
+
+        response = requests.get("http://127.0.0.1:8000/get_customer_data", params=params)
+        if response.status_code != 200:
+            raise ValueError(f"API 回應碼：{response.status_code}")
+
+        payload = response.json()
+        batch = payload.get("data", []) or []
+        aggregated.extend(batch)
+
+        pagination = payload.get("pagination") or {}
+        total_pages = pagination.get("total_pages")
+
+        if not batch:
+            break
+
+        if total_pages and page >= total_pages:
+            break
+
+        if not total_pages and len(batch) < page_size:
+            break
+
+        page += 1
+
+    return aggregated
+
+
+def prepare_customer_export_dataframe(records, missing_filter_enabled):
+    """Format customer records to match the visible table export."""
+    if not records:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(records)
+    df = df.rename(columns={
+        "customer_id": "客戶ID",
+        "customer_name": "客戶名稱",
+        "phone_number": "電話",
+        "address": "客戶地址",
+        "delivery_schedule": "每週配送日",
+        "transaction_date": "最新交易日期",
+        "notes": "備註"
+    })
+
+    if "每週配送日" in df.columns:
+        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
+
+    if "電話" in df.columns:
+        missing_phone = df["電話"].isna() | (df["電話"] == "") | (df["電話"] == "None")
+    else:
+        missing_phone = pd.Series([False] * len(df), index=df.index)
+
+    if "客戶地址" in df.columns:
+        missing_address = df["客戶地址"].isna() | (df["客戶地址"] == "") | (df["客戶地址"] == "None")
+    else:
+        missing_address = pd.Series([False] * len(df), index=df.index)
+
+    if missing_filter_enabled:
+        df = df[missing_phone | missing_address]
+
+    if missing_filter_enabled and not df.empty:
+        warnings = []
+        for _, row in df.iterrows():
+            warning_msg = []
+            phone_value = row.get("電話")
+            if pd.isna(phone_value) or phone_value in ("", "None"):
+                warning_msg.append("缺少電話")
+            address_value = row.get("客戶地址")
+            if pd.isna(address_value) or address_value in ("", "None"):
+                warning_msg.append("缺少地址")
+            warnings.append(" & ".join(warning_msg))
+        df["警告"] = warnings
+
+    return df.reset_index(drop=True)
+
+
+@app.callback(
+    Output("customer_data-download", "data", allow_duplicate=True),
+    Output("customer_data-error-toast", "is_open", allow_duplicate=True),
+    Output("customer_data-error-toast", "children", allow_duplicate=True),
+    Input("customer_data-export-current", "n_clicks"),
+    Input("customer_data-export-all", "n_clicks"),
+    State("current-table-data", "data"),
+    State("customer_data-customer-id", "value"),
+    State("customer_data-customer-name", "value"),
+    State("missing-data-filter", "data"),
+    prevent_initial_call=True
+)
+def handle_customer_exports(current_clicks, all_clicks, current_table_data, selected_customer_id, selected_customer_name, missing_filter):
+    if not callback_context.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    trigger_id = callback_context.triggered[0]["prop_id"].split(".")[0]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    missing_filter_enabled = bool(missing_filter)
+
+    if trigger_id == "customer_data-export-current":
+        if not current_table_data:
+            return dash.no_update, True, "目前沒有資料可匯出"
+
+        export_df = pd.DataFrame(current_table_data)
+        if export_df.empty:
+            return dash.no_update, True, "目前沒有資料可匯出"
+
+        filename = f"客戶資料_當前列表_{timestamp}.xlsx"
+        return dcc.send_data_frame(export_df.to_excel, filename, index=False), False, ""
+
+    if trigger_id == "customer_data-export-all":
+        try:
+            records = fetch_all_customer_records(selected_customer_id, selected_customer_name)
+        except Exception as exc:
+            return dash.no_update, True, f"匯出全部列表失敗：{exc}"
+
+        export_df = prepare_customer_export_dataframe(records, missing_filter_enabled)
+        if export_df.empty:
+            return dash.no_update, True, "沒有找到可匯出的資料"
+
+        filename = f"客戶資料_全部列表_{timestamp}.xlsx"
+        return dcc.send_data_frame(export_df.to_excel, filename, index=False), False, ""
+
+    return dash.no_update, dash.no_update, dash.no_update
+
 
 # 載入客戶ID選項的 callback
 @app.callback(
