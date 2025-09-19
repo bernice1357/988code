@@ -123,6 +123,28 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 
     html.Div(id="pagination-controls-bottom", className="mt-3 d-flex justify-content-center align-items-center"),
     dbc.Modal(
+        id="page-selection-modal",
+        is_open=False,
+        centered=True,
+        size="sm",
+        children=[
+            dbc.ModalHeader("跳至指定頁面"),
+            dbc.ModalBody([
+                html.Label("輸入頁碼", className="form-label"),
+                dbc.Input(
+                    id="page-selection-input",
+                    type="number",
+                    min=1,
+                    step=1,
+                ),
+            ]),
+            dbc.ModalFooter([
+                dbc.Button("取消", id="page-selection-cancel", color="secondary", className="me-2"),
+                dbc.Button("前往", id="page-selection-confirm", color="primary"),
+            ]),
+        ],
+    ),
+    dbc.Modal(
         id="customer_data_modal",
         is_open=False,
         size="xl",
@@ -643,9 +665,11 @@ def update_pagination_controls(pagination_info):
                       disabled=not has_prev,
                       outline=True,
                       color="primary"),
-            dbc.Button(f"第 {current_page} 頁 / 共 {total_pages} 頁",
-                      disabled=True,
-                      color="light"),
+            dbc.Button(
+                f"第 {current_page} 頁 / 共 {total_pages} 頁",
+                id="page-indicator-btn",
+                color="light",
+            ),
             dbc.Button("下一頁 ▶", 
                       id="next-page-btn", 
                       disabled=not has_next,
@@ -666,20 +690,51 @@ def update_pagination_controls(pagination_info):
 
 # 分頁按鈕點擊處理
 @app.callback(
+    Output("page-selection-modal", "is_open"),
+    Output("page-selection-input", "value"),
+    Input("page-indicator-btn", "n_clicks"),
+    Input("page-selection-confirm", "n_clicks"),
+    Input("page-selection-cancel", "n_clicks"),
+    State("page-selection-modal", "is_open"),
+    State("current-page", "data"),
+    prevent_initial_call=True,
+)
+def toggle_page_selection_modal(indicator_clicks, confirm_clicks, cancel_clicks, is_open, current_page):
+    ctx = callback_context
+    if not ctx.triggered:
+        return is_open, dash.no_update
+
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if button_id == "page-indicator-btn" and (indicator_clicks or 0) > 0:
+        return True, current_page or 1
+
+    if button_id == "page-selection-confirm" and (confirm_clicks or 0) > 0:
+        return False, dash.no_update
+
+    if button_id == "page-selection-cancel" and (cancel_clicks or 0) > 0:
+        return False, dash.no_update
+
+    return is_open, dash.no_update
+
+@app.callback(
     Output("current-page", "data"),
     [Input("first-page-btn", "n_clicks"),
      Input("prev-page-btn", "n_clicks"),
      Input("next-page-btn", "n_clicks"),
-     Input("last-page-btn", "n_clicks")],
+     Input("last-page-btn", "n_clicks"),
+     Input("page-selection-confirm", "n_clicks")],
     [State("current-page", "data"),
-     State("pagination-info", "data")],
+     State("pagination-info", "data"),
+     State("page-selection-input", "value")],
     prevent_initial_call=True
 )
-def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, current_page, pagination_info):
+def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, confirm_clicks, current_page, pagination_info, selected_page):
     ctx = callback_context
     if not ctx.triggered:
         return current_page or 1
 
+    pagination_info = pagination_info or {}
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
     if button_id == "first-page-btn" and pagination_info.get("has_prev"):
@@ -690,6 +745,14 @@ def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks
         return min(pagination_info.get("total_pages", 1), (current_page or 1) + 1)
     elif button_id == "last-page-btn" and pagination_info.get("has_next"):
         return pagination_info.get("total_pages", 1)
+    elif button_id == "page-selection-confirm":
+        try:
+            target_page = int(selected_page)
+        except (TypeError, ValueError):
+            return current_page or 1
+        total_pages = pagination_info.get("total_pages", 1)
+        target_page = max(1, min(total_pages, target_page))
+        return target_page
 
     return current_page
 
