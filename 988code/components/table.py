@@ -307,6 +307,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         "minWidth": "100%",      # 最小寬度為容器寬度
         "borderCollapse": "collapse",
         'border': '1px solid #ccc',
+        'borderTop': '0',
         'margin': '0',       
         'padding': '0',
         "borderSpacing": "0px",
@@ -326,8 +327,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         'width': '100%',  # 確保容器寬度
         'maxWidth': '100%',  # 防止容器超出父容器
         'border': '2px solid #dee2e6',        # 新增：外框
-        'borderTop': '0',                     # 移除頂部邊框避免縫隙
-        'borderRadius': '8px',
+        'borderRadius': '8px',                 # 裁掉溢出內容以保留圓角
         'padding': '0',                      # 新增：移除內邊距
         'margin': '0',
         'lineHeight': '1',
