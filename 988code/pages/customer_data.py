@@ -633,6 +633,11 @@ def update_pagination_controls(pagination_info):
     
     controls = html.Div([
         dbc.ButtonGroup([
+            dbc.Button("⏮ 最前頁", 
+                      id="first-page-btn", 
+                      disabled=not has_prev,
+                      outline=True,
+                      color="primary"),
             dbc.Button("◀ 上一頁", 
                       id="prev-page-btn", 
                       disabled=not has_prev,
@@ -643,6 +648,11 @@ def update_pagination_controls(pagination_info):
                       color="light"),
             dbc.Button("下一頁 ▶", 
                       id="next-page-btn", 
+                      disabled=not has_next,
+                      outline=True,
+                      color="primary"),
+            dbc.Button("最末頁 ⏭", 
+                      id="last-page-btn", 
                       disabled=not has_next,
                       outline=True,
                       color="primary")
@@ -657,23 +667,29 @@ def update_pagination_controls(pagination_info):
 # 分頁按鈕點擊處理
 @app.callback(
     Output("current-page", "data"),
-    [Input("prev-page-btn", "n_clicks"),
-     Input("next-page-btn", "n_clicks")],
+    [Input("first-page-btn", "n_clicks"),
+     Input("prev-page-btn", "n_clicks"),
+     Input("next-page-btn", "n_clicks"),
+     Input("last-page-btn", "n_clicks")],
     [State("current-page", "data"),
      State("pagination-info", "data")],
     prevent_initial_call=True
 )
-def handle_pagination_clicks(prev_clicks, next_clicks, current_page, pagination_info):
+def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, current_page, pagination_info):
     ctx = callback_context
     if not ctx.triggered:
         return current_page or 1
 
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    if button_id == "prev-page-btn" and pagination_info.get("has_prev"):
-        return max(1, current_page - 1)
+    if button_id == "first-page-btn" and pagination_info.get("has_prev"):
+        return 1
+    elif button_id == "prev-page-btn" and pagination_info.get("has_prev"):
+        return max(1, (current_page or 1) - 1)
     elif button_id == "next-page-btn" and pagination_info.get("has_next"):
-        return min(pagination_info.get("total_pages", 1), current_page + 1)
+        return min(pagination_info.get("total_pages", 1), (current_page or 1) + 1)
+    elif button_id == "last-page-btn" and pagination_info.get("has_next"):
+        return pagination_info.get("total_pages", 1)
 
     return current_page
 
