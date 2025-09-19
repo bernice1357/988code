@@ -200,7 +200,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             html.Tr(
                 ([html.Th('', style={
                     "position": "sticky",
-                    "top": "-1px",
+                    "top": "0",
                     "left": "0px",
                     "zIndex": 10,
                     'backgroundColor': '#bcd1df',
@@ -209,6 +209,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
+                    'borderTop': '0',
                     'width': '50px',
                     'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none'
                 })] if show_checkbox else []) +
@@ -254,7 +255,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     ) if col in sortable_columns else col,
                     style={
                         "position": "sticky",
-                        "top": "-1px",
+                        "top": "0",
                         "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
                         "zIndex": (10 + sticky_columns.index(col)) if col in sticky_columns else 1,
                         'backgroundColor': '#bcd1df',
@@ -263,6 +264,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'padding': '8px 12px' if col not in sortable_columns else '4px 8px',
                         'textAlign': 'center',
                         'border': '1px solid #ccc',
+                        'borderTop': '0',
                         'whiteSpace': 'nowrap',
                         'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'max-content',
                         'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else '80px',
@@ -271,7 +273,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 ) for col in df.columns] +
                 ([html.Th('操作', style={
                     "position": "sticky",
-                    "top": "-1px",
+                    "top": "0",
                     "right": "0px",
                     "zIndex": 2,
                     'backgroundColor': '#bcd1df',
@@ -280,6 +282,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
+                    'borderTop': '0',
                     'whiteSpace': 'nowrap',
                     'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
                     'width': f'{button_width}px',
@@ -323,6 +326,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         'width': '100%',  # 確保容器寬度
         'maxWidth': '100%',  # 防止容器超出父容器
         'border': '2px solid #dee2e6',        # 新增：外框
+        'borderTop': '0',                     # 移除頂部邊框避免縫隙
         'borderRadius': '8px',
         'padding': '0',                      # 新增：移除內邊距
         'margin': '0',
