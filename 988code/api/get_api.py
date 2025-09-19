@@ -3,11 +3,12 @@ from typing import Optional
 import psycopg2
 import pandas as pd
 from datetime import datetime
+from fastapi import Query
 
 router = APIRouter()
 
 # get
-def get_data_from_db(sql_prompt: str, params=None) -> pd.DataFrame:
+def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
     try:
         with psycopg2.connect(
             dbname='988',
@@ -17,10 +18,7 @@ def get_data_from_db(sql_prompt: str, params=None) -> pd.DataFrame:
             port='5433'
         ) as conn:
             with conn.cursor() as cursor:
-                if params:
-                    cursor.execute(sql_prompt, params)
-                else:
-                    cursor.execute(sql_prompt)
+                cursor.execute(sql_prompt)
                 rows = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
                 df = pd.DataFrame(rows, columns=columns)
@@ -61,96 +59,87 @@ def get_new_item_customers():
 # 客戶資料管理列表資料
 @router.get("/get_customer_data")
 def get_customer_data(
-    offset: int = Query(0, ge=0, description="跳過筆數"),
-    limit: Optional[int] = Query(None, ge=10, le=1000, description="載入筆數，不提供時載入全部"),
-    search: str = Query("", description="搜尋關鍵字")
+    page: int = Query(1),
+    page_size: int = Query(50),
+    customer_id: Optional[str] = Query(None),
+    customer_name: Optional[str] = Query(None)
 ):
-    print(f"[API] get_customer_data 被呼叫 - offset: {offset}, limit: {limit}, search: '{search}'")
+    print(f"[API] get_customer_data 被呼叫，頁碼 {page} 每頁 {page_size} 筆，customer_id={customer_id} customer_name={customer_name}")
     try:
-        # 基礎查詢
-        base_query = """
-        SELECT c.customer_id, c.customer_name, c.phone_number, c.address, 
-               c.delivery_schedule, ot.transaction_date, c.notes
+        page = max(page, 1)
+        page_size = max(page_size, 1)
+
+        filters = []
+        filter_params = []
+        if customer_id:
+            filters.append("c.customer_id = %s")
+            filter_params.append(customer_id)
+        if customer_name:
+            filters.append("c.customer_name = %s")
+            filter_params.append(customer_name)
+
+        where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+        offset = (page - 1) * page_size
+
+        count_query = f"""
+        SELECT COUNT(*)
         FROM customer c
         LEFT JOIN (
             SELECT customer_id, transaction_date,
-                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
+                    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
             FROM order_transactions
         ) ot ON c.customer_id = ot.customer_id AND ot.rn = 1
-        """
-        
-        # 搜尋條件
-        where_clause = ""
-        query_params = []
-        if search.strip():
-            where_clause = "WHERE (c.customer_name ILIKE %s OR c.customer_id ILIKE %s)"
-            search_param = f"%{search.strip()}%"
-            query_params = [search_param, search_param]
-        
-        # 根據是否有limit決定查詢方式
-        if limit is not None:
-            # 分頁查詢
-            paginated_query = f"""
-            {base_query}
-            {where_clause}
-            ORDER BY c.customer_name
-            OFFSET %s LIMIT %s
-            """
-            query_params.extend([offset, limit])
-        else:
-            # 全部資料查詢
-            paginated_query = f"""
-            {base_query}
-            {where_clause}
-            ORDER BY c.customer_name
-            """
-        
-        # 總筆數查詢
-        count_query = f"""
-        SELECT COUNT(*) as total_count
-        FROM customer c
         {where_clause}
         """
-        count_params = []
-        if search.strip():
-            count_params = [search_param, search_param]
-        
-        # 執行查詢
-        df = get_data_from_db(paginated_query, query_params)
-        count_df = get_data_from_db(count_query, count_params) if count_params else get_data_from_db(count_query)
-        
-        total_count = int(count_df.iloc[0]['total_count']) if not count_df.empty else 0
-        
-        # 根據是否有limit調整返回資訊
-        if limit is not None:
-            # 分頁模式
-            result = {
-                "data": df.to_dict(orient="records"),
+
+        data_query = f"""
+        SELECT c.customer_id, c.customer_name, c.phone_number, c.address, c.delivery_schedule,
+                ot.transaction_date, c.notes
+        FROM customer c
+        LEFT JOIN (
+            SELECT customer_id, transaction_date,
+                    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
+            FROM order_transactions
+        ) ot ON c.customer_id = ot.customer_id AND ot.rn = 1
+        {where_clause}
+        ORDER BY c.customer_id
+        LIMIT %s OFFSET %s
+        """
+
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                if filter_params:
+                    cursor.execute(count_query, tuple(filter_params))
+                else:
+                    cursor.execute(count_query)
+                total_count = cursor.fetchone()[0]
+
+                query_params = tuple(filter_params + [page_size, offset])
+                cursor.execute(data_query, query_params)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                df = pd.DataFrame(rows, columns=columns)
+
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+        return {
+            "data": df.to_dict(orient="records"),
+            "pagination": {
+                "current_page": page,
+                "page_size": page_size,
                 "total_count": total_count,
-                "offset": offset,
-                "limit": limit,
-                "has_more": (offset + limit) < total_count,
-                "current_batch_size": len(df)
+                "total_pages": total_pages,
+                "has_next": page * page_size < total_count,
+                "has_prev": page > 1
             }
-            print(f"[API] 分頁模式：返回 {len(df)} 筆資料，總計 {total_count} 筆，has_more: {result['has_more']}")
-        else:
-            # 全部資料模式
-            result = {
-                "data": df.to_dict(orient="records"),
-                "total_count": total_count,
-                "offset": 0,
-                "limit": None,
-                "has_more": False,
-                "current_batch_size": len(df)
-            }
-            print(f"[API] 全部資料模式：返回 {len(df)} 筆資料（全部）")
-        return result
-        
+        }
     except Exception as e:
-        print(f"[API ERROR] get_customer_data: {e}")
-        raise HTTPException(status_code=500, detail=f"資料庫查詢失敗: {str(e)}")
-    
-# 補貨提醒 - 取得所有客戶ID
+        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 @router.get("/get_restock_customer_ids")
 def get_all_customer_ids():
     try:
@@ -885,105 +874,21 @@ def get_analysis_progress(task_id: str = None):
 def get_current_analysis_progress():
     print("[API] get_current_analysis_progress 被呼叫")
     try:
-        import json
-        from pathlib import Path
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        from potential_customer_finder.progress_tracker import progress_tracker
         
-        # 直接讀取進度文件，避免模塊導入衝突
-        current_dir = Path(__file__).parent.parent
-        progress_file = current_dir / "potential_customer_finder" / "progress.json"
+        progress_data = progress_tracker.get_progress()
         
-        if not progress_file.exists():
+        if progress_data is None:
             return {"status": "no_task", "message": "目前沒有正在執行的任務"}
         
-        try:
-            with open(progress_file, 'r', encoding='utf-8') as f:
-                progress_data = json.load(f)
-            return progress_data
-        except json.JSONDecodeError:
-            return {"status": "no_task", "message": "進度文件格式錯誤"}
-        except Exception as file_error:
-            print(f"[API] 讀取進度文件失敗: {file_error}")
-            return {"status": "error", "message": "無法讀取進度信息"}
+        return progress_data
         
     except Exception as e:
         print(f"[API ERROR] get_current_analysis_progress: {e}")
-        return {"status": "error", "message": f"獲取進度失敗: {str(e)}"}
-
-# 增量更新API - 獲取客戶資料更新
-@router.get("/get_customer_updates")
-def get_customer_updates(
-    last_update: str = Query(..., description="最後更新時間 ISO格式"),
-    limit: int = Query(100, ge=1, le=500, description="最大返回更新筆數")
-):
-    print(f"[API] get_customer_updates 被呼叫 - last_update: {last_update}, limit: {limit}")
-    try:
-        from datetime import datetime
-        
-        # 解析最後更新時間
-        try:
-            last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
-        except ValueError:
-            # 嘗試不同的時間格式
-            last_update_dt = datetime.fromisoformat(last_update)
-        
-        query = """
-        SELECT c.customer_id, c.customer_name, c.phone_number, c.address,
-               c.delivery_schedule, c.notes, c.version_timestamp,
-               ot.transaction_date,
-               'updated' as change_type
-        FROM customer c
-        LEFT JOIN (
-            SELECT customer_id, transaction_date,
-                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
-            FROM order_transactions
-        ) ot ON c.customer_id = ot.customer_id AND ot.rn = 1
-        WHERE c.version_timestamp > %s
-        ORDER BY c.version_timestamp
-        LIMIT %s
-        """
-        
-        df = get_data_from_db(query, [last_update_dt, limit])
-        updates = df.to_dict(orient="records")
-        
-        # 轉換時間戳為ISO格式
-        for update in updates:
-            if update.get('version_timestamp'):
-                update['version_timestamp'] = update['version_timestamp'].isoformat()
-        
-        result = {
-            "updates": updates,
-            "last_update_time": datetime.now().isoformat(),
-            "has_more_updates": len(updates) >= limit,
-            "update_count": len(updates)
-        }
-        
-        print(f"[API] 返回 {len(updates)} 筆更新，has_more: {result['has_more_updates']}")
-        return result
-        
-    except Exception as e:
-        print(f"[API ERROR] get_customer_updates: {e}")
-        raise HTTPException(status_code=500, detail=f"獲取更新失敗: {str(e)}")
-
-# 獲取特定客戶的版本資訊
-@router.get("/get_customer_version/{customer_id}")
-def get_customer_version(customer_id: str):
-    print(f"[API] get_customer_version 被呼叫 - customer_id: {customer_id}")
-    try:
-        query = "SELECT version_timestamp FROM customer WHERE customer_id = %s"
-        df = get_data_from_db(query, [customer_id])
-        
-        if df.empty:
-            raise HTTPException(status_code=404, detail="客戶不存在")
-        
-        version_timestamp = df.iloc[0]['version_timestamp']
-        return {
-            "customer_id": customer_id,
-            "version_timestamp": version_timestamp.isoformat() if version_timestamp else None
-        }
-        
-    except Exception as e:
-        print(f"[API ERROR] get_customer_version: {e}")
-        raise HTTPException(status_code=500, detail=f"獲取客戶版本失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"獲取進度失敗: {str(e)}")
 
 # 新增：獲取潛在客戶分析詳細結果 API 端點
 @router.get("/get_potential_customers_details")

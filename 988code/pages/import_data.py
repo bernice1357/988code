@@ -330,13 +330,13 @@ layout = html.Div([
             # line.zip資料項目
             html.Div([
                 html.Div([
-                    html.H4("Line.zip 資料", style={
+                    html.H4("line聊天記錄", style={
                         "fontSize": "1.2rem",
                         "fontWeight": "500",
                         "color": "#333",
                         "margin": "0 0 0.25rem 0"
                     }),
-                    html.P("匯入 Line 相關檔案", style={
+                    html.P("匯入line聊天記錄", style={
                         "color": "#333",
                         "fontSize": "0.9rem",
                         "margin": "0"

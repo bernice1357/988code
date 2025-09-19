@@ -189,7 +189,7 @@ def update_sidebar_selection(sales_clicks, inventory_clicks, line_zip_clicks):
         current_data_type = "inventory"
     elif button_id == "line-zip-item":  
         styles[2] = selected_style
-        title = "Line.zip 資料上傳"
+        title = "line聊天記錄"
         current_data_type = "line_zip"
 
     return styles + [title]
@@ -494,7 +494,7 @@ def update_upload_output(contents, filename, last_modified):
             "customer": "客戶資料",
             "sales": "銷貨資料",
             "inventory": "庫存資料",
-            "line_zip": "Line.zip 資料"
+            "line_zip": "line聊天記錄"
         }
         type_name = type_names.get(current_data_type, "資料")
         
@@ -596,7 +596,7 @@ def delete_file(n_clicks_list):
                 "customer": "客戶資料",
                 "sales": "銷貨資料",
                 "inventory": "庫存資料",
-                "line_zip": "Line.zip 資料"
+                "line_zip": "line聊天記錄"
             }
             type_name = type_names.get(current_data_type, "資料")
             
@@ -684,7 +684,7 @@ def update_file_list_on_selection(current_title):
             "customer": "客戶資料",
             "sales": "銷貨資料",
             "inventory": "庫存資料",
-            "line_zip": "Line.zip 資料"
+            "line_zip": "line聊天記錄"
         }
         type_name = type_names.get(current_data_type, "資料")
         
@@ -997,7 +997,7 @@ def save_current_files(n_clicks, session_data, user_role):
             type_names = {
                 "sales": "銷貨資料", 
                 "inventory": "庫存資料",
-                "line_zip": "Line.zip 資料"
+                "line_zip": "line聊天記錄"
             }
             type_name = type_names.get(current_data_type, "資料")
             

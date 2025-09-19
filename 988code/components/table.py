@@ -1,6 +1,15 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
+def get_row_background_color(row_data):
+    """根據狀態決定行的背景顏色"""
+    if '狀態' in row_data:
+        if row_data['狀態'] == '已處理':
+            return '#d4edda'  # 淺綠色
+        elif row_data['狀態'] == '未處理':
+            return '#f8d7da'  # 淺紅色
+    return 'white'  # 默認白色
+
 def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='78vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
@@ -89,14 +98,13 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'fontSize': '16px',
                 'height': '50px',
                 'whiteSpace': 'nowrap',
-                'backgroundColor': 'white',
+                'backgroundColor': get_row_background_color(row) if col == '狀態' else 'white',
                 'width': f'{cell_width}px',
                 'minWidth': f'{cell_width}px',
                 'maxWidth': f'{cell_width}px',
                 'overflow': 'hidden',
                 'textOverflow': 'ellipsis'
             }
-            
             
             if col in sticky_columns:
                 sticky_index = sticky_columns.index(col)
@@ -107,6 +115,17 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 for j in range(sticky_index):
                     left_offset += sticky_widths[sticky_columns[j]]
                 
+                # 設定 sticky column 的背景顏色
+                if col == '狀態':
+                    sticky_bg_color = get_row_background_color(row)  # 狀態欄位使用顏色
+                elif col == '提醒狀態':
+                    if row[col] == '未提醒':
+                        sticky_bg_color = '#ffebee'  # 淺紅色背景
+                    elif row[col] == '已提醒':
+                        sticky_bg_color = '#e8f5e8'  # 淺綠色背景
+                else:
+                    sticky_bg_color = "#edf7ff"  # 其他sticky欄位預設背景色
+
                 # 右邊的 sticky column 應該有更高的 z-index
                 sticky_z_index = 5 + sticky_index  # 第0個是5，第1個是6，以此類推
                 
@@ -114,7 +133,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'position': 'sticky',
                     'left': f'{left_offset}px',
                     'zIndex': sticky_z_index,
-                    'backgroundColor': "#edf7ff",
+                    'backgroundColor': sticky_bg_color,
                     'width': f'{sticky_widths[col]}px',
                     'minWidth': f'{sticky_widths[col]}px',
                     'maxWidth': f'{sticky_widths[col]}px',
@@ -122,6 +141,8 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'textOverflow': 'ellipsis'
                 })
                 
+
+
                 # 確保使用統一的寬度計算
                 cell_width = sticky_widths[col]
                 
@@ -179,7 +200,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             html.Tr(
                 ([html.Th('', style={
                     "position": "sticky",
-                    "top": "-1px",
+                    "top": "0",
                     "left": "0px",
                     "zIndex": 10,
                     'backgroundColor': '#bcd1df',
@@ -188,6 +209,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
+                    'borderTop': '0',
                     'width': '50px',
                     'boxShadow': '2px 0 5px rgba(0,0,0,0.1)' if len(sticky_columns) == 0 else 'none'
                 })] if show_checkbox else []) +
@@ -233,7 +255,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     ) if col in sortable_columns else col,
                     style={
                         "position": "sticky",
-                        "top": "-1px",
+                        "top": "0",
                         "left": f'{(50 if show_checkbox else 0) + sum(sticky_widths[sticky_columns[j]] for j in range(sticky_columns.index(col)))}px' if col in sticky_columns else 'auto',
                         "zIndex": (10 + sticky_columns.index(col)) if col in sticky_columns else 1,
                         'backgroundColor': '#bcd1df',
@@ -242,6 +264,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         'padding': '8px 12px' if col not in sortable_columns else '4px 8px',
                         'textAlign': 'center',
                         'border': '1px solid #ccc',
+                        'borderTop': '0',
                         'whiteSpace': 'nowrap',
                         'width': f'{sticky_widths[col]}px' if col in sticky_columns else 'max-content',
                         'minWidth': f'{sticky_widths[col]}px' if col in sticky_columns else '80px',
@@ -250,7 +273,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 ) for col in df.columns] +
                 ([html.Th('操作', style={
                     "position": "sticky",
-                    "top": "-1px",
+                    "top": "0",
                     "right": "0px",
                     "zIndex": 2,
                     'backgroundColor': '#bcd1df',
@@ -259,6 +282,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'padding': '4px 8px',
                     'textAlign': 'center',
                     'border': '1px solid #ccc',
+                    'borderTop': '0',
                     'whiteSpace': 'nowrap',
                     'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
                     'width': f'{button_width}px',
@@ -283,6 +307,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         "minWidth": "100%",      # 最小寬度為容器寬度
         "borderCollapse": "collapse",
         'border': '1px solid #ccc',
+        'borderTop': '0',
         'margin': '0',       
         'padding': '0',
         "borderSpacing": "0px",
@@ -302,7 +327,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         'width': '100%',  # 確保容器寬度
         'maxWidth': '100%',  # 防止容器超出父容器
         'border': '2px solid #dee2e6',        # 新增：外框
-        'borderRadius': '8px',
+        'borderRadius': '8px',                 # 裁掉溢出內容以保留圓角
         'padding': '0',                      # 新增：移除內邊距
         'margin': '0',
         'lineHeight': '1',

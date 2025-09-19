@@ -1,8 +1,10 @@
 from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
-from callbacks.export_callback import create_export_callback, add_download_component
+from callbacks.export_callback import add_download_component
 from dash import ALL, callback_context
+import json
 
+from datetime import datetime
 # 配送日轉換函數
 def convert_delivery_schedule_to_chinese(schedule_str):
     if not schedule_str or schedule_str.strip() == "":
@@ -71,22 +73,10 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="missing-data-filter", data=False),
     dcc.Store(id="customer-data", data=[]),
+    dcc.Store(id="pagination-info", data={}),  # 新增
+    dcc.Store(id="current-page", data=1),      # 新增
     dcc.Store(id="user-role-store"),
     dcc.Store(id="current-table-data", data=[]),
-    # 快取組件
-    dcc.Store(id="customer-cache-store", data={
-        'customer_data': [],
-        'cached_at': None,
-        'cache_version': 1
-    }),
-    # 增量更新檢查
-    dcc.Interval(
-        id='update-checker-interval',
-        interval=30000,  # 每30秒檢查一次更新
-        n_intervals=0,
-        disabled=False
-    ),
-    dcc.Store(id='last-update-time', data=None),
     add_download_component("customer_data"),  # 加入下載元件
     html.Div([
         # 左邊：搜尋條件和篩選按鈕
@@ -110,13 +100,28 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         
         # 右邊：匯出按鈕
         html.Div([
-            dbc.Button("匯出列表資料", 
-                    id="customer_data-export-button", 
-                    n_clicks=0, 
-                    outline=True, 
-                    color="primary")
+            dbc.DropdownMenu(
+                label="匯出列表資料",
+                color="primary",
+                direction="down",
+                class_name="customer-export-dropdown",
+                toggle_class_name="btn btn-primary",
+                toggle_style={
+                    "borderRadius": "0.375rem",
+                    "width": "100%",
+                    "backgroundColor": "#0d6efd",
+                    "borderColor": "#0d6efd",
+                    "color": "#fff"
+                },
+                children=[
+                    dbc.DropdownMenuItem("匯出當前列表", id="customer_data-export-current"),
+                    dbc.DropdownMenuItem("匯出全部列表", id="customer_data-export-all")
+                ]
+            )
         ], style={"display": "flex", "alignItems": "center"})
     ], className="mb-3 d-flex justify-content-between align-items-center"),
+
+
     search_customers["offcanvas"],
     dcc.Loading(
         id="loading-customer-table",
@@ -130,6 +135,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             "top": "50%",          
         }
     ),
+
+    html.Div(id="pagination-controls-bottom", className="mt-3 d-flex justify-content-center align-items-center"),
     dbc.Modal(
         id="customer_data_modal",
         is_open=False,
@@ -194,8 +201,139 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 register_offcanvas_callback(app, "customer_data")
 
 
-# 註冊匯出功能 - 使用當前表格資料
-create_export_callback(app, "customer_data", "current-table-data", "客戶資料")
+# 匯出相關工具函式
+def fetch_all_customer_records(selected_customer_id, selected_customer_name):
+    """Retrieve every page of customer data with optional filters."""
+    page = 1
+    page_size = 200
+    aggregated = []
+
+    while True:
+        params = {"page": page, "page_size": page_size}
+        if selected_customer_id:
+            params["customer_id"] = selected_customer_id
+        if selected_customer_name:
+            params["customer_name"] = selected_customer_name
+
+        response = requests.get("http://127.0.0.1:8000/get_customer_data", params=params)
+        if response.status_code != 200:
+            raise ValueError(f"API 回應碼：{response.status_code}")
+
+        payload = response.json()
+        batch = payload.get("data", []) or []
+        aggregated.extend(batch)
+
+        pagination = payload.get("pagination") or {}
+        total_pages = pagination.get("total_pages")
+
+        if not batch:
+            break
+
+        if total_pages and page >= total_pages:
+            break
+
+        if not total_pages and len(batch) < page_size:
+            break
+
+        page += 1
+
+    return aggregated
+
+
+def prepare_customer_export_dataframe(records, missing_filter_enabled):
+    """Format customer records to match the visible table export."""
+    if not records:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(records)
+    df = df.rename(columns={
+        "customer_id": "客戶ID",
+        "customer_name": "客戶名稱",
+        "phone_number": "電話",
+        "address": "客戶地址",
+        "delivery_schedule": "每週配送日",
+        "transaction_date": "最新交易日期",
+        "notes": "備註"
+    })
+
+    if "每週配送日" in df.columns:
+        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
+
+    if "電話" in df.columns:
+        missing_phone = df["電話"].isna() | (df["電話"] == "") | (df["電話"] == "None")
+    else:
+        missing_phone = pd.Series([False] * len(df), index=df.index)
+
+    if "客戶地址" in df.columns:
+        missing_address = df["客戶地址"].isna() | (df["客戶地址"] == "") | (df["客戶地址"] == "None")
+    else:
+        missing_address = pd.Series([False] * len(df), index=df.index)
+
+    if missing_filter_enabled:
+        df = df[missing_phone | missing_address]
+
+    if missing_filter_enabled and not df.empty:
+        warnings = []
+        for _, row in df.iterrows():
+            warning_msg = []
+            phone_value = row.get("電話")
+            if pd.isna(phone_value) or phone_value in ("", "None"):
+                warning_msg.append("缺少電話")
+            address_value = row.get("客戶地址")
+            if pd.isna(address_value) or address_value in ("", "None"):
+                warning_msg.append("缺少地址")
+            warnings.append(" & ".join(warning_msg))
+        df["警告"] = warnings
+
+    return df.reset_index(drop=True)
+
+
+@app.callback(
+    Output("customer_data-download", "data", allow_duplicate=True),
+    Output("customer_data-error-toast", "is_open", allow_duplicate=True),
+    Output("customer_data-error-toast", "children", allow_duplicate=True),
+    Input("customer_data-export-current", "n_clicks"),
+    Input("customer_data-export-all", "n_clicks"),
+    State("current-table-data", "data"),
+    State("customer_data-customer-id", "value"),
+    State("customer_data-customer-name", "value"),
+    State("missing-data-filter", "data"),
+    prevent_initial_call=True
+)
+def handle_customer_exports(current_clicks, all_clicks, current_table_data, selected_customer_id, selected_customer_name, missing_filter):
+    if not callback_context.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    trigger_id = callback_context.triggered[0]["prop_id"].split(".")[0]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    missing_filter_enabled = bool(missing_filter)
+
+    if trigger_id == "customer_data-export-current":
+        if not current_table_data:
+            return dash.no_update, True, "目前沒有資料可匯出"
+
+        export_df = pd.DataFrame(current_table_data)
+        if export_df.empty:
+            return dash.no_update, True, "目前沒有資料可匯出"
+
+        filename = f"客戶資料_當前列表_{timestamp}.xlsx"
+        return dcc.send_data_frame(export_df.to_excel, filename, index=False), False, ""
+
+    if trigger_id == "customer_data-export-all":
+        try:
+            records = fetch_all_customer_records(selected_customer_id, selected_customer_name)
+        except Exception as exc:
+            return dash.no_update, True, f"匯出全部列表失敗：{exc}"
+
+        export_df = prepare_customer_export_dataframe(records, missing_filter_enabled)
+        if export_df.empty:
+            return dash.no_update, True, "沒有找到可匯出的資料"
+
+        filename = f"客戶資料_全部列表_{timestamp}.xlsx"
+        return dcc.send_data_frame(export_df.to_excel, filename, index=False), False, ""
+
+    return dash.no_update, dash.no_update, dash.no_update
+
 
 # 載入客戶ID選項的 callback
 @app.callback(
@@ -233,72 +371,51 @@ def load_customer_name_options(page_loaded):
     except:
         return []
 
-# 載入客戶資料的 callback（含快取機制和批次載入）
+# 載入客戶資料的 callback - 修正版
 @app.callback(
-    Output("customer-data", "data"),
-    Output("customer-cache-store", "data"),
-    Output("last-update-time", "data"),
-    Output('customer_data-error-toast', 'is_open'),
-    Output('customer_data-error-toast', 'children'),
-    Input("page-loaded", "data"),
-    State("customer-cache-store", "data"),
+    [Output("customer-data", "data"),
+     Output("pagination-info", "data"),
+     Output('customer_data-error-toast', 'is_open'),
+     Output('customer_data-error-toast', 'children')],
+    [Input("page-loaded", "data"),
+     Input("current-page", "data"),
+     Input("customer_data-customer-id", "value"),
+     Input("customer_data-customer-name", "value")],
     prevent_initial_call=False
 )
-def load_customer_data_with_cache(page_loaded, cache_data):
-    from datetime import datetime
-    current_time = datetime.now()
-    
-    # 檢查快取是否有效（5分鐘內）
-    if cache_data and cache_data.get('cached_at'):
-        try:
-            cached_time = datetime.fromisoformat(cache_data['cached_at'])
-            cache_age_seconds = (current_time - cached_time).total_seconds()
-            if cache_age_seconds < 300:  # 5分鐘
-                print(f"[CACHE] 使用快取資料，快取年齡: {cache_age_seconds:.1f}秒")
-                return cache_data['customer_data'], cache_data, current_time.isoformat(), False, ""
-        except (ValueError, TypeError) as e:
-            print(f"[CACHE] 快取時間解析錯誤: {e}")
-    
-    # 快取過期或無快取，重新載入所有資料
-    print("[API] 重新載入客戶資料（全部）")
+def load_customer_data(page_loaded, current_page, selected_customer_id, selected_customer_name):
+    current_page = current_page or 1
+
     try:
-        # 載入所有資料（不使用分頁）
-        response = requests.get("http://127.0.0.1:8000/get_customer_data")
-        
+        triggered_inputs = {item['prop_id'].split('.')[0] for item in callback_context.triggered} if callback_context.triggered else set()
+        if triggered_inputs & {"customer_data-customer-id", "customer_data-customer-name"}:
+            current_page = 1
+
+        params = {
+            "page": current_page,
+            "page_size": 50
+        }
+        if selected_customer_id:
+            params["customer_id"] = selected_customer_id
+        if selected_customer_name:
+            params["customer_name"] = selected_customer_name
+
+        response = requests.get(
+            "http://127.0.0.1:8000/get_customer_data",
+            params=params
+        )
         if response.status_code == 200:
             try:
                 result = response.json()
-                customer_data = result['data']
-                
-                # 更新快取
-                new_cache = {
-                    'customer_data': customer_data,
-                    'cached_at': current_time.isoformat(),
-                    'cache_version': cache_data.get('cache_version', 1) + 1 if cache_data else 1
-                }
-                
-                print(f"[CACHE] 已快取 {len(customer_data)} 筆客戶資料")
-                return customer_data, new_cache, current_time.isoformat(), False, ""
-                
+                customer_data = result.get("data", [])
+                pagination_info = result.get("pagination", {})
+                return customer_data, pagination_info, False, ""
             except requests.exceptions.JSONDecodeError:
-                # API 失敗且有舊快取，使用舊快取
-                if cache_data and cache_data.get('customer_data'):
-                    print("[CACHE] API 解析失敗，使用舊快取")
-                    return cache_data['customer_data'], cache_data, current_time.isoformat(), True, "API 回應格式錯誤，使用快取資料"
-                return [], cache_data, current_time.isoformat(), True, "回應內容不是有效的 JSON"
+                return [], {}, True, "回傳內容不是有效的 JSON"
         else:
-            # API 失敗且有舊快取，使用舊快取
-            if cache_data and cache_data.get('customer_data'):
-                print(f"[CACHE] API 失敗 ({response.status_code})，使用舊快取")
-                return cache_data['customer_data'], cache_data, current_time.isoformat(), True, f"資料載入失敗 (狀態碼：{response.status_code})，使用快取資料"
-            return [], cache_data, current_time.isoformat(), True, f"資料載入失敗，狀態碼：{response.status_code}"
+            return [], {}, True, f"資料載入失敗，狀態碼：{response.status_code}"
     except Exception as e:
-        # 網路錯誤且有舊快取，使用舊快取
-        if cache_data and cache_data.get('customer_data'):
-            print(f"[CACHE] 網路錯誤，使用舊快取: {e}")
-            return cache_data['customer_data'], cache_data, current_time.isoformat(), True, f"網路連接失敗，使用快取資料: {str(e)}"
-        return [], cache_data, current_time.isoformat(), True, f"載入資料時發生錯誤：{e}"
-
+        return [], {}, True, f"載入資料時發生錯誤：{e}"
 @app.callback(
     [Output("customer-table-container", "children", allow_duplicate=True),
      Output("current-table-data", "data", allow_duplicate=True),
@@ -315,8 +432,29 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     if not customer_data:
         return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
     
+    try:
+        # 確保 customer_data 是正確的格式
+        if isinstance(customer_data, dict):
+            # 如果是分頁格式，取出 data 部分
+            if 'data' in customer_data:
+                customer_data = customer_data['data']
+            else:
+                # 如果是單一字典，轉換為列表
+                customer_data = [customer_data]
+        
+        # 檢查是否為空
+        if not customer_data:
+            return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
+        
+        # 創建 DataFrame
+        df = pd.DataFrame(customer_data)
+        
+    except Exception as e:
+        print(f"DataFrame 創建錯誤: {e}")
+        return html.Div("資料格式錯誤"), [], {"display": "block"}, {"display": "block"}
+    
     # 篩選邏輯
-    df = pd.DataFrame(customer_data)
+    
     df = df.rename(columns={
             "customer_id": "客戶ID",
             "customer_name": "客戶名稱",
@@ -493,12 +631,13 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State('input-notes', 'value'),
     State({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
     State("customer-data", "data"),
+    State("current-page", "data"),
     State("customer_data-customer-id", "value"),
     State("customer_data-customer-name", "value"),
     State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name, user_role):
+def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -556,11 +695,21 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
         update_data["user_role"] = user_role or "viewer"
         response = requests.put(f"http://127.0.0.1:8000/customer/{original_id}", json=update_data)
         if response.status_code == 200:
-            # 重新載入資料
+            # 重新載入資料 - 使用實際的當前頁面
             try:
-                reload_response = requests.get("http://127.0.0.1:8000/get_customer_data")
+                current_page = current_page or 1  # 使用實際頁面
+                reload_params = {
+                    "page": current_page,
+                    "page_size": 50
+                }
+                if selected_customer_id:
+                    reload_params["customer_id"] = selected_customer_id
+                if selected_customer_name:
+                    reload_params["customer_name"] = selected_customer_name
+                reload_response = requests.get("http://127.0.0.1:8000/get_customer_data", params=reload_params)
                 if reload_response.status_code == 200:
-                    updated_customer_data = reload_response.json()
+                    reload_result = reload_response.json()
+                    updated_customer_data = reload_result.get("data", [])
                     return False, True, "客戶資料更新成功！", False, "", False, "", updated_customer_data
                 else:
                     return False, True, "客戶資料更新成功！", False, "", False, "", customer_data
@@ -572,90 +721,6 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
             return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}", False, "", dash.no_update
     except Exception as e:
         return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}", False, "", dash.no_update
-
-# 當客戶資料被修改時，自動清空快取
-@app.callback(
-    Output("customer-cache-store", "data", allow_duplicate=True),
-    Input("customer_data-success-toast", "is_open"),  # 成功保存後觸發
-    State("customer-cache-store", "data"),
-    prevent_initial_call=True
-)
-def invalidate_cache_on_save(toast_open, cache_data):
-    if toast_open:  # 有資料更新
-        print("[CACHE] 資料更新，清空快取")
-        from datetime import datetime
-        return {
-            'customer_data': [],
-            'cached_at': None,
-            'cache_version': cache_data.get('cache_version', 1) + 1 if cache_data else 1
-        }
-    return dash.no_update
-
-
-# 增量更新檢查 callback
-@app.callback(
-    Output("customer-data", "data", allow_duplicate=True),
-    Output("customer-cache-store", "data", allow_duplicate=True),
-    Output("last-update-time", "data", allow_duplicate=True),
-    Input("update-checker-interval", "n_intervals"),
-    State("customer-data", "data"),
-    State("customer-cache-store", "data"),
-    State("last-update-time", "data"),
-    prevent_initial_call=True
-)
-def check_for_updates(n_intervals, current_data, cache_data, last_update):
-    if not current_data or not last_update:
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    try:
-        from datetime import datetime
-        print(f"[UPDATE] 檢查增量更新，上次更新時間: {last_update}")
-        
-        params = {'last_update': last_update}
-        response = requests.get("http://127.0.0.1:8000/get_customer_updates", params=params)
-        
-        if response.status_code == 200:
-            result = response.json()
-            updates = result['updates']
-            
-            if updates:
-                print(f"[UPDATE] 發現 {len(updates)} 筆資料更新")
-                
-                # 更新現有資料
-                updated_data = current_data.copy()
-                for update in updates:
-                    # 找到對應的記錄並更新
-                    for i, record in enumerate(updated_data):
-                        if record['customer_id'] == update['customer_id']:
-                            # 更新現有記錄，保留原有的欄位結構
-                            updated_record = record.copy()
-                            updated_record.update({
-                                'customer_name': update['customer_name'],
-                                'phone_number': update['phone_number'],
-                                'address': update['address'],
-                                'delivery_schedule': update['delivery_schedule'],
-                                'notes': update['notes'],
-                                'transaction_date': update['transaction_date']
-                            })
-                            updated_data[i] = updated_record
-                            break
-                    else:
-                        # 新記錄，添加到列表
-                        updated_data.append(update)
-                
-                # 更新快取
-                new_cache = cache_data.copy() if cache_data else {}
-                new_cache['customer_data'] = updated_data
-                new_cache['cached_at'] = datetime.now().isoformat()
-                
-                return updated_data, new_cache, result['last_update_time']
-            else:
-                print("[UPDATE] 沒有新的資料更新")
-                
-    except Exception as e:
-        print(f"[ERROR] 檢查更新失敗: {e}")
-    
-    return dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
@@ -696,3 +761,175 @@ def toggle_missing_data_filter(n_clicks, current_filter, customer_data):
         else:
             return new_filter, "缺失資料篩選", "warning"
     return current_filter, "缺失資料篩選", "warning"
+
+# 分頁控制 callback - 只保留底部
+@app.callback(
+    Output("pagination-controls-bottom", "children"),
+    Input("pagination-info", "data")
+)
+def update_pagination_controls(pagination_info):
+    if not pagination_info:
+        return ""
+
+    current_page = pagination_info.get("current_page", 1)
+    total_pages = pagination_info.get("total_pages", 1)
+    total_count = pagination_info.get("total_count", 0)
+    has_prev = pagination_info.get("has_prev", False)
+    has_next = pagination_info.get("has_next", False)
+
+    try:
+        total_pages = int(total_pages)
+    except (TypeError, ValueError):
+        total_pages = 1
+    total_pages = max(total_pages, 1)
+
+    try:
+        current_page = int(current_page)
+    except (TypeError, ValueError):
+        current_page = 1
+    current_page = max(1, min(current_page, total_pages))
+
+    menu_items = [
+        dbc.DropdownMenuItem(
+            f"第 {page} 頁",
+            id={"type": "page-selection-item", "index": page},
+            disabled=(page == current_page),
+            className="pagination-dropdown-item active" if page == current_page else "pagination-dropdown-item",
+        )
+        for page in range(1, total_pages + 1)
+    ]
+
+    dropdown = dbc.DropdownMenu(
+        label=f"第 {current_page} 頁 / 共 {total_pages} 頁",
+        id="page-selection-dropdown",
+        color="light",
+        direction="up",
+        caret=False,
+        className="pagination-dropdown-menu",
+        children=menu_items,
+    )
+
+    controls = html.Div([
+        dbc.ButtonGroup([
+            dbc.Button("⏮ 最前頁",
+                      id="first-page-btn",
+                      disabled=not has_prev,
+                      outline=True,
+                      color="primary"),
+            dbc.Button("◀ 上一頁",
+                      id="prev-page-btn",
+                      disabled=not has_prev,
+                      outline=True,
+                      color="primary"),
+            dropdown,
+            dbc.Button("下一頁 ▶",
+                      id="next-page-btn",
+                      disabled=not has_next,
+                      outline=True,
+                      color="primary"),
+            dbc.Button("最末頁 ⏭",
+                      id="last-page-btn",
+                      disabled=not has_next,
+                      outline=True,
+                      color="primary")
+        ]),
+        html.Span(f"共 {total_count} 筆資料",
+                 className="ms-3",
+                 style={"alignSelf": "center", "color": "#666"})
+    ], style={"display": "flex", "alignItems": "center"})
+
+    return controls
+
+@app.callback(
+    Output("current-page", "data"),
+    [Input("first-page-btn", "n_clicks"),
+     Input("prev-page-btn", "n_clicks"),
+     Input("next-page-btn", "n_clicks"),
+     Input("last-page-btn", "n_clicks")],
+    [State("current-page", "data"),
+     State("pagination-info", "data")],
+    prevent_initial_call=True
+)
+def handle_pagination_clicks(first_clicks, prev_clicks, next_clicks, last_clicks, current_page, pagination_info):
+    ctx = callback_context
+    if not ctx.triggered:
+        return current_page or 1
+
+    pagination_info = pagination_info or {}
+
+    def _to_int(value, default=1):
+        try:
+            return max(1, int(value))
+        except (TypeError, ValueError):
+            return default
+
+    def _to_bool(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return False
+
+    api_current_page = pagination_info.get("current_page")
+    current_page = _to_int(api_current_page, default=_to_int(current_page or 1))
+    total_pages = _to_int(pagination_info.get("total_pages", 1))
+    current_page = min(current_page, total_pages)
+
+    has_prev = _to_bool(pagination_info.get("has_prev"))
+    has_next = _to_bool(pagination_info.get("has_next"))
+
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if button_id == "first-page-btn" and has_prev:
+        return 1
+    if button_id == "prev-page-btn" and has_prev:
+        return max(1, current_page - 1)
+    if button_id == "next-page-btn" and has_next:
+        return min(total_pages, current_page + 1)
+    if button_id == "last-page-btn" and has_next:
+        return total_pages
+
+    return current_page
+
+@app.callback(
+    Output("current-page", "data", allow_duplicate=True),
+    Input({"type": "page-selection-item", "index": ALL}, "n_clicks"),
+    State("current-page", "data"),
+    prevent_initial_call=True
+)
+def handle_page_selection_dropdown(item_clicks, current_page):
+    ctx = callback_context
+    if not ctx.triggered:
+        return dash.no_update
+
+    triggered = ctx.triggered[0]
+    if not triggered.get("value"):
+        return dash.no_update
+
+    try:
+        triggered_id = json.loads(triggered["prop_id"].split(".")[0])
+    except (json.JSONDecodeError, IndexError):
+        return dash.no_update
+
+    target_index = triggered_id.get("index")
+    try:
+        target_page = int(target_index)
+    except (TypeError, ValueError):
+        return dash.no_update
+
+    if target_page < 1:
+        return dash.no_update
+
+    return target_page
+
+
+@app.callback(
+    Output("current-page", "data", allow_duplicate=True),
+    [Input("customer_data-customer-id", "value"),
+     Input("customer_data-customer-name", "value")],
+    prevent_initial_call=True
+)
+def reset_current_page_on_search(customer_id, customer_name):
+    return 1

@@ -1254,6 +1254,8 @@ class TempOrderCreate(BaseModel):
     label: str = "ORDER"
     is_new_product: bool = False
     status: str = "0"  # 預設為未確認
+    confirmed_by: Optional[str] = None  
+    confirmed_at: Optional[str] = None
     user_role: str
 
 @router.post("/create_temp_order")
@@ -1275,9 +1277,9 @@ def create_temp_order(order_data: TempOrderCreate):
                 temp_sql = """
                 INSERT INTO temp_customer_records 
                 (customer_id, customer_name, line_id, product_id, purchase_record, quantity, 
-                 unit_price, amount, conversation_record, order_note, label, is_new_product, 
-                 status, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                unit_price, amount, conversation_record, order_note, label, is_new_product, 
+                status, confirmed_by, confirmed_at, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 
                 temp_params = (
@@ -1294,6 +1296,8 @@ def create_temp_order(order_data: TempOrderCreate):
                     order_data.label,
                     order_data.is_new_product,
                     order_data.status,
+                    order_data.confirmed_by,
+                    order_data.confirmed_at,
                     current_time,
                     current_time
                 )
@@ -1356,3 +1360,78 @@ def create_customer_line_mapping(mapping_data: CustomerLineMappingCreate):
     except Exception as e:
         print(f"[ERROR] create_customer_line_mapping: {e}")
         raise HTTPException(status_code=500, detail="建立對應關係失敗")
+    
+# 滯銷品狀態更新
+class SalesChangeStatusUpdate(BaseModel):
+    product_name: str
+    status: bool = True
+    processed_by: Optional[str] = None
+    user_role: str
+
+@router.put("/update_sales_change_status")
+def update_sales_change_status(update_data: SalesChangeStatusUpdate):
+    check_editor_permission(update_data.user_role)
+    
+    try:
+        # 根據商品名稱更新 sales_change_table 的狀態
+        sql = """
+        UPDATE sales_change_table 
+        SET status = %s, processed_by = %s, processed_at = %s
+        WHERE product_id IN (
+            SELECT product_id FROM product_master WHERE name_zh = %s
+        )
+        """
+        params = (
+            update_data.status, 
+            update_data.processed_by, 
+            datetime.now(),
+            update_data.product_name
+        )
+        
+        update_data_to_db(sql, params)
+        
+        return {
+            "message": "滯銷品狀態更新成功",
+            "product_name": update_data.product_name,
+            "status": update_data.status,
+            "processed_by": update_data.processed_by
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] 滯銷品狀態更新失敗: {e}")
+        raise HTTPException(status_code=500, detail="滯銷品狀態更新失敗")
+    
+# 滯銷品狀態更新 - 使用 product_id
+class SalesChangeStatusUpdateById(BaseModel):
+    product_id: str
+    status: bool = True
+    processed_by: Optional[str] = None
+    user_role: str
+
+@router.put("/update_sales_change_status_by_id")
+def update_sales_change_status_by_id(update_data: SalesChangeStatusUpdateById):
+    check_editor_permission(update_data.user_role)
+    
+    try:
+        # 只更新 status 欄位，不更新 processed_by 和 processed_at
+        sql = """
+        UPDATE sales_change_table 
+        SET status = %s
+        WHERE product_id = %s
+        """
+        params = (
+            update_data.status, 
+            update_data.product_id
+        )
+        
+        update_data_to_db(sql, params)
+        
+        return {
+            "message": "滯銷品狀態更新成功",
+            "product_id": update_data.product_id,
+            "status": update_data.status
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] 滯銷品狀態更新失敗: {e}")
+        raise HTTPException(status_code=500, detail="滯銷品狀態更新失敗")

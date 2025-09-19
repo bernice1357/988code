@@ -29,7 +29,7 @@ def get_data_from_db_with_params(sql_prompt: str, params: tuple = ()) -> pd.Data
 def get_customer_transactions(customer_id: str):
     try:
         query = """
-        SELECT transaction_date 
+        SELECT transaction_date, product_name, quantity
         FROM order_transactions 
         WHERE customer_id = %s 
         ORDER BY transaction_date ASC

@@ -19,7 +19,7 @@ def get_sales_change_data():
         # 重新命名欄位和格式化資料
         if not df.empty:
             # 檢查必要欄位是否存在
-            required_columns = ['product_name', 'last_month_sales', 'current_month_sales', 
+            required_columns = ['product_id', 'product_name', 'last_month_sales', 'current_month_sales', 
                                   'change_percentage', 'stock_quantity', 'status']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
@@ -281,19 +281,6 @@ tab_content = html.Div([
             dbc.ModalHeader("確認處理滯銷商品", style={"fontWeight": "bold", "fontSize": "24px"}),
             dbc.ModalBody([
                 html.Div(id="selected-products-info", style={"marginBottom": "20px"}),
-                dbc.Row([
-                    dbc.Label("處理人員", width=3),
-                    dbc.Col(dbc.Input(
-                        id="sales-modal-processor-name",
-                        type="text",
-                        placeholder="輸入處理人員姓名",
-                        value="系統管理員"
-                    ), width=9)
-                ], className="mb-3"),
-                dbc.Row([
-                    dbc.Label("處理時間", width=3),
-                    dbc.Col(html.Div(id="sales-process-datetime", style={"padding": "8px", "backgroundColor": "#f8f9fa", "border": "1px solid #ced4da", "borderRadius": "4px"}), width=9)
-                ], className="mb-3"),
             ]),
             dbc.ModalFooter([
                 dbc.Button("取消", id="sales-modal-cancel-btn", color="secondary", className="me-2"),
@@ -374,7 +361,7 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
         df = df[df['商品名稱'] == product_name_filter]  # 改為精確匹配
     
     # 只保留需要的欄位
-    columns_to_keep = ['商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
+    columns_to_keep = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
     df = df[columns_to_keep]
     
     # 確保所有需要的欄位都存在
@@ -405,6 +392,99 @@ def update_sales_stats(filtered_data):
         html.H5(f"已處理: {processed_products}"),
         html.H5(f"未處理: {unprocessed_products}")
     ]
+
+def create_custom_sales_table(df, show_checkbox=False, show_button=False, button_text="詳情", button_id_type="sales_detail_button", table_height='47vh'):
+    """專門為滯銷品創建的自定義表格，可以控制標題高度和狀態背景顏色"""
+    from dash import html
+    
+    if df.empty:
+        return html.Div("暫無資料")
+    
+    # 自定義標題樣式
+    header_style = {
+        "position": "sticky",
+        "top": "-1px",
+        "zIndex": 2,
+        'backgroundColor': '#bcd1df',
+        'fontWeight': 'bold',
+        'fontSize': '16px',
+        'padding': '2px',              
+        'height': '5px',               
+        'minHeight': '5px',            
+        'verticalAlign': 'middle',      
+        'textAlign': 'center',
+        'border': '1px solid #ccc',
+        'whiteSpace': 'nowrap'
+    }
+    
+    # 手動建立表格標題
+    headers = []
+    if show_checkbox:
+        headers.append(html.Th('', style={**header_style, 'width': '50px'}))
+    
+    for col in df.columns:
+        headers.append(html.Th(col, style=header_style))
+    
+    if show_button:
+        headers.append(html.Th('操作', style={**header_style, 'width': '100px'}))
+    
+    # 建立表格主體
+    rows = []
+    for i, row in df.iterrows():
+        row_cells = []
+        if show_checkbox:
+            row_cells.append(html.Td(
+                dcc.Checklist(
+                    id={'type': 'status-checkbox', 'index': i},
+                    options=[{'label': '', 'value': i}],
+                    value=[]
+                ), style={'textAlign': 'center', 'padding': '8px'}
+            ))
+        
+        for col in df.columns:
+            # 只有狀態欄位需要特殊背景顏色
+            if col == '狀態':
+                if row[col] == '已處理':
+                    cell_bg_color = '#d4edda'  # 淺綠色背景
+                elif row[col] == '未處理':
+                    cell_bg_color = '#f8d7da'  # 淺紅色背景
+                else:
+                    cell_bg_color = 'white'
+            else:
+                cell_bg_color = 'white'  # 其他欄位保持白色背景
+                
+            row_cells.append(html.Td(
+                row[col], 
+                style={
+                    'padding': '8px', 
+                    'textAlign': 'center',
+                    'backgroundColor': cell_bg_color
+                }
+            ))
+        
+        if show_button:
+            row_cells.append(html.Td(
+                html.Button(
+                    button_text,
+                    id={'type': button_id_type, 'index': i},
+                    className="btn btn-warning btn-sm"
+                ), style={'textAlign': 'center', 'padding': '8px'}
+            ))
+        
+        rows.append(html.Tr(row_cells))
+    
+    # 建立完整表格
+    table = html.Table([
+        html.Thead([html.Tr(headers)]),
+        html.Tbody(rows)
+    ], style={'width': '100%', 'borderCollapse': 'collapse'})
+    
+    return html.Div([table], style={
+        'overflowY': 'auto',
+        'maxHeight': table_height,
+        'border': '1px solid #ccc',
+        'borderRadius': '8px'
+    })
 
 # 表格顯示的 callback
 @app.callback(
@@ -467,7 +547,7 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             df['變化比例'] = df.apply(apply_percentage_style, axis=1)
         
         # 只保留表格顯示的欄位
-        display_columns = ['商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
+        display_columns = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
         # 確保所有欄位都存在
         available_columns = [col for col in display_columns if col in df.columns]
         df_display = df[available_columns].copy()
@@ -475,8 +555,8 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
         if df_display.empty:
             return html.Div("暫無資料")
         
-        # 使用 custom_table 的新 table_height 參數
-        return custom_table(
+        # 使用自定義表格函數
+        return create_custom_sales_table(
             df_display, 
             show_checkbox=show_checkbox, 
             show_button=True,
@@ -484,7 +564,7 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             button_id_type="sales_detail_button",
             table_height="47vh"
         )
-    
+            
     except Exception as e:
         return html.Div(f"表格顯示錯誤: {str(e)}")
 
@@ -599,54 +679,7 @@ def toggle_product_detail_modal(detail_clicks, close_clicks, filtered_data, btn_
     
     return False, "", ""
 
-# 顯示處理確認 Modal
-@app.callback(
-    [Output('sales-process-confirm-modal', 'is_open'),
-     Output('selected-products-info', 'children'),
-     Output('sales-process-datetime', 'children')],
-    [Input('sales_confirm_btn', 'n_clicks'),
-     Input('sales-modal-cancel-btn', 'n_clicks')],
-    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
-     State("filtered-sales-data", "data"),
-     State('sales-process-confirm-modal', 'is_open')],
-    prevent_initial_call=True
-)
-def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, is_open):
-    ctx = callback_context
-    if not ctx.triggered:
-        return False, "", ""
-    
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    if button_id == 'sales_confirm_btn' and confirm_clicks:
-        # 獲取選中的商品
-        selected_indices = []
-        for i, values in enumerate(checkbox_values):
-            if values:
-                selected_indices.extend(values)
-        
-        if selected_indices and filtered_data:
-            df = pd.DataFrame(filtered_data)
-            selected_products = [df.iloc[index]['商品名稱'] for index in selected_indices if index < len(df)]
-            
-            # 顯示選中的商品
-            product_info = html.Div([
-                html.H6(f"將處理以下 {len(selected_products)} 項商品：", style={"marginBottom": "10px"}),
-                html.Ul([html.Li(product) for product in selected_products])
-            ])
-            
-            # 顯示當前時間
-            from datetime import datetime
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            return True, product_info, current_time
-    
-    elif button_id == 'sales-modal-cancel-btn':
-        return False, "", ""
-    
-    return is_open, dash.no_update, dash.no_update
-
-# 處理確認已處理的邏輯
+# 修正後的處理確認已處理邏輯
 @app.callback(
     [Output('sales_change-success-toast', 'is_open'),
      Output('sales_change-success-toast', 'children'),
@@ -657,10 +690,12 @@ def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, f
     Input('sales-modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-sales-data", "data"),
-     State("sales-modal-processor-name", "value")],
+     State("btn-all-products", "n_clicks"),
+     State("btn-unprocessed-products", "n_clicks"),
+     State("btn-processed-products", "n_clicks")],
     prevent_initial_call=True
 )
-def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data, processor_name):
+def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed):
     if not modal_confirm_clicks:
         return False, "", False, "", dash.no_update, dash.no_update
     
@@ -674,15 +709,122 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         return False, "", True, "沒有選擇任何商品", dash.no_update, False
     
     try:
+        # 重要：需要重新應用與表格顯示相同的篩選邏輯
         df = pd.DataFrame(filtered_data)
-        product_names = [df.iloc[index]['商品名稱'] for index in selected_indices if index < len(df)]
         
-        success_count = len(product_names)
+        # 根據按鈕狀態篩選資料（與display_sales_table相同的邏輯）
+        if btn_unprocessed and not btn_all and not btn_processed:
+            df = df[df['狀態'] == '未處理']
+        elif btn_processed and not btn_all and not btn_unprocessed:
+            df = df[df['狀態'] == '已處理']
+        # 如果是全部商品，則不需額外篩選
         
-        return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
+        # 重置索引，確保索引從0開始連續（與表格顯示一致）
+        df = df.reset_index(drop=True)
+        
+        # 根據重置後的索引獲取正確的 product_id
+        product_ids = []
+        for index in selected_indices:
+            if index < len(df):
+                product_ids.append(df.iloc[index]['product_id'])
+        
+        if not product_ids:
+            return False, "", True, "無法獲取選中商品的ID", dash.no_update, False
+        
+        # 新增：實際呼叫 API 更新資料庫
+        success_count = 0
+        failed_products = []
+        
+        for product_id in product_ids:
+            try:
+                # 呼叫新的 API 更新 sales_change_table 的 status
+                response = requests.put(
+                    f'http://127.0.0.1:8000/update_sales_change_status_by_id',
+                    json={
+                        "product_id": product_id,
+                        "status": True,
+                        "user_role": "editor"
+                    }
+                )
+                
+                if response.status_code == 200:
+                    success_count += 1
+                else:
+                    failed_products.append(product_id)
+                    
+            except Exception as e:
+                print(f"更新 {product_id} 失敗: {e}")
+                failed_products.append(product_id)
+        
+        if failed_products:
+            error_msg = f"部分商品更新失敗: {', '.join(failed_products)}"
+            return True, f"成功處理 {success_count} 項，失敗 {len(failed_products)} 項", True, error_msg, True, False
+        else:
+            return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", dash.no_update, False
+
+# 同時也需要修正顯示處理確認 Modal 的邏輯
+@app.callback(
+    [Output('sales-process-confirm-modal', 'is_open'),
+     Output('selected-products-info', 'children')],
+    [Input('sales_confirm_btn', 'n_clicks'),
+     Input('sales-modal-cancel-btn', 'n_clicks')],
+    [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     State("filtered-sales-data", "data"),
+     State("btn-all-products", "n_clicks"),
+     State("btn-unprocessed-products", "n_clicks"),
+     State("btn-processed-products", "n_clicks"),
+     State('sales-process-confirm-modal', 'is_open')],
+    prevent_initial_call=True
+)
+def toggle_sales_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed, is_open):
+    ctx = callback_context
+    if not ctx.triggered:
+        return False, ""
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if button_id == 'sales_confirm_btn' and confirm_clicks:
+        # 獲取選中的商品
+        selected_indices = []
+        for i, values in enumerate(checkbox_values):
+            if values:
+                selected_indices.extend(values)
+        
+        if selected_indices and filtered_data:
+            # 重要：需要重新應用與表格顯示相同的篩選邏輯
+            df = pd.DataFrame(filtered_data)
+            
+            # 根據按鈕狀態篩選資料（與display_sales_table和confirm_sales_processed相同的邏輯）
+            if btn_unprocessed and not btn_all and not btn_processed:
+                df = df[df['狀態'] == '未處理']
+            elif btn_processed and not btn_all and not btn_unprocessed:
+                df = df[df['狀態'] == '已處理']
+            # 如果是全部商品，則不需額外篩選
+            
+            # 重置索引，確保索引從0開始連續（與表格顯示一致）
+            df = df.reset_index(drop=True)
+            
+            # 根據重置後的索引獲取正確的商品名稱
+            selected_products = []
+            for index in selected_indices:
+                if index < len(df):
+                    selected_products.append(df.iloc[index]['商品名稱'])
+            
+            # 顯示選中的商品
+            product_info = html.Div([
+                html.H6(f"將處理以下 {len(selected_products)} 項商品：", style={"marginBottom": "10px"}),
+                html.Ul([html.Li(product) for product in selected_products])
+            ])
+            
+            return True, product_info
+    
+    elif button_id == 'sales-modal-cancel-btn':
+        return False, ""
+    
+    return is_open, dash.no_update
     
 # 更新商品名稱下拉選單選項
 @app.callback(
