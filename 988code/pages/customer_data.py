@@ -73,6 +73,20 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="customer-data", data=[]),
     dcc.Store(id="user-role-store"),
     dcc.Store(id="current-table-data", data=[]),
+    # 快取組件
+    dcc.Store(id="customer-cache-store", data={
+        'customer_data': [],
+        'cached_at': None,
+        'cache_version': 1
+    }),
+    # 增量更新檢查
+    dcc.Interval(
+        id='update-checker-interval',
+        interval=30000,  # 每30秒檢查一次更新
+        n_intervals=0,
+        disabled=False
+    ),
+    dcc.Store(id='last-update-time', data=None),
     add_download_component("customer_data"),  # 加入下載元件
     html.Div([
         # 左邊：搜尋條件和篩選按鈕
@@ -219,27 +233,71 @@ def load_customer_name_options(page_loaded):
     except:
         return []
 
-# 載入客戶資料的 callback
+# 載入客戶資料的 callback（含快取機制和批次載入）
 @app.callback(
     Output("customer-data", "data"),
+    Output("customer-cache-store", "data"),
+    Output("last-update-time", "data"),
     Output('customer_data-error-toast', 'is_open'),
     Output('customer_data-error-toast', 'children'),
     Input("page-loaded", "data"),
+    State("customer-cache-store", "data"),
     prevent_initial_call=False
 )
-def load_customer_data(page_loaded):
+def load_customer_data_with_cache(page_loaded, cache_data):
+    from datetime import datetime
+    current_time = datetime.now()
+    
+    # 檢查快取是否有效（5分鐘內）
+    if cache_data and cache_data.get('cached_at'):
+        try:
+            cached_time = datetime.fromisoformat(cache_data['cached_at'])
+            cache_age_seconds = (current_time - cached_time).total_seconds()
+            if cache_age_seconds < 300:  # 5分鐘
+                print(f"[CACHE] 使用快取資料，快取年齡: {cache_age_seconds:.1f}秒")
+                return cache_data['customer_data'], cache_data, current_time.isoformat(), False, ""
+        except (ValueError, TypeError) as e:
+            print(f"[CACHE] 快取時間解析錯誤: {e}")
+    
+    # 快取過期或無快取，重新載入所有資料
+    print("[API] 重新載入客戶資料（全部）")
     try:
+        # 載入所有資料（不使用分頁）
         response = requests.get("http://127.0.0.1:8000/get_customer_data")
+        
         if response.status_code == 200:
             try:
-                customer_data = response.json()
-                return customer_data, False, ""
+                result = response.json()
+                customer_data = result['data']
+                
+                # 更新快取
+                new_cache = {
+                    'customer_data': customer_data,
+                    'cached_at': current_time.isoformat(),
+                    'cache_version': cache_data.get('cache_version', 1) + 1 if cache_data else 1
+                }
+                
+                print(f"[CACHE] 已快取 {len(customer_data)} 筆客戶資料")
+                return customer_data, new_cache, current_time.isoformat(), False, ""
+                
             except requests.exceptions.JSONDecodeError:
-                return [], True, "回應內容不是有效的 JSON"
+                # API 失敗且有舊快取，使用舊快取
+                if cache_data and cache_data.get('customer_data'):
+                    print("[CACHE] API 解析失敗，使用舊快取")
+                    return cache_data['customer_data'], cache_data, current_time.isoformat(), True, "API 回應格式錯誤，使用快取資料"
+                return [], cache_data, current_time.isoformat(), True, "回應內容不是有效的 JSON"
         else:
-            return [], True, f"資料載入失敗，狀態碼：{response.status_code}"
+            # API 失敗且有舊快取，使用舊快取
+            if cache_data and cache_data.get('customer_data'):
+                print(f"[CACHE] API 失敗 ({response.status_code})，使用舊快取")
+                return cache_data['customer_data'], cache_data, current_time.isoformat(), True, f"資料載入失敗 (狀態碼：{response.status_code})，使用快取資料"
+            return [], cache_data, current_time.isoformat(), True, f"資料載入失敗，狀態碼：{response.status_code}"
     except Exception as e:
-        return [], True, f"載入資料時發生錯誤：{e}"
+        # 網路錯誤且有舊快取，使用舊快取
+        if cache_data and cache_data.get('customer_data'):
+            print(f"[CACHE] 網路錯誤，使用舊快取: {e}")
+            return cache_data['customer_data'], cache_data, current_time.isoformat(), True, f"網路連接失敗，使用快取資料: {str(e)}"
+        return [], cache_data, current_time.isoformat(), True, f"載入資料時發生錯誤：{e}"
 
 @app.callback(
     [Output("customer-table-container", "children", allow_duplicate=True),
@@ -514,6 +572,90 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
             return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}", False, "", dash.no_update
     except Exception as e:
         return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}", False, "", dash.no_update
+
+# 當客戶資料被修改時，自動清空快取
+@app.callback(
+    Output("customer-cache-store", "data", allow_duplicate=True),
+    Input("customer_data-success-toast", "is_open"),  # 成功保存後觸發
+    State("customer-cache-store", "data"),
+    prevent_initial_call=True
+)
+def invalidate_cache_on_save(toast_open, cache_data):
+    if toast_open:  # 有資料更新
+        print("[CACHE] 資料更新，清空快取")
+        from datetime import datetime
+        return {
+            'customer_data': [],
+            'cached_at': None,
+            'cache_version': cache_data.get('cache_version', 1) + 1 if cache_data else 1
+        }
+    return dash.no_update
+
+
+# 增量更新檢查 callback
+@app.callback(
+    Output("customer-data", "data", allow_duplicate=True),
+    Output("customer-cache-store", "data", allow_duplicate=True),
+    Output("last-update-time", "data", allow_duplicate=True),
+    Input("update-checker-interval", "n_intervals"),
+    State("customer-data", "data"),
+    State("customer-cache-store", "data"),
+    State("last-update-time", "data"),
+    prevent_initial_call=True
+)
+def check_for_updates(n_intervals, current_data, cache_data, last_update):
+    if not current_data or not last_update:
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    try:
+        from datetime import datetime
+        print(f"[UPDATE] 檢查增量更新，上次更新時間: {last_update}")
+        
+        params = {'last_update': last_update}
+        response = requests.get("http://127.0.0.1:8000/get_customer_updates", params=params)
+        
+        if response.status_code == 200:
+            result = response.json()
+            updates = result['updates']
+            
+            if updates:
+                print(f"[UPDATE] 發現 {len(updates)} 筆資料更新")
+                
+                # 更新現有資料
+                updated_data = current_data.copy()
+                for update in updates:
+                    # 找到對應的記錄並更新
+                    for i, record in enumerate(updated_data):
+                        if record['customer_id'] == update['customer_id']:
+                            # 更新現有記錄，保留原有的欄位結構
+                            updated_record = record.copy()
+                            updated_record.update({
+                                'customer_name': update['customer_name'],
+                                'phone_number': update['phone_number'],
+                                'address': update['address'],
+                                'delivery_schedule': update['delivery_schedule'],
+                                'notes': update['notes'],
+                                'transaction_date': update['transaction_date']
+                            })
+                            updated_data[i] = updated_record
+                            break
+                    else:
+                        # 新記錄，添加到列表
+                        updated_data.append(update)
+                
+                # 更新快取
+                new_cache = cache_data.copy() if cache_data else {}
+                new_cache['customer_data'] = updated_data
+                new_cache['cached_at'] = datetime.now().isoformat()
+                
+                return updated_data, new_cache, result['last_update_time']
+            else:
+                print("[UPDATE] 沒有新的資料更新")
+                
+    except Exception as e:
+        print(f"[ERROR] 檢查更新失敗: {e}")
+    
+    return dash.no_update, dash.no_update, dash.no_update
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
