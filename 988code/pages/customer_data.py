@@ -71,6 +71,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="missing-data-filter", data=False),
     dcc.Store(id="customer-data", data=[]),
+    dcc.Store(id="pagination-info", data={}),  # 新增
+    dcc.Store(id="current-page", data=1),      # 新增
     dcc.Store(id="user-role-store"),
     dcc.Store(id="current-table-data", data=[]),
     add_download_component("customer_data"),  # 加入下載元件
@@ -103,6 +105,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                     color="primary")
         ], style={"display": "flex", "alignItems": "center"})
     ], className="mb-3 d-flex justify-content-between align-items-center"),
+
+
     search_customers["offcanvas"],
     dcc.Loading(
         id="loading-customer-table",
@@ -116,6 +120,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             "top": "50%",          
         }
     ),
+
+    html.Div(id="pagination-controls-bottom", className="mt-3 d-flex justify-content-center align-items-center"),
     dbc.Modal(
         id="customer_data_modal",
         is_open=False,
@@ -219,28 +225,51 @@ def load_customer_name_options(page_loaded):
     except:
         return []
 
-# 載入客戶資料的 callback
+# 載入客戶資料的 callback - 修正版
 @app.callback(
-    Output("customer-data", "data"),
-    Output('customer_data-error-toast', 'is_open'),
-    Output('customer_data-error-toast', 'children'),
-    Input("page-loaded", "data"),
+    [Output("customer-data", "data"),
+     Output("pagination-info", "data"),
+     Output('customer_data-error-toast', 'is_open'),
+     Output('customer_data-error-toast', 'children')],
+    [Input("page-loaded", "data"),
+     Input("current-page", "data"),
+     Input("customer_data-customer-id", "value"),
+     Input("customer_data-customer-name", "value")],
     prevent_initial_call=False
 )
-def load_customer_data(page_loaded):
+def load_customer_data(page_loaded, current_page, selected_customer_id, selected_customer_name):
+    current_page = current_page or 1
+
     try:
-        response = requests.get("http://127.0.0.1:8000/get_customer_data")
+        triggered_inputs = {item['prop_id'].split('.')[0] for item in callback_context.triggered} if callback_context.triggered else set()
+        if triggered_inputs & {"customer_data-customer-id", "customer_data-customer-name"}:
+            current_page = 1
+
+        params = {
+            "page": current_page,
+            "page_size": 50
+        }
+        if selected_customer_id:
+            params["customer_id"] = selected_customer_id
+        if selected_customer_name:
+            params["customer_name"] = selected_customer_name
+
+        response = requests.get(
+            "http://127.0.0.1:8000/get_customer_data",
+            params=params
+        )
         if response.status_code == 200:
             try:
-                customer_data = response.json()
-                return customer_data, False, ""
+                result = response.json()
+                customer_data = result.get("data", [])
+                pagination_info = result.get("pagination", {})
+                return customer_data, pagination_info, False, ""
             except requests.exceptions.JSONDecodeError:
-                return [], True, "回應內容不是有效的 JSON"
+                return [], {}, True, "回傳內容不是有效的 JSON"
         else:
-            return [], True, f"資料載入失敗，狀態碼：{response.status_code}"
+            return [], {}, True, f"資料載入失敗，狀態碼：{response.status_code}"
     except Exception as e:
-        return [], True, f"載入資料時發生錯誤：{e}"
-
+        return [], {}, True, f"載入資料時發生錯誤：{e}"
 @app.callback(
     [Output("customer-table-container", "children", allow_duplicate=True),
      Output("current-table-data", "data", allow_duplicate=True),
@@ -257,8 +286,29 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
     if not customer_data:
         return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
     
+    try:
+        # 確保 customer_data 是正確的格式
+        if isinstance(customer_data, dict):
+            # 如果是分頁格式，取出 data 部分
+            if 'data' in customer_data:
+                customer_data = customer_data['data']
+            else:
+                # 如果是單一字典，轉換為列表
+                customer_data = [customer_data]
+        
+        # 檢查是否為空
+        if not customer_data:
+            return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
+        
+        # 創建 DataFrame
+        df = pd.DataFrame(customer_data)
+        
+    except Exception as e:
+        print(f"DataFrame 創建錯誤: {e}")
+        return html.Div("資料格式錯誤"), [], {"display": "block"}, {"display": "block"}
+    
     # 篩選邏輯
-    df = pd.DataFrame(customer_data)
+    
     df = df.rename(columns={
             "customer_id": "客戶ID",
             "customer_name": "客戶名稱",
@@ -435,12 +485,13 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State('input-notes', 'value'),
     State({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
     State("customer-data", "data"),
+    State("current-page", "data"),
     State("customer_data-customer-id", "value"),
     State("customer_data-customer-name", "value"),
     State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, selected_customer_id, selected_customer_name, user_role):
+def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -498,11 +549,21 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
         update_data["user_role"] = user_role or "viewer"
         response = requests.put(f"http://127.0.0.1:8000/customer/{original_id}", json=update_data)
         if response.status_code == 200:
-            # 重新載入資料
+            # 重新載入資料 - 使用實際的當前頁面
             try:
-                reload_response = requests.get("http://127.0.0.1:8000/get_customer_data")
+                current_page = current_page or 1  # 使用實際頁面
+                reload_params = {
+                    "page": current_page,
+                    "page_size": 50
+                }
+                if selected_customer_id:
+                    reload_params["customer_id"] = selected_customer_id
+                if selected_customer_name:
+                    reload_params["customer_name"] = selected_customer_name
+                reload_response = requests.get("http://127.0.0.1:8000/get_customer_data", params=reload_params)
                 if reload_response.status_code == 200:
-                    updated_customer_data = reload_response.json()
+                    reload_result = reload_response.json()
+                    updated_customer_data = reload_result.get("data", [])
                     return False, True, "客戶資料更新成功！", False, "", False, "", updated_customer_data
                 else:
                     return False, True, "客戶資料更新成功！", False, "", False, "", customer_data
@@ -554,3 +615,73 @@ def toggle_missing_data_filter(n_clicks, current_filter, customer_data):
         else:
             return new_filter, "缺失資料篩選", "warning"
     return current_filter, "缺失資料篩選", "warning"
+
+# 分頁控制 callback - 只保留底部
+@app.callback(
+    Output("pagination-controls-bottom", "children"),
+    Input("pagination-info", "data")
+)
+def update_pagination_controls(pagination_info):
+    if not pagination_info:
+        return ""
+    
+    current_page = pagination_info.get("current_page", 1)
+    total_pages = pagination_info.get("total_pages", 1)
+    total_count = pagination_info.get("total_count", 0)
+    has_prev = pagination_info.get("has_prev", False)
+    has_next = pagination_info.get("has_next", False)
+    
+    controls = html.Div([
+        dbc.ButtonGroup([
+            dbc.Button("◀ 上一頁", 
+                      id="prev-page-btn", 
+                      disabled=not has_prev,
+                      outline=True,
+                      color="primary"),
+            dbc.Button(f"第 {current_page} 頁 / 共 {total_pages} 頁",
+                      disabled=True,
+                      color="light"),
+            dbc.Button("下一頁 ▶", 
+                      id="next-page-btn", 
+                      disabled=not has_next,
+                      outline=True,
+                      color="primary")
+        ]),
+        html.Span(f"共 {total_count} 筆資料", 
+                 className="ms-3",
+                 style={"alignSelf": "center", "color": "#666"})
+    ], style={"display": "flex", "alignItems": "center"})
+    
+    return controls
+
+# 分頁按鈕點擊處理
+@app.callback(
+    Output("current-page", "data"),
+    [Input("prev-page-btn", "n_clicks"),
+     Input("next-page-btn", "n_clicks")],
+    [State("current-page", "data"),
+     State("pagination-info", "data")],
+    prevent_initial_call=True
+)
+def handle_pagination_clicks(prev_clicks, next_clicks, current_page, pagination_info):
+    ctx = callback_context
+    if not ctx.triggered:
+        return current_page or 1
+
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if button_id == "prev-page-btn" and pagination_info.get("has_prev"):
+        return max(1, current_page - 1)
+    elif button_id == "next-page-btn" and pagination_info.get("has_next"):
+        return min(pagination_info.get("total_pages", 1), current_page + 1)
+
+    return current_page
+
+@app.callback(
+    Output("current-page", "data", allow_duplicate=True),
+    [Input("customer_data-customer-id", "value"),
+     Input("customer_data-customer-name", "value")],
+    prevent_initial_call=True
+)
+def reset_current_page_on_search(customer_id, customer_name):
+    return 1

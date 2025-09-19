@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Form, Query
+from typing import Optional
 import psycopg2
 import pandas as pd
 from datetime import datetime
@@ -57,10 +58,41 @@ def get_new_item_customers():
 
 # 客戶資料管理列表資料
 @router.get("/get_customer_data")
-def get_customer_data():
-    print("[API] get_customer_data 被呼叫")
+def get_customer_data(
+    page: int = Query(1),
+    page_size: int = Query(50),
+    customer_id: Optional[str] = Query(None),
+    customer_name: Optional[str] = Query(None)
+):
+    print(f"[API] get_customer_data 被呼叫，頁碼 {page} 每頁 {page_size} 筆，customer_id={customer_id} customer_name={customer_name}")
     try:
-        query = """
+        page = max(page, 1)
+        page_size = max(page_size, 1)
+
+        filters = []
+        filter_params = []
+        if customer_id:
+            filters.append("c.customer_id = %s")
+            filter_params.append(customer_id)
+        if customer_name:
+            filters.append("c.customer_name = %s")
+            filter_params.append(customer_name)
+
+        where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+        offset = (page - 1) * page_size
+
+        count_query = f"""
+        SELECT COUNT(*)
+        FROM customer c
+        LEFT JOIN (
+            SELECT customer_id, transaction_date,
+                    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
+            FROM order_transactions
+        ) ot ON c.customer_id = ot.customer_id AND ot.rn = 1
+        {where_clause}
+        """
+
+        data_query = f"""
         SELECT c.customer_id, c.customer_name, c.phone_number, c.address, c.delivery_schedule,
                 ot.transaction_date, c.notes
         FROM customer c
@@ -69,13 +101,45 @@ def get_customer_data():
                     ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY transaction_date DESC) as rn
             FROM order_transactions
         ) ot ON c.customer_id = ot.customer_id AND ot.rn = 1
+        {where_clause}
+        ORDER BY c.customer_id
+        LIMIT %s OFFSET %s
         """
-        df = get_data_from_db(query)
-        return df.to_dict(orient="records")
+
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                if filter_params:
+                    cursor.execute(count_query, tuple(filter_params))
+                else:
+                    cursor.execute(count_query)
+                total_count = cursor.fetchone()[0]
+
+                query_params = tuple(filter_params + [page_size, offset])
+                cursor.execute(data_query, query_params)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                df = pd.DataFrame(rows, columns=columns)
+
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+        return {
+            "data": df.to_dict(orient="records"),
+            "pagination": {
+                "current_page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "has_next": page * page_size < total_count,
+                "has_prev": page > 1
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-    
-# 補貨提醒 - 取得所有客戶ID
 @router.get("/get_restock_customer_ids")
 def get_all_customer_ids():
     try:
