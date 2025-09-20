@@ -36,3 +36,16 @@ if os.getenv("EXPOSE_SCHEDULER_ON_8000") == "1":
     print("INFO: Scheduler API exposed on port 8000")
 else:
     print("INFO: Scheduler API isolated to port 9000 (recommended)")
+
+# 基本路由檢查
+@app.get("/")
+def read_root():
+    return {"message": "988 API Server is running", "version": "1.0"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "message": "API server is operational"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

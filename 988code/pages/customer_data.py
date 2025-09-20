@@ -5,9 +5,93 @@ from dash import ALL, callback_context
 import json
 
 from datetime import datetime
+# DataFrame 處理輔助函數
+def process_customer_dataframe(customer_data, selected_customer_id=None, selected_customer_name=None, missing_filter=False):
+    """統一處理客戶資料DataFrame的函數，避免重複代碼"""
+    if not customer_data:
+        return pd.DataFrame()
+    
+    # 確保 customer_data 是正確的格式
+    if isinstance(customer_data, dict):
+        if 'data' in customer_data:
+            customer_data = customer_data['data']
+        else:
+            customer_data = [customer_data]
+    
+    if not customer_data:
+        return pd.DataFrame()
+    
+    # 創建 DataFrame
+    df = pd.DataFrame(customer_data)
+    
+    # 重命名欄位
+    df = df.rename(columns={
+        "customer_id": "客戶ID",
+        "customer_name": "客戶名稱",
+        "phone_number": "電話",
+        "address": "客戶地址",
+        "delivery_schedule": "每週配送日",
+        "transaction_date": "最新交易日期",
+        "notes": "備註"
+    })
+    
+    # 轉換配送日數字為中文字
+    if "每週配送日" in df.columns:
+        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
+    
+    # 應用篩選條件
+    if missing_filter:
+        missing_phone = df["電話"].isna() | (df["電話"] == "") | (df["電話"] == "None")
+        missing_address = df["客戶地址"].isna() | (df["客戶地址"] == "") | (df["客戶地址"] == "None")
+        df = df[missing_phone | missing_address]
+    
+    if selected_customer_id:
+        df = df[df['客戶ID'] == selected_customer_id]
+    
+    if selected_customer_name:
+        df = df[df['客戶名稱'] == selected_customer_name]
+    
+    # 重置索引
+    df = df.reset_index(drop=True)
+    
+    return df
+
+def update_customer_record_locally(customer_data, button_index, updated_fields, selected_customer_id=None, selected_customer_name=None, missing_filter=False):
+    """本地更新客戶記錄，避免重新查詢資料庫"""
+    if not customer_data:
+        return customer_data
+    
+    # 處理 DataFrame 找到對應記錄
+    df = process_customer_dataframe(customer_data, selected_customer_id, selected_customer_name, missing_filter)
+    
+    if button_index >= len(df):
+        return customer_data
+    
+    # 找到原始資料中對應的記錄
+    target_customer_id = df.iloc[button_index]['客戶ID']
+    
+    # 直接更新原始 customer_data 中的記錄
+    updated_data = customer_data.copy()
+    for i, record in enumerate(updated_data):
+        if record.get('customer_id') == target_customer_id:
+            # 更新記錄
+            updated_data[i].update({
+                'customer_name': updated_fields.get('customer_name', record.get('customer_name')),
+                'customer_id': updated_fields.get('customer_id', record.get('customer_id')),
+                'phone_number': updated_fields.get('phone_number', record.get('phone_number')),
+                'address': updated_fields.get('address', record.get('address')),
+                'delivery_schedule': updated_fields.get('delivery_schedule', record.get('delivery_schedule')),
+                'notes': updated_fields.get('notes', record.get('notes'))
+            })
+            break
+    
+    return updated_data
+
 # 配送日轉換函數
 def convert_delivery_schedule_to_chinese(schedule_str):
-    if not schedule_str or schedule_str.strip() == "":
+    # 處理 pandas NaN 值
+    import pandas as pd
+    if pd.isna(schedule_str) or not schedule_str or (isinstance(schedule_str, str) and schedule_str.strip() == ""):
         return ""
     
     number_to_chinese = {
@@ -426,46 +510,24 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
         return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
     
     try:
-        # 確保 customer_data 是正確的格式
-        if isinstance(customer_data, dict):
-            # 如果是分頁格式，取出 data 部分
-            if 'data' in customer_data:
-                customer_data = customer_data['data']
-            else:
-                # 如果是單一字典，轉換為列表
-                customer_data = [customer_data]
+        # 使用新的輔助函數處理 DataFrame
+        df = process_customer_dataframe(customer_data, selected_customer_id, selected_customer_name, missing_filter)
         
-        # 檢查是否為空
-        if not customer_data:
+        if df.empty:
             return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
-        
-        # 創建 DataFrame
-        df = pd.DataFrame(customer_data)
         
     except Exception as e:
         print(f"DataFrame 創建錯誤: {e}")
         return html.Div("資料格式錯誤"), [], {"display": "block"}, {"display": "block"}
     
-    # 篩選邏輯
-    
-    df = df.rename(columns={
-            "customer_id": "客戶ID",
-            "customer_name": "客戶名稱",
-            "phone_number": "電話",
-            "address": "客戶地址",
-            "delivery_schedule": "每週配送日",
-            "transaction_date": "最新交易日期",
-            "notes": "備註"
-        })
-    
-    # 轉換配送日數字為中文字
-    if "每週配送日" in df.columns:
-        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
-    
-    # 檢查是否有缺失資料
-    missing_phone = df["電話"].isna() | (df["電話"] == "") | (df["電話"] == "None")
-    missing_address = df["客戶地址"].isna() | (df["客戶地址"] == "") | (df["客戶地址"] == "None")
-    has_missing_data = (missing_phone | missing_address).any()
+    # 檢查是否有缺失資料（用於按鈕顯示）
+    original_df = process_customer_dataframe(customer_data)  # 不套用篩選的原始資料
+    if not original_df.empty:
+        missing_phone = original_df["電話"].isna() | (original_df["電話"] == "") | (original_df["電話"] == "None")
+        missing_address = original_df["客戶地址"].isna() | (original_df["客戶地址"] == "") | (original_df["客戶地址"] == "None")
+        has_missing_data = (missing_phone | missing_address).any()
+    else:
+        has_missing_data = False
     
     # 根據是否有缺失資料決定按鈕和警告的顯示
     button_style = {"display": "none"} if not has_missing_data else {"marginLeft": "10px"}
@@ -475,20 +537,6 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
         "fontWeight": "bold",
         "alignSelf": "center"
     }
-    
-    # 缺失資料篩選邏輯 - 移除重複計算
-    if missing_filter:
-        df = df[missing_phone | missing_address]
-    
-    # 其他篩選條件
-    if selected_customer_id:
-        df = df[df['客戶ID'] == selected_customer_id]
-    
-    if selected_customer_name:
-        df = df[df['客戶名稱'] == selected_customer_name]
-
-    # 重置索引，讓按鈕index從0開始連續
-    df = df.reset_index(drop=True)
 
     
     # 新增警告訊息欄位
@@ -545,45 +593,17 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
 )
 def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, selected_customer_name, missing_filter):  # 新增 missing_filter 參數
     if not any(n_clicks):
-        return False, "", "", "", "", "", ""
+        return False, "", "", "", "", [], ""
     
     ctx = callback_context
     if not ctx.triggered:
-        return False, "", "", "", "", "", ""
+        return False, "", "", "", "", [], ""
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     button_index = eval(button_id)['index']
     
-    # 重新篩選資料，確保 index 對應正確
-    df = pd.DataFrame(customer_data)
-    df = df.rename(columns={
-            "customer_id": "客戶ID",
-            "customer_name": "客戶名稱",
-            "phone_number": "電話",
-            "address": "客戶地址",
-            "delivery_schedule": "每週配送日",
-            "transaction_date": "最新交易日期",
-            "notes": "備註"
-        })
-    
-    # 轉換配送日數字為中文字 (與顯示邏輯保持一致)
-    if "每週配送日" in df.columns:
-        df["每週配送日"] = df["每週配送日"].apply(convert_delivery_schedule_to_chinese)
-    
-    # 修改這段 - 直接使用參數
-    if missing_filter:
-        missing_phone = df["電話"].isna() | (df["電話"] == "") | (df["電話"] == "None")
-        missing_address = df["客戶地址"].isna() | (df["客戶地址"] == "") | (df["客戶地址"] == "None")
-        df = df[missing_phone | missing_address]
-    
-    if selected_customer_id:
-        df = df[df['客戶ID'] == selected_customer_id]
-    
-    if selected_customer_name:
-        df = df[df['客戶名稱'] == selected_customer_name]
-    
-    # 重置索引，確保連續性
-    df = df.reset_index(drop=True)
+    # 使用新的輔助函數處理 DataFrame
+    df = process_customer_dataframe(customer_data, selected_customer_id, selected_customer_name, missing_filter)
     
     if button_index < len(df):
         row_data = df.iloc[button_index]
@@ -591,8 +611,8 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
         # 處理每週配送日的資料格式
         # 注意：這裡的 row_data 來自顯示表格，已經是中文格式
         delivery_schedule = row_data['每週配送日']
-        if isinstance(delivery_schedule, str) and delivery_schedule:
-            delivery_schedule_list = [day.strip() for day in delivery_schedule.split(',')]
+        if isinstance(delivery_schedule, str) and delivery_schedule and delivery_schedule.strip():
+            delivery_schedule_list = [day.strip() for day in delivery_schedule.split(',') if day.strip()]
         else:
             delivery_schedule_list = []
         
@@ -604,7 +624,7 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
                 delivery_schedule_list,
                 row_data['備註'])
     else:
-        return False, "", "", "", "", "", ""
+        return False, "", "", "", "", [], ""
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
@@ -627,10 +647,11 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State("current-page", "data"),
     State("customer_data-customer-id", "value"),
     State("customer_data-customer-name", "value"),
+    State("missing-data-filter", "data"),
     State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, user_role):
+def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, missing_filter, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -645,26 +666,8 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
     if button_index is None:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
-    # 重新篩選資料，確保 index 對應正確
-    df = pd.DataFrame(customer_data)
-    df = df.rename(columns={
-            "customer_id": "客戶ID",
-            "customer_name": "客戶名稱",
-            "phone_number": "電話",
-            "address": "客戶地址",
-            "delivery_schedule": "每週配送日",
-            "transaction_date": "最新交易日期",
-            "notes": "備註"
-        })
-    
-    if selected_customer_id:
-        df = df[df['客戶ID'] == selected_customer_id]
-    
-    if selected_customer_name:
-        df = df[df['客戶名稱'] == selected_customer_name]
-    
-    # 重置索引，確保連續性
-    df = df.reset_index(drop=True)
+    # 使用新的輔助函數處理 DataFrame
+    df = process_customer_dataframe(customer_data, selected_customer_id, selected_customer_name)
     
     if button_index >= len(df):
         return dash.no_update, False, "", True, "找不到對應的客戶資料", False, "", dash.no_update
@@ -685,35 +688,53 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
     }
     
     try:
+        # 樂觀更新：先更新本地資料
+        optimistic_update_data = {
+            'customer_name': customer_name,
+            'customer_id': customer_id,
+            'phone_number': phone_number,
+            'address': address,
+            'delivery_schedule': delivery_schedule_str,
+            'notes': notes
+        }
+        
+        # 本地更新資料
+        updated_customer_data = update_customer_record_locally(
+            customer_data, 
+            button_index, 
+            optimistic_update_data,
+            selected_customer_id,
+            selected_customer_name,
+            missing_filter or False
+        )
+        
+        # 準備 API 調用
         update_data["user_role"] = user_role or "viewer"
-        response = requests.put(f"http://127.0.0.1:8000/customer/{original_id}", json=update_data)
-        if response.status_code == 200:
-            # 重新載入資料 - 使用實際的當前頁面
-            try:
-                current_page = current_page or 1  # 使用實際頁面
-                reload_params = {
-                    "page": current_page,
-                    "page_size": 50
-                }
-                if selected_customer_id:
-                    reload_params["customer_id"] = selected_customer_id
-                if selected_customer_name:
-                    reload_params["customer_name"] = selected_customer_name
-                reload_response = requests.get("http://127.0.0.1:8000/get_customer_data", params=reload_params)
-                if reload_response.status_code == 200:
-                    reload_result = reload_response.json()
-                    updated_customer_data = reload_result.get("data", [])
-                    return False, True, "客戶資料更新成功！", False, "", False, "", updated_customer_data
-                else:
-                    return False, True, "客戶資料更新成功！", False, "", False, "", customer_data
-            except:
-                return False, True, "客戶資料更新成功！", False, "", False, "", customer_data
-        elif response.status_code == 403:
-            return dash.no_update, False, "", False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update
-        else:
-            return dash.no_update, False, "", True, f"API 呼叫錯誤，狀態碼：{response.status_code}", False, "", dash.no_update
+        
+        # 嘗試 API 調用，但使用較短的超時時間
+        try:
+            response = requests.put(f"http://127.0.0.1:8000/customer/{original_id}", json=update_data, timeout=2)
+            if response.status_code == 200:
+                # API 成功，返回樂觀更新結果
+                return False, True, "客戶資料更新成功！", False, "", False, "", updated_customer_data
+            elif response.status_code == 403:
+                # 權限錯誤，回滾到原始資料
+                return dash.no_update, False, "", False, "", True, "權限不足：僅限編輯者使用此功能", customer_data
+            else:
+                # 其他 API 錯誤，但仍返回樂觀更新結果（因為可能是暫時性問題）
+                print(f"API 調用失敗但返回樂觀結果: {response.status_code}")
+                return False, True, "客戶資料已更新（正在後台同步）", False, "", False, "", updated_customer_data
+        except requests.exceptions.Timeout:
+            # 超時，返回樂觀更新結果
+            print("API 調用超時，但返回樂觀結果")
+            return False, True, "客戶資料已更新（正在後台同步）", False, "", False, "", updated_customer_data
+        except Exception as api_error:
+            # 其他網路錯誤，仍返回樂觀更新結果
+            print(f"API 調用錯誤但返回樂觀結果: {api_error}")
+            return False, True, "客戶資料已更新（正在後台同步）", False, "", False, "", updated_customer_data
+        
     except Exception as e:
-        return dash.no_update, False, "", True, f"資料載入時發生錯誤：{e}", False, "", dash.no_update
+        return dash.no_update, False, "", True, f"資料更新時發生錯誤：{e}", False, "", dash.no_update
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),

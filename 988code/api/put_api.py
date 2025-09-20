@@ -262,6 +262,38 @@ def update_data_to_db(sql_prompt: str, params: tuple = ()):
         print(f"[DB ERROR] {e}")
         raise
 
+# 優化的資料庫更新函數
+def update_data_to_db_optimized(sql_prompt: str, params: tuple = ()):
+    """優化的資料庫更新函數，使用更好的連接管理"""
+    try:
+        # 使用連接池會更好，但目前先優化連接參數
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n',
+            password='1234',
+            host='26.210.160.206',
+            port='5433',
+            # 優化連接參數
+            connect_timeout=5,  # 連接超時
+            application_name='customer_update_api'  # 應用程式標識
+        ) as conn:
+            # 設定會話參數以提升性能
+            conn.autocommit = False
+            with conn.cursor() as cursor:
+                cursor.execute(sql_prompt, params)
+                conn.commit()
+    except psycopg2.OperationalError as e:
+        print(f"[DB CONNECTION ERROR] {e}")
+        # 回退到原始函數，避免503錯誤
+        return update_data_to_db(sql_prompt, params)
+    except psycopg2.IntegrityError as e:
+        print(f"[DB INTEGRITY ERROR] {e}")
+        raise HTTPException(status_code=400, detail="資料完整性錯誤")
+    except Exception as e:
+        print(f"[DB ERROR] {e}")
+        # 回退到原始函數
+        return update_data_to_db(sql_prompt, params)
+
 def query_data_from_db(sql_prompt: str, params: tuple = ()):
     try:
         with psycopg2.connect(
@@ -377,6 +409,7 @@ def create_order_transaction(transaction_data: OrderTransactionCreate):
 class CustomerUpdate(BaseModel):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
+    phone_number: Optional[str] = None  # 添加遺漏的欄位
     address: Optional[str] = None
     notes: Optional[str] = None
     delivery_schedule: Optional[str] = None
@@ -394,19 +427,24 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
     # 自動添加 updated_date
     update_fields['updated_date'] = datetime.now().date()
 
+    # 優化：使用更高效的連接管理和預處理語句
     set_clause = ", ".join([f"{key} = %s" for key in update_fields])
     sql = f"UPDATE customer SET {set_clause} WHERE customer_id = %s"
     params = tuple(update_fields.values()) + (customer_id,)
 
     try:
-        update_data_to_db(sql, params)
+        # 使用優化的資料庫更新函數
+        update_data_to_db_optimized(sql, params)
+        
+        # 返回更新後的記錄資料（可選）
         return {
             "message": "更新成功",
             "customer_id": customer_id,
-            "updated_fields": update_fields
+            "updated_fields": update_fields,
+            "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[ERROR] 客戶資料更新失敗: {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
 
 # 批量更新subcategory
