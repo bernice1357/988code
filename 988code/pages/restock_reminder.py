@@ -453,7 +453,9 @@ def reload_table_data():
         for _, row in all_records.iterrows():
             record_for_modal = {
                 '客戶ID': row.get('客戶ID', ''),
-                '客戶名稱': row.get('客戶名稱', '')
+                '客戶名稱': row.get('客戶名稱', ''),
+                '商品ID': row.get('商品ID', ''),
+                '商品名稱': row.get('商品名稱', '')
             }
             records_for_modal.append(record_for_modal)
         
@@ -504,7 +506,9 @@ def load_data_and_handle_errors(page_loaded):
             for _, row in all_records.iterrows():
                 record_for_modal = {
                     '客戶ID': row.get('客戶ID', ''),
-                    '客戶名稱': row.get('客戶名稱', '')
+                    '客戶名稱': row.get('客戶名稱', ''),
+                    '商品ID': row.get('商品ID', ''),
+                    '商品名稱': row.get('商品名稱', '')
                 }
                 records_for_modal.append(record_for_modal)
             
@@ -553,66 +557,79 @@ def show_detail_modal(view_clicks, table_data):
         row = table_data[idx]
         customer_id = row['客戶ID']
         customer_name = row['客戶名稱']
-        
-        # 儲存客戶資訊到 store
+        product_id = row.get('商品ID', '')
+        product_name = row.get('商品名稱', '')
+
         customer_info = {
             'customer_id': customer_id,
-            'customer_name': customer_name
+            'customer_name': customer_name,
+            'product_id': product_id,
+            'product_name': product_name
         }
-        
-        # 呼叫新的 API 獲取歷史資料
+
         try:
             response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}')
             if response.status_code == 200:
                 history_data = response.json()
                 history_df = pd.DataFrame(history_data)
-                
-                # 假設 API 回傳的資料有 date 欄位
-                if not history_df.empty and 'transaction_date' in history_df.columns:
-                    history_df['transaction_date'] = pd.to_datetime(history_df['transaction_date'])
-                    
+
+                filtered_df = history_df
+
+                if not filtered_df.empty:
+                    if product_id and 'product_id' in filtered_df.columns:
+                        filtered_df = filtered_df[filtered_df['product_id'] == product_id]
+                    elif product_name and 'product_name' in filtered_df.columns:
+                        filtered_df = filtered_df[filtered_df['product_name'] == product_name]
+
+                if filtered_df.empty:
+                    timeline_chart = html.Div("該品項目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
+                elif 'transaction_date' not in filtered_df.columns:
+                    timeline_chart = html.Div("歷史資料缺少日期欄位", style={"textAlign": "center", "padding": "20px"})
+                else:
+                    filtered_df = filtered_df.copy()
+                    filtered_df['transaction_date'] = pd.to_datetime(filtered_df['transaction_date'])
+
                     # 建立時間軸圖表
                     fig = go.Figure()
-                    
-                    # 添加時間點
+
+                    # 添加入點
                     fig.add_trace(go.Scatter(
-                        x=history_df['transaction_date'],
-                        y=[1] * len(history_df),  # 所有點放在同一條水平線上
+                        x=filtered_df['transaction_date'],
+                        y=[1] * len(filtered_df),  # 所有節點落在同一條水平線上
                         mode="markers+text",
-                        text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in history_df['transaction_date']],
+                        text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in filtered_df['transaction_date']],
                         textposition="top center",
                         hovertemplate='<b>%{customdata[0]}</b><br>' +
                                     '商品：%{customdata[1]}<br>' +
                                     '數量：%{customdata[2]}<br>' +
                                     '<extra></extra>',
-                        customdata=[[d.strftime('%Y-%m-%d'), row['product_name'], row['quantity']] 
-                                    for d, (_, row) in zip(history_df['transaction_date'], history_df.iterrows())],
+                        customdata=[[d.strftime('%Y-%m-%d'), record['product_name'], record['quantity']]
+                                    for d, (_, record) in zip(filtered_df['transaction_date'], filtered_df.iterrows())],
                         marker=dict(size=12, color="#564dff", symbol="circle"),
-                        name="補貨日期"
+                        name="補貨紀錄"
                     ))
-                    
+
                     # 添加連線
                     fig.add_trace(go.Scatter(
-                        x=history_df['transaction_date'],
-                        y=[1] * len(history_df),
+                        x=filtered_df['transaction_date'],
+                        y=[1] * len(filtered_df),
                         mode="lines",
                         line=dict(color="#564dff", width=2),
                         showlegend=False
                     ))
-                    
+
                     # 計算圖表寬度
-                    data_count = len(history_df)
-                    # 每個點間距約80px，確保有足夠空間
+                    data_count = len(filtered_df)
                     chart_width = max(800, data_count * 80)
-                    
-                    # 根據圖表寬度判斷是否需要滾動（modal 寬度大約1200px）
+
+                    # 判斷是否需要滾動
                     modal_width = 1200
                     scrollable = chart_width > modal_width
-                    min_date = history_df['transaction_date'].min()
-                    max_date = history_df['transaction_date'].max()
+                    min_date = filtered_df['transaction_date'].min()
+                    max_date = filtered_df['transaction_date'].max()
                     total_days = (max_date - min_date).days
 
-                    # 設定顯示範圍：始終顯示從最小到最大日期的完整範圍
+                    # 設定顯示區間
                     initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
 
                     fig.update_layout(
@@ -622,11 +639,11 @@ def show_detail_modal(view_clicks, table_data):
                             tickmode='linear',
                             dtick='M1',  # 每月一個刻度
                             showticklabels=True,
-                            tickformat='%Y/%m',  # 只顯示年/月格式
+                            tickformat='%Y/%m',  # 顯示年/月格式
                             showgrid=True,
                             gridcolor="lightgray",
                             gridwidth=1,
-                            range=initial_range  # 設定初始顯示範圍，自動聚焦最初日期
+                            range=initial_range
                         ),
                         yaxis=dict(showticklabels=False, range=[-0.2, 2.5]),
                         height=300,
@@ -638,13 +655,13 @@ def show_detail_modal(view_clicks, table_data):
                     if scrollable:
                         timeline_chart = html.Div([
                             dcc.Graph(
-                                figure=fig, 
-                                id="timeline-chart", 
-                                style={"width": f"{chart_width}px"}, 
+                                figure=fig,
+                                id="timeline-chart",
+                                style={"width": f"{chart_width}px"},
                                 config={'displayModeBar': False}
                             ),
                             dcc.Download(id="download-chart"),
-                            # 添加自動滾動的 JavaScript
+                            # 自動將滾動條移到最新的補貨日
                             html.Script(f"""
                                 setTimeout(function() {{
                                     var chartDiv = document.getElementById('timeline-chart');
@@ -654,7 +671,7 @@ def show_detail_modal(view_clicks, table_data):
                                             var maxDate = new Date('{max_date.strftime('%Y-%m-%d')}');
                                             var chartWidth = {chart_width};
                                             var containerWidth = scrollContainer.clientWidth;
-                                            // 計算最新日期對應的滾動位置
+                                            // 計算靠近最新日資料的滾動位置
                                             var scrollPosition = chartWidth - containerWidth + 100;
                                             scrollContainer.scrollLeft = Math.max(0, scrollPosition);
                                         }}
@@ -667,15 +684,18 @@ def show_detail_modal(view_clicks, table_data):
                             dcc.Graph(figure=fig, id="timeline-chart", style={"width": f"{chart_width}px"}, config={'displayModeBar': False}),
                             dcc.Download(id="download-chart")
                         ])
-                else:
-                    timeline_chart = html.Div("無歷史資料", style={"textAlign": "center", "padding": "20px"})
             else:
                 timeline_chart = html.Div("無法載入歷史資料", style={"textAlign": "center", "padding": "20px"})
         except Exception as e:
             timeline_chart = html.Div(f"載入錯誤: {str(e)}", style={"textAlign": "center", "padding": "20px"})
-        
+
+        title = f"{customer_id} - {customer_name} 歷史補貨紀錄"
+        product_label = " ".join(part for part in [product_id, product_name] if part)
+        if product_label:
+            title = f"{title} ({product_label})"
+
         content = html.Div([
-            html.H2(f"{customer_id} - {customer_name} 歷史補貨紀錄", style={"textAlign": "center"}),
+            html.H2(title, style={"textAlign": "center"}),
             html.Hr(),
             timeline_chart,
             html.Hr(),
@@ -684,7 +704,7 @@ def show_detail_modal(view_clicks, table_data):
                 dbc.Button("關閉", id="close-modal", n_clicks=0, color="secondary")
             ], style={"textAlign": "center"})
         ])
-        
+
         return content, True, customer_info
     
     return dash.no_update, False, dash.no_update
@@ -704,21 +724,28 @@ def download_chart(n_clicks, figure, modal_open, customer_info):
         if ctx.triggered_id == "download-chart-btn":
             try:
                 import plotly.io as pio
-                
-                # 從 store 取得客戶資訊
-                customer_id = customer_info.get('customer_id', '客戶')
-                customer_name = customer_info.get('customer_name', '')
-                
-                # 組合檔名
-                filename = f"{customer_id} - {customer_name} 歷史補貨紀錄.png"
-                width = figure['layout']['width']
+
+                info = customer_info or {}
+                customer_id = info.get('customer_id', '客戶')
+                customer_name = info.get('customer_name', '')
+                product_id = info.get('product_id', '')
+                product_name = info.get('product_name', '')
+                product_label = " ".join(part for part in [product_id, product_name] if part)
+
+                if product_label:
+                    filename = f"{customer_id} - {customer_name} - {product_label} 歷史補貨紀錄.png"
+                else:
+                    filename = f"{customer_id} - {customer_name} 歷史補貨紀錄.png"
+
+                width = figure.get('layout', {}).get('width', 800)
                 img_bytes = pio.to_image(figure, format="png", width=width, height=300, scale=2)
                 return dcc.send_bytes(img_bytes, filename), False
             except Exception as e:
                 print(f"錯誤: {e}")
                 return dash.no_update, False
-    
+
     return dash.no_update, False
+
 
 # 顯示下載中 toast
 @app.callback(
