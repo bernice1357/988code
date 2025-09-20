@@ -1,4 +1,4 @@
-from .common import *
+﻿from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from components.table import custom_table
 import requests
@@ -20,28 +20,57 @@ def get_confidence_color(confidence_level):
         return colors.get(confidence_level.upper(), '#000000')  # 預設黑色
     return '#000000'
 
-def calculate_restock_column_width(df, col):
-    """計算補貨表格欄位的最適寬度"""
-    # 計算標題寬度 (padding: 4px 8px = 16px)
-    # 考慮中文字符較寬的問題
-    col_str = str(col)
-    char_width = sum(14 if ord(c) > 127 else 8 for c in col_str)  # 中文14px, 英文8px
-    header_width = char_width + 16
+def get_optimized_column_widths():
+    """獲取優化的固定欄位寬度，避免重複計算"""
+    return {
+        '客戶ID': 100,
+        '預計補貨日期': 120,
+        '商品ID': 120,
+        '商品名稱': 200,
+        '預估數量': 100,
+        '信心度': 80
+    }
+
+def create_loading_skeleton():
+    """創建載入骨架畫面"""
+    skeleton_rows = []
+    for i in range(10):  # 顯示10行骨架
+        skeleton_cells = []
+        # Checkbox 欄位
+        skeleton_cells.append(html.Td(
+            html.Div(style={
+                'width': '20px', 'height': '20px', 
+                'backgroundColor': '#e0e0e0', 
+                'borderRadius': '3px',
+                'margin': 'auto'
+            }),
+            style={'padding': '8px', 'textAlign': 'center', 'width': '50px'}
+        ))
+        
+        # 其他欄位
+        widths = [100, 120, 120, 200, 100, 80, 100]
+        for width in widths:
+            skeleton_cells.append(html.Td(
+                html.Div(style={
+                    'width': f'{width-20}px', 'height': '16px',
+                    'backgroundColor': '#e0e0e0',
+                    'borderRadius': '4px',
+                    'margin': 'auto'
+                }),
+                style={'padding': '8px', 'textAlign': 'center', 'width': f'{width}px'}
+            ))
+        
+        skeleton_rows.append(html.Tr(skeleton_cells))
     
-    # 計算內容最大寬度
-    max_content_width = 0
-    for value in df[col]:
-        value_str = str(value)
-        value_char_width = sum(14 if ord(c) > 127 else 8 for c in value_str)  # 中文14px, 英文8px
-        content_width = value_char_width + 16  # padding: 4px 8px = 16px
-        max_content_width = max(max_content_width, content_width)
-    
-    # 取標題和內容的最大值，左右各加5px（總共15px），再加5px buffer，加2px邊框
-    calculated_width = max(header_width, max_content_width) + 22
-    return calculated_width
+    return html.Div([
+        html.Table([
+            html.Tbody(skeleton_rows)
+        ], className="table table-striped", style={'marginBottom': '0px'}),
+        html.Div("載入中...", style={'textAlign': 'center', 'padding': '20px', 'color': '#6c757d'})
+    ])
 
 def create_restock_table(df, customer_index_start=0):
-    """創建補貨提醒表格"""
+    """創建補貨提醒表格 - 優化版本"""
     if df.empty:
         return html.Div("無資料"), pd.DataFrame()
     
@@ -52,139 +81,99 @@ def create_restock_table(df, customer_index_start=0):
     display_columns = ['客戶ID', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     df_display = df_reset[display_columns].copy()
     
-    # 計算每個欄位的動態寬度
-    column_widths = {}
-    for col in display_columns:
-        column_widths[col] = calculate_restock_column_width(df_display, col)
-    
-    # 客戶ID為固定列，需要特殊處理
+    # 使用優化的固定寬度
+    column_widths = get_optimized_column_widths()
     customer_id_width = column_widths['客戶ID']
     
-    # 使用 custom_table 但需要手動創建以支援信心度顏色和特定 checkbox ID
+    # 使用優化的表格創建邏輯
     rows = []
+    
+    # 預定義樣式以減少重複創建
+    base_cell_style = {
+        'padding': '8px 12px',
+        'border': '1px solid #ddd',
+        'fontSize': '14px',
+        'height': '45px',
+        'whiteSpace': 'nowrap',
+        'overflow': 'hidden',
+        'textOverflow': 'ellipsis'
+    }
+    
+    checkbox_style = {
+        **base_cell_style,
+        'textAlign': 'center',
+        'width': '50px',
+        'position': 'sticky',
+        'left': '0px',
+        'zIndex': 90,
+        'backgroundColor': '#f8f9fa'
+    }
+    
+    sticky_style = {
+        **base_cell_style,
+        'position': 'sticky',
+        'left': '50px',
+        'zIndex': 89,
+        'backgroundColor': '#f8f9fa',
+        'fontWeight': 'bold'
+    }
     
     for i, row in df_display.iterrows():
         row_cells = []
         
-        # Checkbox 欄位
+        # 簡化的 Checkbox 欄位
         customer_id = row.get('客戶ID', '')
-        row_index = i
-        checkbox_key = f"{customer_id}-{row_index}"
-        
         checkbox_cell = html.Td(
             dcc.Checklist(
-                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': row_index},
-                options=[{'label': '', 'value': checkbox_key}],
+                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': i},
+                options=[{'label': '', 'value': f"{customer_id}-{i}"}],
                 value=[],
                 style={'margin': '0px'}
             ),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'fontSize': '16px',
-                'height': '50px',
-                'minWidth': '50px',
-                'maxWidth': '50px',
-                'position': 'sticky',
-                'left': '0px',
-                'zIndex': 90,  # 提高z-index
-                'backgroundColor': '#edf7ff',
-                'border': '1px solid #ccc',
-                'boxShadow': '2px 0 5px rgba(0,0,0,0.1)'
-            }
+            style=checkbox_style
         )
         row_cells.append(checkbox_cell)
         
-        # 客戶ID (sticky, 固定欄位) - 第一個欄位
+        # 客戶ID (sticky 欄位)
         customer_id_cell = html.Td(
             str(customer_id),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'position': 'sticky',
-                'left': '50px',
-                'zIndex': 89,  # 提高z-index
-                'backgroundColor': '#edf7ff',
-                'width': f'{customer_id_width}px',
-                'minWidth': f'{customer_id_width}px',
-                'maxWidth': f'{customer_id_width}px'
-            }
+            style={**sticky_style, 'width': f'{customer_id_width}px'}
         )
         row_cells.append(customer_id_cell)
         
-        # 不再需要 popover 功能
-        
-        # 其他欄位（按順序：預計補貨日期、商品ID、商品名稱、預估數量）
+        # 其他欄位（優化迴圈）
         other_columns = ['預計補貨日期', '商品ID', '商品名稱', '預估數量']
-        
         for col in other_columns:
-            col_width = column_widths[col]
             cell = html.Td(
                 str(row.get(col, '')),
-                style={
-                    'padding': '4px 8px',
-                    'textAlign': 'center',
-                    'border': '1px solid #ccc',
-                    'fontSize': '16px',
-                    'height': '50px',
-                    'whiteSpace': 'nowrap',
-                    'backgroundColor': 'white',
-                    'width': f'{col_width}px',
-                    'minWidth': f'{col_width}px'
-                }
+                style={**base_cell_style, 'width': f'{column_widths[col]}px', 'textAlign': 'center'}
             )
             row_cells.append(cell)
         
         # 信心度欄位 (帶顏色)
         confidence_level = row.get('信心度', '')
         confidence_color = get_confidence_color(confidence_level)
-        confidence_width = column_widths['信心度']
         confidence_cell = html.Td(
             str(confidence_level),
             style={
-                'padding': '4px 8px',
+                **base_cell_style,
+                'width': f'{column_widths["信心度"]}px',
                 'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'backgroundColor': 'white',
-                'width': f'{confidence_width}px',
-                'minWidth': f'{confidence_width}px',
                 'color': confidence_color,
                 'fontWeight': 'bold'
             }
         )
         row_cells.append(confidence_cell)
         
-        # 操作按鈕欄位
+        # 簡化的操作按鈕
         button_cell = html.Td(
             html.Button(
-                "查看歷史補貨紀錄",
+                "查看歷史",
                 id={'type': 'view-button', 'index': customer_index_start + i},
-                n_clicks=0,
-                className="btn btn-warning btn-sm",
-                style={'fontSize': '16px'}
+                className="btn btn-outline-primary btn-sm",
+                style={'fontSize': '12px', 'padding': '4px 8px'}
             ),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'position': 'sticky',
-                'right': '0px',
-                'zIndex': 88,  # 提高z-index
-                'backgroundColor': 'white',
-                'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
-                'width': '160px',
-                'minWidth': '160px'
-            }
+            style={**base_cell_style, 'width': '100px', 'textAlign': 'center'}
         )
         row_cells.append(button_cell)
         
@@ -475,11 +464,22 @@ def reload_table_data():
     prevent_initial_call=False
 )
 def load_data_and_handle_errors(page_loaded):
+    # 立即返回載入骨架，提供即時反饋
+    if page_loaded is None:
+        return create_loading_skeleton(), [], False, ""
+    
     try:
-        e=10000
-        response = requests.get('http://127.0.0.1:8000/get_restock_data')
+        # 使用分頁參數載入數據
+        response = requests.get('http://127.0.0.1:8000/get_restock_data', 
+                              params={'limit': 50, 'offset': 0}, 
+                              timeout=10)  # 添加超時
         if response.status_code == 200:
-            data = response.json()
+            result = response.json()
+            data = result.get('data', [])
+            
+            if not data:
+                return html.Div("暫無資料", style={'textAlign': 'center', 'padding': '50px'}), [], False, ""
+            
             df = pd.DataFrame(data)
             
             # 重新命名欄位
@@ -495,30 +495,25 @@ def load_data_and_handle_errors(page_loaded):
                 'confidence_level': '信心度'
             })
             
-            # 按預計補貨日期和客戶名稱排序
-            df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
-            
-            # 創建一般表格（不用 accordion 分組）
+            # 創建優化的表格
             table, all_records = create_restock_table(df, 0)
             
-            # 將記錄轉換為 modal 使用的格式
-            records_for_modal = []
-            for _, row in all_records.iterrows():
-                record_for_modal = {
-                    '客戶ID': row.get('客戶ID', ''),
-                    '客戶名稱': row.get('客戶名稱', ''),
-                    '商品ID': row.get('商品ID', ''),
-                    '商品名稱': row.get('商品名稱', '')
-                }
-                records_for_modal.append(record_for_modal)
+            # 簡化 modal 記錄準備
+            records_for_modal = [
+                {'客戶ID': row.get('客戶ID', ''), '客戶名稱': row.get('客戶名稱', '')}
+                for _, row in all_records.iterrows()
+            ]
             
             return table, records_for_modal, False, ""
         else:
             error_msg = f"API 請求失敗：{response.status_code}"
-            return html.Div(), [], True, error_msg
+            return html.Div(f"載入失敗: {error_msg}", style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
+    except requests.exceptions.Timeout:
+        error_msg = "請求超時，請稍後再試"
+        return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'orange'}), [], True, error_msg
     except Exception as ex:
-        error_msg = f"API 請求錯誤：{ex}"
-        return html.Div(), [], True, error_msg
+        error_msg = f"載入錯誤：{str(ex)}"
+        return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
 
 # 載入客戶ID選項
 @app.callback(

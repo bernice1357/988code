@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-排程系統模組
-管理Prophet模型的週六訓練和每日預測排程
+排程系統模組 - 已棄用
+原用於管理Prophet模型，現已被CatBoost系統取代
+請使用 integrated_scheduler.py 和 task_executor.py
 """
 
 import os
@@ -36,17 +37,13 @@ from tasks.inactive_customer import InactiveCustomerManager
 from tasks.repurchase_reminder import RepurchaseReminder
 from tasks.sales_change import SalesChangeManager
 
-# 原始任務模組導入 (需要時才導入)
-try:
-    from tasks.prophet_system import ProphetPredictionSystem
-except ImportError:
-    ProphetPredictionSystem = None
+# 原始任務模組導入已移除 - Prophet系統已被CatBoost系統取代
 
 class PredictionScheduler:
     """預測排程管理系統"""
     
     def __init__(self):
-        self.prophet_system = ProphetPredictionSystem()
+        # Prophet系統已被CatBoost系統取代
         self.db_integration = DatabaseIntegration()
         
         # 設定時區（從配置文件讀取）
@@ -64,7 +61,7 @@ class PredictionScheduler:
         
         self.setup_logging()
         
-        print("=== Prophet預測排程系統 ===")
+        print("=== 舊版排程系統 (已棄用) ===")
         print(f"系統時區: UTC+8 (Asia/Taipei)")
         print(f"當前時間: {self.get_current_time().strftime('%Y-%m-%d %H:%M:%S')}")
     
@@ -86,59 +83,6 @@ class PredictionScheduler:
         )
         self.logger = logging.getLogger(__name__)
     
-    def saturday_training_job(self):
-        """週六訓練排程任務"""
-        current_time = self.get_current_time()
-        self.logger.info(f"開始週六模型訓練排程任務 (UTC+8: {current_time.strftime('%Y-%m-%d %H:%M:%S')})")
-        
-        try:
-            # 1. 執行Prophet模型訓練
-            training_success = self.prophet_system.saturday_model_training()
-            
-            if not training_success:
-                self.logger.error("Prophet模型訓練失敗")
-                return False
-            
-            self.logger.info(f"訓練成功，模型數量: {len(self.prophet_system.prophet_models)}")
-            
-            # 2. 生成預測
-            predictions = self.prophet_system.generate_daily_predictions(prediction_days=7)
-            
-            if not predictions or len(predictions) == 0:
-                self.logger.warning("沒有生成預測")
-                return False
-            
-            self.logger.info(f"生成預測數量: {len(predictions)}")
-            
-            # 3. 保存CSV備份
-            csv_file = self.prophet_system.save_predictions_to_csv(
-                predictions, 'saturday_training_predictions'
-            )
-            
-            if not csv_file:
-                self.logger.error("CSV保存失敗")
-                return False
-            
-            # 4. 導入數據庫
-            batch_id = f"saturday_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            
-            if self.db_integration.import_predictions_to_database(predictions, batch_id):
-                self.logger.info("數據庫導入成功")
-                
-                # 5. 清理過期預測
-                self.db_integration.cleanup_expired_predictions()
-                
-                # 6. 生成訓練報告
-                self.generate_training_report(batch_id, len(predictions))
-                
-                return True
-            else:
-                self.logger.error("數據庫導入失敗")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"週六訓練排程任務異常: {e}")
-            return False
     
     def daily_prediction_job(self):
         """每日預測排程任務"""
@@ -292,27 +236,6 @@ class PredictionScheduler:
         
         self.logger.info(f"月銷售報告已保存: {report_file}")
     
-    def generate_training_report(self, batch_id, prediction_count):
-        """生成訓練報告"""
-        report = f"""
-Prophet週六訓練完成報告
-========================
-時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-批次ID: {batch_id}
-訓練模型數: {len(self.prophet_system.prophet_models)}
-生成預測數: {prediction_count}
-狀態: 成功
-        """
-        
-        # 保存報告
-        report_dir = 'reports'
-        os.makedirs(report_dir, exist_ok=True)
-        
-        report_file = f"{report_dir}/training_report_{datetime.now().strftime('%Y%m%d')}.txt"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            f.write(report)
-        
-        self.logger.info(f"訓練報告已保存: {report_file}")
     
     def generate_daily_report(self, batch_id, prediction_count, yesterday_accuracy):
         """生成每日報告"""
@@ -857,8 +780,6 @@ Prophet每日預測報告
     
     def setup_schedule(self):
         """設定排程任務 (所有時間為UTC+8)"""
-        # 週六早上8點執行模型訓練
-        schedule.every().saturday.at("08:00").do(self.saturday_training_job)
         
         # 每天晚上10點執行預測生成（預測明天）
         schedule.every().day.at("22:00").do(self.daily_prediction_job)
@@ -892,8 +813,7 @@ Prophet每日預測報告
         self.logger.info("- 每天 05:00: 不活躍客戶檢查")
         self.logger.info("- 每天 06:00: 回購提醒維護")
         self.logger.info("- 每天 07:00: 銷量變化檢查")
-        self.logger.info("- 週六 08:00: 模型訓練")
-        self.logger.info("- 每天 22:00: 預測生成（預測明天）")
+        self.logger.info("- 每天 22:00: CatBoost預測生成（每日重新訓練）")
     
     def check_and_run_monthly_prediction(self):
         """檢查是否為每月1號並執行月銷售預測"""
@@ -927,17 +847,6 @@ Prophet每日預測報告
             self.logger.info("排程器已停止")
             print("\n排程器已停止")
     
-    def test_saturday_training(self):
-        """測試週六訓練任務"""
-        print("=== 測試週六訓練任務 ===")
-        success = self.saturday_training_job()
-        
-        if success:
-            print("✓ 週六訓練任務測試成功")
-        else:
-            print("✗ 週六訓練任務測試失敗")
-        
-        return success
     
     def test_daily_prediction(self):
         """測試每日預測任務"""
@@ -1051,26 +960,21 @@ Prophet每日預測報告
         
         print("✓ 數據庫架構檢查完成")
         
-        # 2. 測試週六訓練
-        print("\n[2] 測試週六訓練任務...")
-        if not self.test_saturday_training():
-            print("✗ 週六訓練測試失敗")
-            return False
         
-        # 3. 測試每日預測
-        print("\n[3] 測試每日預測任務...")
+        # 2. 測試每日預測
+        print("\n[2] 測試每日預測任務...")
         if not self.test_daily_prediction():
             print("✗ 每日預測測試失敗")
             return False
         
-        # 4. 系統狀態檢查
-        print("\n[4] 系統狀態檢查...")
+        # 3. 系統狀態檢查
+        print("\n[3] 系統狀態檢查...")
         self.db_integration.get_system_status()
         
         print("\n=== 完整系統測試成功 ===")
         print("系統功能:")
-        print("- Prophet模型自動訓練")
-        print("- 每日預測自動生成")
+        print("- CatBoost每日重新訓練")
+        print("- CatBoost機器學習預測")
         print("- 數據庫自動存儲")
         print("- 購買偵測觸發器")
         print("- 審計日誌記錄")
@@ -1088,40 +992,37 @@ def main():
     print("\n選擇執行模式:")
     print("1. 測試完整系統")
     print("2. 啟動排程器")
-    print("3. 手動執行週六訓練")
-    print("4. 手動執行每日預測")
-    print("5. 手動執行月銷售預測")
-    print("6. 手動執行推薦系統")
-    print("7. 手動執行不活躍客戶檢查")
-    print("8. 手動執行回購提醒維護")
-    print("9. 手動執行銷量變化檢查")
-    print("10. 手動執行月度銷量重置")
-    print("11. 手動執行觸發器健康檢查")
+    print("3. 手動執行每日預測")
+    print("4. 手動執行月銷售預測")
+    print("5. 手動執行推薦系統")
+    print("6. 手動執行不活躍客戶檢查")
+    print("7. 手動執行回購提醒維護")
+    print("8. 手動執行銷量變化檢查")
+    print("9. 手動執行月度銷量重置")
+    print("10. 手動執行觸發器健康檢查")
     
     try:
-        choice = input("\n請輸入選項 (1-11): ").strip()
+        choice = input("\n請輸入選項 (1-10): ").strip()
         
         if choice == "1":
             scheduler.test_complete_system()
         elif choice == "2":
             scheduler.run_scheduler()
         elif choice == "3":
-            scheduler.test_saturday_training()
-        elif choice == "4":
             scheduler.test_daily_prediction()
-        elif choice == "5":
+        elif choice == "4":
             scheduler.test_monthly_prediction()
-        elif choice == "6":
+        elif choice == "5":
             scheduler.test_recommendation()
-        elif choice == "7":
+        elif choice == "6":
             scheduler.test_inactive_customer()
-        elif choice == "8":
+        elif choice == "7":
             scheduler.test_repurchase_reminder()
-        elif choice == "9":
+        elif choice == "8":
             scheduler.test_sales_change_monitoring()
-        elif choice == "10":
+        elif choice == "9":
             scheduler.test_monthly_sales_reset()
-        elif choice == "11":
+        elif choice == "10":
             scheduler.test_trigger_health_check()
         else:
             print("無效選項")
