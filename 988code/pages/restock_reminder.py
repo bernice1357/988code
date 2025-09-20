@@ -2,6 +2,7 @@
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from components.table import custom_table
 import requests
+import re
 import plotly.graph_objects as go
 from dash import ctx
 import dash_bootstrap_components as dbc
@@ -68,6 +69,44 @@ def create_loading_skeleton():
         ], className="table table-striped", style={'marginBottom': '0px'}),
         html.Div("載入中...", style={'textAlign': 'center', 'padding': '20px', 'color': '#6c757d'})
     ])
+
+def filter_history_by_product(history_df, product_id, product_name):
+    """依照商品資訊過濾歷史補貨資料"""
+    if history_df is None or history_df.empty:
+        return history_df
+
+    df = history_df.copy()
+    product_id_value = str(product_id).strip().lower() if product_id else ""
+    product_name_value = str(product_name).strip() if product_name else ""
+
+    if product_id_value and 'product_id' in df.columns:
+        comparison = df['product_id'].astype(str).str.strip().str.lower()
+        filtered = df[comparison == product_id_value]
+        if not filtered.empty:
+            return filtered
+
+    if product_name_value and 'product_name' in df.columns:
+        name_series = df['product_name'].astype(str).str.strip()
+        exact_mask = name_series.str.casefold() == product_name_value.casefold()
+        filtered = df[exact_mask]
+        if not filtered.empty:
+            return filtered
+
+        escaped = re.escape(product_name_value)
+        partial_mask = name_series.str.contains(escaped, case=False, na=False)
+        filtered = df[partial_mask]
+        if not filtered.empty:
+            return filtered
+
+    return df
+
+def sanitize_filename_component(value):
+    """將檔名不支援的字元替換為底線"""
+    if not value:
+        return ""
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', str(value))
+    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+    return sanitized
 
 def create_restock_table(df, customer_index_start=0):
     """創建補貨提醒表格 - 優化版本"""
@@ -500,7 +539,12 @@ def load_data_and_handle_errors(page_loaded):
             
             # 簡化 modal 記錄準備
             records_for_modal = [
-                {'客戶ID': row.get('客戶ID', ''), '客戶名稱': row.get('客戶名稱', '')}
+                {
+                    '客戶ID': row.get('客戶ID', ''),
+                    '客戶名稱': row.get('客戶名稱', ''),
+                    '商品ID': row.get('商品ID', ''),
+                    '商品名稱': row.get('商品名稱', '')
+                }
                 for _, row in all_records.iterrows()
             ]
             
@@ -545,7 +589,7 @@ def load_customer_options(page_loaded):
 )
 def show_detail_modal(view_clicks, table_data):
     triggered = ctx.triggered_id
-    
+
     is_all_zero = all(v == 0 for v in view_clicks)
     if not is_all_zero and triggered is not None:
         idx = triggered["index"]
@@ -555,11 +599,15 @@ def show_detail_modal(view_clicks, table_data):
         product_id = row.get('商品ID', '')
         product_name = row.get('商品名稱', '')
 
+        product_id_str = str(product_id).strip() if product_id else ""
+        product_name_str = str(product_name).strip() if product_name else ""
+        product_label = " ".join(part for part in [product_id_str, product_name_str] if part)
+
         customer_info = {
             'customer_id': customer_id,
             'customer_name': customer_name,
-            'product_id': product_id,
-            'product_name': product_name
+            'product_id': product_id_str,
+            'product_name': product_name_str
         }
 
         try:
@@ -568,29 +616,22 @@ def show_detail_modal(view_clicks, table_data):
                 history_data = response.json()
                 history_df = pd.DataFrame(history_data)
 
-                filtered_df = history_df
-
-                if not filtered_df.empty:
-                    if product_id and 'product_id' in filtered_df.columns:
-                        filtered_df = filtered_df[filtered_df['product_id'] == product_id]
-                    elif product_name and 'product_name' in filtered_df.columns:
-                        filtered_df = filtered_df[filtered_df['product_name'] == product_name]
+                filtered_df = filter_history_by_product(history_df, product_id_str, product_name_str)
 
                 if filtered_df.empty:
-                    timeline_chart = html.Div("該品項目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
+                    label_for_message = product_label or "該品項"
+                    timeline_chart = html.Div(f"{label_for_message} 目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
                 elif 'transaction_date' not in filtered_df.columns:
                     timeline_chart = html.Div("歷史資料缺少日期欄位", style={"textAlign": "center", "padding": "20px"})
                 else:
                     filtered_df = filtered_df.copy()
                     filtered_df['transaction_date'] = pd.to_datetime(filtered_df['transaction_date'])
 
-                    # 建立時間軸圖表
                     fig = go.Figure()
 
-                    # 添加入點
                     fig.add_trace(go.Scatter(
                         x=filtered_df['transaction_date'],
-                        y=[1] * len(filtered_df),  # 所有節點落在同一條水平線上
+                        y=[1] * len(filtered_df),
                         mode="markers+text",
                         text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in filtered_df['transaction_date']],
                         textposition="top center",
@@ -598,13 +639,12 @@ def show_detail_modal(view_clicks, table_data):
                                     '商品：%{customdata[1]}<br>' +
                                     '數量：%{customdata[2]}<br>' +
                                     '<extra></extra>',
-                        customdata=[[d.strftime('%Y-%m-%d'), record['product_name'], record['quantity']]
+                        customdata=[[d.strftime('%Y-%m-%d'), record.get('product_name', product_name_str), record.get('quantity', '')]
                                     for d, (_, record) in zip(filtered_df['transaction_date'], filtered_df.iterrows())],
                         marker=dict(size=12, color="#564dff", symbol="circle"),
                         name="補貨紀錄"
                     ))
 
-                    # 添加連線
                     fig.add_trace(go.Scatter(
                         x=filtered_df['transaction_date'],
                         y=[1] * len(filtered_df),
@@ -613,18 +653,14 @@ def show_detail_modal(view_clicks, table_data):
                         showlegend=False
                     ))
 
-                    # 計算圖表寬度
                     data_count = len(filtered_df)
                     chart_width = max(800, data_count * 80)
 
-                    # 判斷是否需要滾動
                     modal_width = 1200
                     scrollable = chart_width > modal_width
                     min_date = filtered_df['transaction_date'].min()
                     max_date = filtered_df['transaction_date'].max()
-                    total_days = (max_date - min_date).days
 
-                    # 設定顯示區間
                     initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
 
                     fig.update_layout(
@@ -632,9 +668,9 @@ def show_detail_modal(view_clicks, table_data):
                         xaxis=dict(
                             type='date',
                             tickmode='linear',
-                            dtick='M1',  # 每月一個刻度
+                            dtick='M1',
                             showticklabels=True,
-                            tickformat='%Y/%m',  # 顯示年/月格式
+                            tickformat='%Y/%m',
                             showgrid=True,
                             gridcolor="lightgray",
                             gridwidth=1,
@@ -647,45 +683,44 @@ def show_detail_modal(view_clicks, table_data):
                         paper_bgcolor="white",
                         margin=dict(l=20, r=20, t=50, b=50)
                     )
-                    if scrollable:
-                        timeline_chart = html.Div([
-                            dcc.Graph(
-                                figure=fig,
-                                id="timeline-chart",
-                                style={"width": f"{chart_width}px"},
-                                config={'displayModeBar': False}
-                            ),
-                            dcc.Download(id="download-chart"),
-                            # 自動將滾動條移到最新的補貨日
-                            html.Script(f"""
-                                setTimeout(function() {{
-                                    var chartDiv = document.getElementById('timeline-chart');
-                                    if (chartDiv) {{
-                                        var scrollContainer = chartDiv.closest('[style*="overflowX"]');
-                                        if (scrollContainer) {{
-                                            var maxDate = new Date('{max_date.strftime('%Y-%m-%d')}');
-                                            var chartWidth = {chart_width};
-                                            var containerWidth = scrollContainer.clientWidth;
-                                            // 計算靠近最新日資料的滾動位置
-                                            var scrollPosition = chartWidth - containerWidth + 100;
-                                            scrollContainer.scrollLeft = Math.max(0, scrollPosition);
-                                        }}
+                    scroll_container_style = {
+                        'overflowX': 'auto',
+                        'width': '100%',
+                        'maxWidth': '100%',
+                        'paddingBottom': '10px',
+                        'display': 'block'
+                    }
+                    if not scrollable:
+                        scroll_container_style.update({'display': 'flex', 'justifyContent': 'center'})
+                    timeline_chart = html.Div([
+                        dcc.Graph(
+                            figure=fig,
+                            id='timeline-chart',
+                            style={'width': f"{chart_width}px", 'maxWidth': '100%'},
+                            config={'displayModeBar': False}
+                        ),
+                        dcc.Download(id='download-chart'),
+                        html.Script(f"""
+                            setTimeout(function() {{
+                                var chartDiv = document.getElementById('timeline-chart');
+                                if (chartDiv) {{
+                                    var scrollContainer = chartDiv.closest('[data-role=\"history-scroll\"]');
+                                    if (scrollContainer) {{
+                                        var chartWidth = {chart_width};
+                                        var containerWidth = scrollContainer.clientWidth;
+                                        var scrollPosition = Math.max(0, chartWidth - containerWidth + 100);
+                                        scrollContainer.scrollLeft = scrollPosition;
                                     }}
-                                }}, 500);
-                            """)
-                        ], style={"overflowX": "auto", "width": "100%"})
-                    else:
-                        timeline_chart = html.Div([
-                            dcc.Graph(figure=fig, id="timeline-chart", style={"width": f"{chart_width}px"}, config={'displayModeBar': False}),
-                            dcc.Download(id="download-chart")
-                        ])
+                                }}
+                            }}, 500);
+                        """)
+                    ], style=scroll_container_style, **{'data-role': 'history-scroll'})
             else:
                 timeline_chart = html.Div("無法載入歷史資料", style={"textAlign": "center", "padding": "20px"})
         except Exception as e:
             timeline_chart = html.Div(f"載入錯誤: {str(e)}", style={"textAlign": "center", "padding": "20px"})
 
         title = f"{customer_id} - {customer_name} 歷史補貨紀錄"
-        product_label = " ".join(part for part in [product_id, product_name] if part)
         if product_label:
             title = f"{title} ({product_label})"
 
@@ -701,7 +736,7 @@ def show_detail_modal(view_clicks, table_data):
         ])
 
         return content, True, customer_info
-    
+
     return dash.no_update, False, dash.no_update
 
 # 下載圖表
@@ -727,10 +762,17 @@ def download_chart(n_clicks, figure, modal_open, customer_info):
                 product_name = info.get('product_name', '')
                 product_label = " ".join(part for part in [product_id, product_name] if part)
 
-                if product_label:
-                    filename = f"{customer_id} - {customer_name} - {product_label} 歷史補貨紀錄.png"
-                else:
-                    filename = f"{customer_id} - {customer_name} 歷史補貨紀錄.png"
+                safe_customer_id = sanitize_filename_component(customer_id) or '客戶'
+                safe_customer_name = sanitize_filename_component(customer_name)
+                safe_product_label = sanitize_filename_component(product_label)
+
+                filename_parts = [safe_customer_id]
+                if safe_customer_name:
+                    filename_parts.append(safe_customer_name)
+                if safe_product_label:
+                    filename_parts.append(safe_product_label)
+
+                filename = " - ".join(filename_parts + ['歷史補貨紀錄']) + ".png"
 
                 width = figure.get('layout', {}).get('width', 800)
                 img_bytes = pio.to_image(figure, format="png", width=width, height=300, scale=2)
@@ -1192,4 +1234,3 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
             return html.Div("無法載入資料"), updated_checkbox_state
     except Exception as e:
         return html.Div(f"載入錯誤: {str(e)}"), updated_checkbox_state
-
