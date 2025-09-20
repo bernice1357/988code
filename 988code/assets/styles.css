@@ -155,7 +155,22 @@ div[id*="status-dropdown"] .Select-value-label {
 }
 
 .customer-export-dropdown .dropdown-toggle {
-    width: 100%;
+    /* Match outline-primary button sizing like pagination controls */
+    width: auto;
+}
+
+/* Ensure export dropdown toggle matches outline-primary button styles */
+.customer-export-dropdown .dropdown-toggle.btn-outline-primary {
+    color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    background-color: transparent;
+}
+.customer-export-dropdown .dropdown-toggle.btn-outline-primary:hover,
+.customer-export-dropdown.show .dropdown-toggle.btn-outline-primary,
+.customer-export-dropdown .show > .dropdown-toggle.btn-outline-primary {
+    color: #fff;
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
 }
 
 .customer-export-dropdown .dropdown-menu {

@@ -103,16 +103,9 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             dbc.DropdownMenu(
                 label="匯出列表資料",
                 color="primary",
+                toggle_class_name="btn btn-outline-primary",
                 direction="down",
                 class_name="customer-export-dropdown",
-                toggle_class_name="btn btn-primary",
-                toggle_style={
-                    "borderRadius": "0.375rem",
-                    "width": "100%",
-                    "backgroundColor": "#0d6efd",
-                    "borderColor": "#0d6efd",
-                    "color": "#fff"
-                },
                 children=[
                     dbc.DropdownMenuItem("匯出當前列表", id="customer_data-export-current"),
                     dbc.DropdownMenuItem("匯出全部列表", id="customer_data-export-all")
