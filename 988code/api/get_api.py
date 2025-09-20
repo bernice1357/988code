@@ -8,7 +8,7 @@ from fastapi import Query
 router = APIRouter()
 
 # get
-def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
+def get_data_from_db(sql_prompt: str, params: tuple = None) -> pd.DataFrame:
     try:
         with psycopg2.connect(
             dbname='988',
@@ -18,7 +18,10 @@ def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
             port='5433'
         ) as conn:
             with conn.cursor() as cursor:
-                cursor.execute(sql_prompt)
+                if params:
+                    cursor.execute(sql_prompt, params)
+                else:
+                    cursor.execute(sql_prompt)
                 rows = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
                 df = pd.DataFrame(rows, columns=columns)
@@ -153,21 +156,86 @@ def get_all_customer_ids():
 
 # 得到客戶最新補貨紀錄
 @router.get("/get_restock_data")
-def get_customer_latest_transactions():
-    print("[API] get_customer_latest_transactions 被呼叫")
+def get_customer_latest_transactions(limit: int = 50, offset: int = 0):
+    import time
+    start_time = time.time()
+    print(f"[API] get_customer_latest_transactions 被呼叫, limit={limit}, offset={offset}")
     try:
+        # 優化的 SQL 查詢
+        # 建議索引：
+        # CREATE INDEX IF NOT EXISTS idx_prophet_predictions_status_date ON prophet_predictions(prediction_status, prediction_date);
+        # CREATE INDEX IF NOT EXISTS idx_customer_id ON customer(customer_id);
+        # CREATE INDEX IF NOT EXISTS idx_product_master_id ON product_master(product_id);
+        
         query = """
-        SELECT DISTINCT pp.prediction_id, pp.customer_id, c.customer_name, c.phone_number, 
+        SELECT pp.prediction_id, pp.customer_id, c.customer_name, c.phone_number, 
                pp.product_id, COALESCE(pm.name_zh, pp.product_name) as product_name, 
                pp.prediction_date, pp.estimated_quantity, pp.confidence_level
         FROM prophet_predictions pp
         LEFT JOIN customer c ON pp.customer_id = c.customer_id
         LEFT JOIN product_master pm ON pp.product_id = pm.product_id
         WHERE pp.prediction_status = 'active'
-        ORDER BY pp.customer_id, pp.prediction_date
+        ORDER BY pp.prediction_date DESC, pp.customer_id
+        LIMIT %s OFFSET %s
         """
-        df = get_data_from_db(query)
-        return df.to_dict(orient="records")
+        
+        # 使用原生 cursor 優化性能（避免 pandas 開銷）
+        query_start = time.time()
+        
+        import psycopg2
+        with psycopg2.connect(
+            dbname='988',
+            user='n8n', 
+            password='1234',
+            host='26.210.160.206',
+            port='5433'
+        ) as conn:
+            with conn.cursor() as cursor:
+                # 主查詢
+                cursor.execute(query, (limit, offset))
+                main_results = cursor.fetchall()
+                column_names = [desc[0] for desc in cursor.description]
+                
+                # 計數查詢
+                count_query = """
+                SELECT COUNT(*) as total
+                FROM prophet_predictions pp
+                WHERE pp.prediction_status = 'active'
+                """
+                cursor.execute(count_query)
+                total_records = cursor.fetchone()[0]
+        
+        query_time = time.time() - query_start
+        print(f"[PERF] 原生查詢耗時: {query_time:.3f}秒")
+        
+        # 直接轉換為字典，避免 pandas 開銷
+        process_start = time.time()
+        data_records = []
+        for row in main_results:
+            record = {}
+            for i, value in enumerate(row):
+                key = column_names[i]
+                # 處理特殊資料類型
+                if value is None:
+                    record[key] = None
+                elif hasattr(value, 'isoformat'):  # datetime objects
+                    record[key] = value.isoformat()
+                else:
+                    record[key] = value
+            data_records.append(record)
+        
+        process_time = time.time() - process_start
+        total_time = time.time() - start_time
+        print(f"[PERF] 資料轉換耗時: {process_time:.3f}秒")
+        print(f"[PERF] 總耗時: {total_time:.3f}秒")
+        
+        return {
+            "data": data_records,
+            "total": int(total_records),  # 確保是 Python int
+            "limit": int(limit),
+            "offset": int(offset),
+            "has_more": bool((offset + limit) < total_records)
+        }
     except Exception as e:
         print(f"[API ERROR] get_customer_latest_transactions: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
