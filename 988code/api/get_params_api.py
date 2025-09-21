@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import psycopg2
 import pandas as pd
+from typing import Optional
 
 router = APIRouter()
 
@@ -26,16 +27,20 @@ def get_data_from_db_with_params(sql_prompt: str, params: tuple = ()) -> pd.Data
 
 # 得到特定客戶的所有交易日期 (畫補貨時間軸用的)
 @router.get("/get_restock_history/{customer_id}")
-def get_customer_transactions(customer_id: str):
+def get_customer_transactions(customer_id: str, product_id: Optional[str] = None):
     try:
-        query = """
-        SELECT transaction_date, product_name, quantity
-        FROM order_transactions 
-        WHERE customer_id = %s 
-        ORDER BY transaction_date ASC
-        """
-        # 使用參數化查詢避免 SQL 注入
-        df = get_data_from_db_with_params(query, (customer_id,))
+        filters = ["customer_id = %s"]
+        params = [customer_id]
+        if product_id:
+            filters.append("LOWER(COALESCE(product_id::text, '')) = LOWER(%s)")
+            params.append(product_id.strip())
+        query = (
+            "SELECT transaction_date, product_id, product_name, quantity\n"
+            "FROM order_transactions \n"
+            f"WHERE {' AND '.join(filters)}\n"
+            "ORDER BY transaction_date ASC"
+        )
+        df = get_data_from_db_with_params(query, tuple(params))
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
@@ -345,3 +350,4 @@ def get_customer_id_by_line(line_id: str):
     except Exception as e:
         print(f"[ERROR] {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+

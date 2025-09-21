@@ -87,16 +87,33 @@ def filter_history_by_product(history_df, product_id, product_name):
 
     if product_name_value and 'product_name' in df.columns:
         name_series = df['product_name'].astype(str).str.strip()
-        exact_mask = name_series.str.casefold() == product_name_value.casefold()
-        filtered = df[exact_mask]
-        if not filtered.empty:
-            return filtered
+        name_casefold = name_series.str.casefold()
+        search_candidates = [product_name_value]
+        if ' ' in product_name_value:
+            search_candidates.append(product_name_value.split(' ', 1)[1].strip())
+        search_candidates = [candidate for candidate in search_candidates if candidate]
+        search_candidates = list(dict.fromkeys(search_candidates))
 
-        escaped = re.escape(product_name_value)
-        partial_mask = name_series.str.contains(escaped, case=False, na=False)
-        filtered = df[partial_mask]
-        if not filtered.empty:
-            return filtered
+        for candidate in search_candidates:
+            candidate_casefold = candidate.casefold()
+            exact_mask = name_casefold == candidate_casefold
+            filtered = df[exact_mask]
+            if not filtered.empty:
+                return filtered
+
+        for candidate in search_candidates:
+            escaped = re.escape(candidate)
+            partial_mask = name_series.str.contains(escaped, case=False, na=False)
+            filtered = df[partial_mask]
+            if not filtered.empty:
+                return filtered
+
+        for candidate in search_candidates:
+            candidate_casefold = candidate.casefold()
+            reverse_mask = name_casefold.apply(lambda x: bool(x) and x in candidate_casefold)
+            filtered = df[reverse_mask]
+            if not filtered.empty:
+                return filtered
 
     return df
 
@@ -619,7 +636,10 @@ def show_detail_modal(view_clicks, table_data):
             }
 
             try:
-                response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}')
+                params = {}
+                if product_id_str:
+                    params['product_id'] = product_id_str
+                response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}', params=params if params else None)
                 if response.status_code == 200:
                     history_data = response.json()
                     history_df = pd.DataFrame(history_data)
@@ -1242,3 +1262,4 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
             return html.Div("無法載入資料"), updated_checkbox_state
     except Exception as e:
         return html.Div(f"載入錯誤: {str(e)}"), updated_checkbox_state
+
