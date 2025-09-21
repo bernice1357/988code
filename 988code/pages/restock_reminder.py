@@ -591,155 +591,161 @@ def load_customer_options(page_loaded):
 )
 def show_detail_modal(view_clicks, table_data):
     triggered = ctx.triggered_id
-
-    is_all_zero = all(v == 0 for v in view_clicks)
-    if not is_all_zero and triggered is not None:
+    
+    # 檢查是否有觸發事件且不是初始化
+    if not triggered or not view_clicks:
+        return dash.no_update, False, dash.no_update
+    
+    # 檢查觸發的按鈕是否真的被點擊（n_clicks > 0）
+    if triggered is not None:
         idx = triggered["index"]
-        row = table_data[idx]
-        customer_id = row['客戶ID']
-        customer_name = row['客戶名稱']
-        product_id = row.get('商品ID', '')
-        product_name = row.get('商品名稱', '')
+        # 確保對應的按鈕確實有被點擊
+        if (idx < len(view_clicks) and view_clicks[idx] is not None and view_clicks[idx] > 0):
+            row = table_data[idx]
+            customer_id = row['客戶ID']
+            customer_name = row['客戶名稱']
+            product_id = row.get('商品ID', '')
+            product_name = row.get('商品名稱', '')
 
-        product_id_str = str(product_id).strip() if product_id else ""
-        product_name_str = str(product_name).strip() if product_name else ""
-        product_label = " ".join(part for part in [product_id_str, product_name_str] if part)
+            product_id_str = str(product_id).strip() if product_id else ""
+            product_name_str = str(product_name).strip() if product_name else ""
+            product_label = " ".join(part for part in [product_id_str, product_name_str] if part)
 
-        customer_info = {
-            'customer_id': customer_id,
-            'customer_name': customer_name,
-            'product_id': product_id_str,
-            'product_name': product_name_str
-        }
+            customer_info = {
+                'customer_id': customer_id,
+                'customer_name': customer_name,
+                'product_id': product_id_str,
+                'product_name': product_name_str
+            }
 
-        try:
-            response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}')
-            if response.status_code == 200:
-                history_data = response.json()
-                history_df = pd.DataFrame(history_data)
+            try:
+                response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}')
+                if response.status_code == 200:
+                    history_data = response.json()
+                    history_df = pd.DataFrame(history_data)
 
-                filtered_df = filter_history_by_product(history_df, product_id_str, product_name_str)
+                    filtered_df = filter_history_by_product(history_df, product_id_str, product_name_str)
 
-                if filtered_df.empty:
-                    label_for_message = product_label or "該品項"
-                    timeline_chart = html.Div(f"{label_for_message} 目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
-                elif 'transaction_date' not in filtered_df.columns:
-                    timeline_chart = html.Div("歷史資料缺少日期欄位", style={"textAlign": "center", "padding": "20px"})
-                else:
-                    filtered_df = filtered_df.copy()
-                    filtered_df['transaction_date'] = pd.to_datetime(filtered_df['transaction_date'])
+                    if filtered_df.empty:
+                        label_for_message = product_label or "該品項"
+                        timeline_chart = html.Div(f"{label_for_message} 目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
+                    elif 'transaction_date' not in filtered_df.columns:
+                        timeline_chart = html.Div("歷史資料缺少日期欄位", style={"textAlign": "center", "padding": "20px"})
+                    else:
+                        filtered_df = filtered_df.copy()
+                        filtered_df['transaction_date'] = pd.to_datetime(filtered_df['transaction_date'])
 
-                    fig = go.Figure()
+                        fig = go.Figure()
 
-                    fig.add_trace(go.Scatter(
-                        x=filtered_df['transaction_date'],
-                        y=[1] * len(filtered_df),
-                        mode="markers+text",
-                        text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in filtered_df['transaction_date']],
-                        textposition="top center",
-                        hovertemplate='<b>%{customdata[0]}</b><br>' +
-                                    '商品：%{customdata[1]}<br>' +
-                                    '數量：%{customdata[2]}<br>' +
-                                    '<extra></extra>',
-                        customdata=[[d.strftime('%Y-%m-%d'), record.get('product_name', product_name_str), record.get('quantity', '')]
-                                    for d, (_, record) in zip(filtered_df['transaction_date'], filtered_df.iterrows())],
-                        marker=dict(size=12, color="#564dff", symbol="circle"),
-                        name="補貨紀錄"
-                    ))
+                        fig.add_trace(go.Scatter(
+                            x=filtered_df['transaction_date'],
+                            y=[1] * len(filtered_df),
+                            mode="markers+text",
+                            text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in filtered_df['transaction_date']],
+                            textposition="top center",
+                            hovertemplate='<b>%{customdata[0]}</b><br>' +
+                                        '商品：%{customdata[1]}<br>' +
+                                        '數量：%{customdata[2]}<br>' +
+                                        '<extra></extra>',
+                            customdata=[[d.strftime('%Y-%m-%d'), record.get('product_name', product_name_str), record.get('quantity', '')]
+                                        for d, (_, record) in zip(filtered_df['transaction_date'], filtered_df.iterrows())],
+                            marker=dict(size=12, color="#564dff", symbol="circle"),
+                            name="補貨紀錄"
+                        ))
 
-                    fig.add_trace(go.Scatter(
-                        x=filtered_df['transaction_date'],
-                        y=[1] * len(filtered_df),
-                        mode="lines",
-                        line=dict(color="#564dff", width=2),
-                        showlegend=False
-                    ))
+                        fig.add_trace(go.Scatter(
+                            x=filtered_df['transaction_date'],
+                            y=[1] * len(filtered_df),
+                            mode="lines",
+                            line=dict(color="#564dff", width=2),
+                            showlegend=False
+                        ))
 
-                    data_count = len(filtered_df)
-                    chart_width = max(800, data_count * 80)
+                        data_count = len(filtered_df)
+                        chart_width = max(800, data_count * 80)
 
-                    modal_width = 1200
-                    scrollable = chart_width > modal_width
-                    min_date = filtered_df['transaction_date'].min()
-                    max_date = filtered_df['transaction_date'].max()
+                        modal_width = 1200
+                        scrollable = chart_width > modal_width
+                        min_date = filtered_df['transaction_date'].min()
+                        max_date = filtered_df['transaction_date'].max()
 
-                    initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
+                        initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
 
-                    fig.update_layout(
-                        showlegend=False,
-                        xaxis=dict(
-                            type='date',
-                            tickmode='linear',
-                            dtick='M1',
-                            showticklabels=True,
-                            tickformat='%Y/%m',
-                            showgrid=True,
-                            gridcolor="lightgray",
-                            gridwidth=1,
-                            range=initial_range
-                        ),
-                        yaxis=dict(showticklabels=False, range=[-0.2, 2.5]),
-                        height=300,
-                        width=chart_width,
-                        plot_bgcolor="white",
-                        paper_bgcolor="white",
-                        margin=dict(l=20, r=20, t=50, b=50)
-                    )
-                    scroll_container_style = {
-                        'overflowX': 'auto',
-                        'width': '100%',
-                        'maxWidth': '100%',
-                        'paddingBottom': '10px',
-                        'display': 'block'
-                    }
-                    if not scrollable:
-                        scroll_container_style.update({'display': 'flex', 'justifyContent': 'center'})
-                    timeline_chart = html.Div([
-                        dcc.Graph(
-                            figure=fig,
-                            id='timeline-chart',
-                            style={'width': f"{chart_width}px", 'maxWidth': '100%'},
-                            config={'displayModeBar': False}
-                        ),
-                        dcc.Download(id='download-chart'),
-                        html.Script(f"""
-                            setTimeout(function() {{
-                                var chartDiv = document.getElementById('timeline-chart');
-                                if (chartDiv) {{
-                                    var scrollContainer = chartDiv.closest('[data-role=\"history-scroll\"]');
-                                    if (scrollContainer) {{
-                                        var chartWidth = {chart_width};
-                                        var containerWidth = scrollContainer.clientWidth;
-                                        var scrollPosition = Math.max(0, chartWidth - containerWidth + 100);
-                                        scrollContainer.scrollLeft = scrollPosition;
+                        fig.update_layout(
+                            showlegend=False,
+                            xaxis=dict(
+                                type='date',
+                                tickmode='linear',
+                                dtick='M1',
+                                showticklabels=True,
+                                tickformat='%Y/%m',
+                                showgrid=True,
+                                gridcolor="lightgray",
+                                gridwidth=1,
+                                range=initial_range
+                            ),
+                            yaxis=dict(showticklabels=False, range=[-0.2, 2.5]),
+                            height=300,
+                            width=chart_width,
+                            plot_bgcolor="white",
+                            paper_bgcolor="white",
+                            margin=dict(l=20, r=20, t=50, b=50)
+                        )
+                        scroll_container_style = {
+                            'overflowX': 'auto',
+                            'width': '100%',
+                            'maxWidth': '100%',
+                            'paddingBottom': '10px',
+                            'display': 'block'
+                        }
+                        if not scrollable:
+                            scroll_container_style.update({'display': 'flex', 'justifyContent': 'center'})
+                        timeline_chart = html.Div([
+                            dcc.Graph(
+                                figure=fig,
+                                id='timeline-chart',
+                                style={'width': f"{chart_width}px", 'maxWidth': '100%'},
+                                config={'displayModeBar': False}
+                            ),
+                            dcc.Download(id='download-chart'),
+                            html.Script(f"""
+                                setTimeout(function() {{
+                                    var chartDiv = document.getElementById('timeline-chart');
+                                    if (chartDiv) {{
+                                        var scrollContainer = chartDiv.closest('[data-role=\"history-scroll\"]');
+                                        if (scrollContainer) {{
+                                            var chartWidth = {chart_width};
+                                            var containerWidth = scrollContainer.clientWidth;
+                                            var scrollPosition = Math.max(0, chartWidth - containerWidth + 100);
+                                            scrollContainer.scrollLeft = scrollPosition;
+                                        }}
                                     }}
-                                }}
-                            }}, 500);
-                        """)
-                    ], style=scroll_container_style, **{'data-role': 'history-scroll'})
-            else:
-                timeline_chart = html.Div("無法載入歷史資料", style={"textAlign": "center", "padding": "20px"})
-        except Exception as e:
-            timeline_chart = html.Div(f"載入錯誤: {str(e)}", style={"textAlign": "center", "padding": "20px"})
+                                }}, 500);
+                            """)
+                        ], style=scroll_container_style, **{'data-role': 'history-scroll'})
+                else:
+                    timeline_chart = html.Div("無法載入歷史資料", style={"textAlign": "center", "padding": "20px"})
+            except Exception as e:
+                timeline_chart = html.Div(f"載入錯誤: {str(e)}", style={"textAlign": "center", "padding": "20px"})
 
-        title = f"{customer_id} - {customer_name} 歷史補貨紀錄"
-        if product_label:
-            title = f"{title} ({product_label})"
+            title = f"{customer_id} - {customer_name} 歷史補貨紀錄"
+            if product_label:
+                title = f"{title} ({product_label})"
 
-        content = html.Div([
-            html.H2(title, style={"textAlign": "center"}),
-            html.Hr(),
-            timeline_chart,
-            html.Hr(),
-            html.Div([
-                dbc.Button("下載圖表", id="download-chart-btn", color="primary", style={"marginRight": "10px"}),
-                dbc.Button("關閉", id="close-modal", n_clicks=0, color="secondary")
-            ], style={"textAlign": "center"})
-        ])
+            content = html.Div([
+                html.H2(title, style={"textAlign": "center"}),
+                html.Hr(),
+                timeline_chart,
+                html.Hr(),
+                html.Div([
+                    dbc.Button("下載圖表", id="download-chart-btn", color="primary", style={"marginRight": "10px"}),
+                    dbc.Button("關閉", id="close-modal", n_clicks=0, color="secondary")
+                ], style={"textAlign": "center"})
+            ])
 
-        return content, True, customer_info
+            return content, True, customer_info
 
-    return dash.no_update, False, dash.no_update
+        return dash.no_update, False, dash.no_update
 
 # 下載圖表
 @app.callback(
