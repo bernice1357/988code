@@ -47,7 +47,7 @@ sidebar = html.Div(
             ],
             vertical=True,
             pills=True,
-            style={"margin-top": "2rem", "fontWeight": "bold", "color": "#2c3e50"}
+            style={"margin-top": "2rem", "fontWeight": "bold", "color": "#000000"}
         ),
         html.Button(
             html.I(className="fas fa-caret-left"),

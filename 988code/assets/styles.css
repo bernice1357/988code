@@ -1,14 +1,14 @@
-﻿/* ?典?摮?蝯曹?閮剖? - ???摮? */
+﻿/* 全域字體設置 - 排除圖示 */
 *:not([class*="fa"]):not([class*="icon"]):not(i[class]) {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
 
-/* ???孵???閮剖?摮?嚗???澆誨瘜??豢???*/
+/* 常用元素字體設置，確保中文顯示正常*/
 body, p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
 
-/* 撘瑕 pre 璅惜銋蝙?函??擃????舐?撖砍?擃?*/
+/* 保留 pre 標籤的等寬字體，但使用更好的字體*/
 pre {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif !important;
 }
@@ -24,19 +24,71 @@ div.card .card-header {
 }
 
 .accordion .accordion-item {
-    background-color: #fff3cd;  /* ?游?item ???*/
+    background-color: #fff3cd;  /* 黃色item 背景*/
 }
 
 .accordion .accordion-header {
-    background-color: #ffeeba !important;  /* header ???*/
+    background-color: #ffeeba !important;  /* header 背景*/
 }
 
 .accordion .accordion-body {
-    background-color: #fff3cd !important;  /* body ???*/
+    background-color: #fff3cd !important;  /* body 背景*/
 }
 
-.dropdown-menu.show {
+/* 側邊欄下拉選單 - 修改為推擠效果 */
+#sidebar .dropdown-menu {
+    position: static !important;  /* 改為靜態定位 */
+    display: none !important;     /* 預設隱藏 */
+    float: none !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.5rem !important;  /* 添加底部間距 */
+    border: 1px solid #dee2e6 !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    background-color: #ffffff !important;
+    transform: none !important;
     min-width: 224px !important;
+}
+
+#sidebar .dropdown-menu.show {
+    position: static !important;  /* 展開時也使用靜態定位 */
+    display: block !important;    /* 展開時顯示 */
+    animation: slideDown 0.2s ease-out;  /* 添加滑下動畫 */
+}
+
+/* 滑下動畫效果 */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        overflow: hidden;
+    }
+    to {
+        opacity: 1;
+        max-height: 200px;
+        overflow: visible;
+    }
+}
+
+/* 側邊欄下拉選單容器 */
+#sidebar .dropdown {
+    width: 100% !important;
+}
+
+/* 下拉選單按鈕樣式 */
+#sidebar .dropdown-toggle {
+    width: 224px !important;
+    text-align: left !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
+}
+
+#sidebar .dropdown-toggle::after {
+    float: none !important;
+    margin-left: 5px !important;  /* 控制箭頭離文字的距離 */
+    margin-top: 0 !important;
 }
 
 .nav-link {
@@ -68,7 +120,7 @@ input[type="month"], input[type="date"] {
     padding: 12px 12px;
 }
 
-/* Modal 蝵桐葉璅?? */
+/* Modal 樣式設定 */
 .modal {
     display: flex !important;
     align-items: center !important;
@@ -103,7 +155,7 @@ input[type="month"], input[type="date"] {
     margin: 0 !important;
 }
 
-/* Dropdown ???椰撠? */
+/* Dropdown 文字靠左對齊 */
 .Select-control .Select-value-label,
 .Select-control .Select-placeholder {
     text-align: left !important;
@@ -121,11 +173,12 @@ div[id*="status-dropdown"] .Select-value-label {
     text-align: left !important;
 }
 
+/* 非側邊欄的其他下拉選單保持原有樣式 */
 .Select-menu-outer {
     z-index: 10000000 !important;
 }
 
-/* ?湧?甈???桅??桃? hover ?? */
+/* 側邊欄下拉選單項目的 hover 效果 */
 #sidebar .dropdown-item:hover {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
@@ -135,6 +188,18 @@ div[id*="status-dropdown"] .Select-value-label {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
 }
+
+#sidebar .dropdown-item {
+    padding: 0.5rem 1rem !important;
+    color: #333 !important;
+    text-decoration: none !important;
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    text-align: left !important;
+}
+
 .pagination-dropdown-menu .dropdown-menu {
     max-height: 260px;
     overflow-y: auto;
@@ -189,4 +254,3 @@ div[id*="status-dropdown"] .Select-value-label {
     color: #fff !important;
     font-weight: 600;
 }
-
