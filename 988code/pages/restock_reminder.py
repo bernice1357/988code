@@ -1,7 +1,8 @@
-from .common import *
+﻿from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from components.table import custom_table
 import requests
+import re
 import plotly.graph_objects as go
 from dash import ctx
 import dash_bootstrap_components as dbc
@@ -20,28 +21,95 @@ def get_confidence_color(confidence_level):
         return colors.get(confidence_level.upper(), '#000000')  # 預設黑色
     return '#000000'
 
-def calculate_restock_column_width(df, col):
-    """計算補貨表格欄位的最適寬度"""
-    # 計算標題寬度 (padding: 4px 8px = 16px)
-    # 考慮中文字符較寬的問題
-    col_str = str(col)
-    char_width = sum(14 if ord(c) > 127 else 8 for c in col_str)  # 中文14px, 英文8px
-    header_width = char_width + 16
+def get_optimized_column_widths():
+    """獲取優化的固定欄位寬度，避免重複計算"""
+    return {
+        '客戶ID': 100,
+        '預計補貨日期': 120,
+        '商品ID': 120,
+        '商品名稱': 200,
+        '預估數量': 100,
+        '信心度': 80
+    }
+
+def create_loading_skeleton():
+    """創建載入骨架畫面"""
+    skeleton_rows = []
+    for i in range(10):  # 顯示10行骨架
+        skeleton_cells = []
+        # Checkbox 欄位
+        skeleton_cells.append(html.Td(
+            html.Div(style={
+                'width': '20px', 'height': '20px', 
+                'backgroundColor': '#e0e0e0', 
+                'borderRadius': '3px',
+                'margin': 'auto'
+            }),
+            style={'padding': '8px', 'textAlign': 'center', 'width': '50px'}
+        ))
+        
+        # 其他欄位
+        widths = [100, 120, 120, 200, 100, 80, 100]
+        for width in widths:
+            skeleton_cells.append(html.Td(
+                html.Div(style={
+                    'width': f'{width-20}px', 'height': '16px',
+                    'backgroundColor': '#e0e0e0',
+                    'borderRadius': '4px',
+                    'margin': 'auto'
+                }),
+                style={'padding': '8px', 'textAlign': 'center', 'width': f'{width}px'}
+            ))
+        
+        skeleton_rows.append(html.Tr(skeleton_cells))
     
-    # 計算內容最大寬度
-    max_content_width = 0
-    for value in df[col]:
-        value_str = str(value)
-        value_char_width = sum(14 if ord(c) > 127 else 8 for c in value_str)  # 中文14px, 英文8px
-        content_width = value_char_width + 16  # padding: 4px 8px = 16px
-        max_content_width = max(max_content_width, content_width)
-    
-    # 取標題和內容的最大值，左右各加5px（總共15px），再加5px buffer，加2px邊框
-    calculated_width = max(header_width, max_content_width) + 22
-    return calculated_width
+    return html.Div([
+        html.Table([
+            html.Tbody(skeleton_rows)
+        ], className="table table-striped", style={'marginBottom': '0px'}),
+        html.Div("載入中...", style={'textAlign': 'center', 'padding': '20px', 'color': '#6c757d'})
+    ])
+
+def filter_history_by_product(history_df, product_id, product_name):
+    """依照商品資訊過濾歷史補貨資料"""
+    if history_df is None or history_df.empty:
+        return history_df
+
+    df = history_df.copy()
+    product_id_value = str(product_id).strip().lower() if product_id else ""
+    product_name_value = str(product_name).strip() if product_name else ""
+
+    if product_id_value and 'product_id' in df.columns:
+        comparison = df['product_id'].astype(str).str.strip().str.lower()
+        filtered = df[comparison == product_id_value]
+        if not filtered.empty:
+            return filtered
+
+    if product_name_value and 'product_name' in df.columns:
+        name_series = df['product_name'].astype(str).str.strip()
+        exact_mask = name_series.str.casefold() == product_name_value.casefold()
+        filtered = df[exact_mask]
+        if not filtered.empty:
+            return filtered
+
+        escaped = re.escape(product_name_value)
+        partial_mask = name_series.str.contains(escaped, case=False, na=False)
+        filtered = df[partial_mask]
+        if not filtered.empty:
+            return filtered
+
+    return df
+
+def sanitize_filename_component(value):
+    """將檔名不支援的字元替換為底線"""
+    if not value:
+        return ""
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', str(value))
+    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+    return sanitized
 
 def create_restock_table(df, customer_index_start=0):
-    """創建補貨提醒表格"""
+    """創建補貨提醒表格 - 優化版本"""
     if df.empty:
         return html.Div("無資料"), pd.DataFrame()
     
@@ -52,139 +120,99 @@ def create_restock_table(df, customer_index_start=0):
     display_columns = ['客戶ID', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     df_display = df_reset[display_columns].copy()
     
-    # 計算每個欄位的動態寬度
-    column_widths = {}
-    for col in display_columns:
-        column_widths[col] = calculate_restock_column_width(df_display, col)
-    
-    # 客戶ID為固定列，需要特殊處理
+    # 使用優化的固定寬度
+    column_widths = get_optimized_column_widths()
     customer_id_width = column_widths['客戶ID']
     
-    # 使用 custom_table 但需要手動創建以支援信心度顏色和特定 checkbox ID
+    # 使用優化的表格創建邏輯
     rows = []
+    
+    # 預定義樣式以減少重複創建
+    base_cell_style = {
+        'padding': '8px 12px',
+        'border': '1px solid #ddd',
+        'fontSize': '14px',
+        'height': '45px',
+        'whiteSpace': 'nowrap',
+        'overflow': 'hidden',
+        'textOverflow': 'ellipsis'
+    }
+    
+    checkbox_style = {
+        **base_cell_style,
+        'textAlign': 'center',
+        'width': '50px',
+        'position': 'sticky',
+        'left': '0px',
+        'zIndex': 90,
+        'backgroundColor': '#f8f9fa'
+    }
+    
+    sticky_style = {
+        **base_cell_style,
+        'position': 'sticky',
+        'left': '50px',
+        'zIndex': 89,
+        'backgroundColor': '#f8f9fa',
+        'fontWeight': 'bold'
+    }
     
     for i, row in df_display.iterrows():
         row_cells = []
         
-        # Checkbox 欄位
+        # 簡化的 Checkbox 欄位
         customer_id = row.get('客戶ID', '')
-        row_index = i
-        checkbox_key = f"{customer_id}-{row_index}"
-        
         checkbox_cell = html.Td(
             dcc.Checklist(
-                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': row_index},
-                options=[{'label': '', 'value': checkbox_key}],
+                id={'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': i},
+                options=[{'label': '', 'value': f"{customer_id}-{i}"}],
                 value=[],
                 style={'margin': '0px'}
             ),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'fontSize': '16px',
-                'height': '50px',
-                'minWidth': '50px',
-                'maxWidth': '50px',
-                'position': 'sticky',
-                'left': '0px',
-                'zIndex': 90,  # 提高z-index
-                'backgroundColor': '#edf7ff',
-                'border': '1px solid #ccc',
-                'boxShadow': '2px 0 5px rgba(0,0,0,0.1)'
-            }
+            style=checkbox_style
         )
         row_cells.append(checkbox_cell)
         
-        # 客戶ID (sticky, 固定欄位) - 第一個欄位
+        # 客戶ID (sticky 欄位)
         customer_id_cell = html.Td(
             str(customer_id),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'position': 'sticky',
-                'left': '50px',
-                'zIndex': 89,  # 提高z-index
-                'backgroundColor': '#edf7ff',
-                'width': f'{customer_id_width}px',
-                'minWidth': f'{customer_id_width}px',
-                'maxWidth': f'{customer_id_width}px'
-            }
+            style={**sticky_style, 'width': f'{customer_id_width}px'}
         )
         row_cells.append(customer_id_cell)
         
-        # 不再需要 popover 功能
-        
-        # 其他欄位（按順序：預計補貨日期、商品ID、商品名稱、預估數量）
+        # 其他欄位（優化迴圈）
         other_columns = ['預計補貨日期', '商品ID', '商品名稱', '預估數量']
-        
         for col in other_columns:
-            col_width = column_widths[col]
             cell = html.Td(
                 str(row.get(col, '')),
-                style={
-                    'padding': '4px 8px',
-                    'textAlign': 'center',
-                    'border': '1px solid #ccc',
-                    'fontSize': '16px',
-                    'height': '50px',
-                    'whiteSpace': 'nowrap',
-                    'backgroundColor': 'white',
-                    'width': f'{col_width}px',
-                    'minWidth': f'{col_width}px'
-                }
+                style={**base_cell_style, 'width': f'{column_widths[col]}px', 'textAlign': 'center'}
             )
             row_cells.append(cell)
         
         # 信心度欄位 (帶顏色)
         confidence_level = row.get('信心度', '')
         confidence_color = get_confidence_color(confidence_level)
-        confidence_width = column_widths['信心度']
         confidence_cell = html.Td(
             str(confidence_level),
             style={
-                'padding': '4px 8px',
+                **base_cell_style,
+                'width': f'{column_widths["信心度"]}px',
                 'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'backgroundColor': 'white',
-                'width': f'{confidence_width}px',
-                'minWidth': f'{confidence_width}px',
                 'color': confidence_color,
                 'fontWeight': 'bold'
             }
         )
         row_cells.append(confidence_cell)
         
-        # 操作按鈕欄位
+        # 簡化的操作按鈕
         button_cell = html.Td(
             html.Button(
-                "查看歷史補貨紀錄",
+                "查看歷史",
                 id={'type': 'view-button', 'index': customer_index_start + i},
-                n_clicks=0,
-                className="btn btn-warning btn-sm",
-                style={'fontSize': '16px'}
+                className="btn btn-outline-primary btn-sm",
+                style={'fontSize': '12px', 'padding': '4px 8px'}
             ),
-            style={
-                'padding': '4px 8px',
-                'textAlign': 'center',
-                'border': '1px solid #ccc',
-                'fontSize': '16px',
-                'height': '50px',
-                'whiteSpace': 'nowrap',
-                'position': 'sticky',
-                'right': '0px',
-                'zIndex': 88,  # 提高z-index
-                'backgroundColor': 'white',
-                'boxShadow': '-2px 0 5px rgba(0,0,0,0.1)',
-                'width': '160px',
-                'minWidth': '160px'
-            }
+            style={**base_cell_style, 'width': '100px', 'textAlign': 'center'}
         )
         row_cells.append(button_cell)
         
@@ -453,7 +481,9 @@ def reload_table_data():
         for _, row in all_records.iterrows():
             record_for_modal = {
                 '客戶ID': row.get('客戶ID', ''),
-                '客戶名稱': row.get('客戶名稱', '')
+                '客戶名稱': row.get('客戶名稱', ''),
+                '商品ID': row.get('商品ID', ''),
+                '商品名稱': row.get('商品名稱', '')
             }
             records_for_modal.append(record_for_modal)
         
@@ -473,11 +503,22 @@ def reload_table_data():
     prevent_initial_call=False
 )
 def load_data_and_handle_errors(page_loaded):
+    # 立即返回載入骨架，提供即時反饋
+    if page_loaded is None:
+        return create_loading_skeleton(), [], False, ""
+    
     try:
-        e=10000
-        response = requests.get('http://127.0.0.1:8000/get_restock_data')
+        # 使用分頁參數載入數據
+        response = requests.get('http://127.0.0.1:8000/get_restock_data', 
+                              params={'limit': 50, 'offset': 0}, 
+                              timeout=10)  # 添加超時
         if response.status_code == 200:
-            data = response.json()
+            result = response.json()
+            data = result.get('data', [])
+            
+            if not data:
+                return html.Div("暫無資料", style={'textAlign': 'center', 'padding': '50px'}), [], False, ""
+            
             df = pd.DataFrame(data)
             
             # 重新命名欄位
@@ -493,28 +534,30 @@ def load_data_and_handle_errors(page_loaded):
                 'confidence_level': '信心度'
             })
             
-            # 按預計補貨日期和客戶名稱排序
-            df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
-            
-            # 創建一般表格（不用 accordion 分組）
+            # 創建優化的表格
             table, all_records = create_restock_table(df, 0)
             
-            # 將記錄轉換為 modal 使用的格式
-            records_for_modal = []
-            for _, row in all_records.iterrows():
-                record_for_modal = {
+            # 簡化 modal 記錄準備
+            records_for_modal = [
+                {
                     '客戶ID': row.get('客戶ID', ''),
-                    '客戶名稱': row.get('客戶名稱', '')
+                    '客戶名稱': row.get('客戶名稱', ''),
+                    '商品ID': row.get('商品ID', ''),
+                    '商品名稱': row.get('商品名稱', '')
                 }
-                records_for_modal.append(record_for_modal)
+                for _, row in all_records.iterrows()
+            ]
             
             return table, records_for_modal, False, ""
         else:
             error_msg = f"API 請求失敗：{response.status_code}"
-            return html.Div(), [], True, error_msg
+            return html.Div(f"載入失敗: {error_msg}", style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
+    except requests.exceptions.Timeout:
+        error_msg = "請求超時，請稍後再試"
+        return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'orange'}), [], True, error_msg
     except Exception as ex:
-        error_msg = f"API 請求錯誤：{ex}"
-        return html.Div(), [], True, error_msg
+        error_msg = f"載入錯誤：{str(ex)}"
+        return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
 
 # 載入客戶ID選項
 @app.callback(
@@ -546,73 +589,78 @@ def load_customer_options(page_loaded):
 )
 def show_detail_modal(view_clicks, table_data):
     triggered = ctx.triggered_id
-    
+
     is_all_zero = all(v == 0 for v in view_clicks)
     if not is_all_zero and triggered is not None:
         idx = triggered["index"]
         row = table_data[idx]
         customer_id = row['客戶ID']
         customer_name = row['客戶名稱']
-        
-        # 儲存客戶資訊到 store
+        product_id = row.get('商品ID', '')
+        product_name = row.get('商品名稱', '')
+
+        product_id_str = str(product_id).strip() if product_id else ""
+        product_name_str = str(product_name).strip() if product_name else ""
+        product_label = " ".join(part for part in [product_id_str, product_name_str] if part)
+
         customer_info = {
             'customer_id': customer_id,
-            'customer_name': customer_name
+            'customer_name': customer_name,
+            'product_id': product_id_str,
+            'product_name': product_name_str
         }
-        
-        # 呼叫新的 API 獲取歷史資料
+
         try:
             response = requests.get(f'http://127.0.0.1:8000/get_restock_history/{customer_id}')
             if response.status_code == 200:
                 history_data = response.json()
                 history_df = pd.DataFrame(history_data)
-                
-                # 假設 API 回傳的資料有 date 欄位
-                if not history_df.empty and 'transaction_date' in history_df.columns:
-                    history_df['transaction_date'] = pd.to_datetime(history_df['transaction_date'])
-                    
-                    # 建立時間軸圖表
+
+                filtered_df = filter_history_by_product(history_df, product_id_str, product_name_str)
+
+                if filtered_df.empty:
+                    label_for_message = product_label or "該品項"
+                    timeline_chart = html.Div(f"{label_for_message} 目前沒有歷史補貨紀錄", style={"textAlign": "center", "padding": "20px"})
+                elif 'transaction_date' not in filtered_df.columns:
+                    timeline_chart = html.Div("歷史資料缺少日期欄位", style={"textAlign": "center", "padding": "20px"})
+                else:
+                    filtered_df = filtered_df.copy()
+                    filtered_df['transaction_date'] = pd.to_datetime(filtered_df['transaction_date'])
+
                     fig = go.Figure()
-                    
-                    # 添加時間點
+
                     fig.add_trace(go.Scatter(
-                        x=history_df['transaction_date'],
-                        y=[1] * len(history_df),  # 所有點放在同一條水平線上
+                        x=filtered_df['transaction_date'],
+                        y=[1] * len(filtered_df),
                         mode="markers+text",
-                        text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in history_df['transaction_date']],
+                        text=[f"{d.strftime('%Y')}<br>{d.strftime('%m-%d')}" for d in filtered_df['transaction_date']],
                         textposition="top center",
                         hovertemplate='<b>%{customdata[0]}</b><br>' +
                                     '商品：%{customdata[1]}<br>' +
                                     '數量：%{customdata[2]}<br>' +
                                     '<extra></extra>',
-                        customdata=[[d.strftime('%Y-%m-%d'), row['product_name'], row['quantity']] 
-                                    for d, (_, row) in zip(history_df['transaction_date'], history_df.iterrows())],
+                        customdata=[[d.strftime('%Y-%m-%d'), record.get('product_name', product_name_str), record.get('quantity', '')]
+                                    for d, (_, record) in zip(filtered_df['transaction_date'], filtered_df.iterrows())],
                         marker=dict(size=12, color="#564dff", symbol="circle"),
-                        name="補貨日期"
+                        name="補貨紀錄"
                     ))
-                    
-                    # 添加連線
+
                     fig.add_trace(go.Scatter(
-                        x=history_df['transaction_date'],
-                        y=[1] * len(history_df),
+                        x=filtered_df['transaction_date'],
+                        y=[1] * len(filtered_df),
                         mode="lines",
                         line=dict(color="#564dff", width=2),
                         showlegend=False
                     ))
-                    
-                    # 計算圖表寬度
-                    data_count = len(history_df)
-                    # 每個點間距約80px，確保有足夠空間
+
+                    data_count = len(filtered_df)
                     chart_width = max(800, data_count * 80)
-                    
-                    # 根據圖表寬度判斷是否需要滾動（modal 寬度大約1200px）
+
                     modal_width = 1200
                     scrollable = chart_width > modal_width
-                    min_date = history_df['transaction_date'].min()
-                    max_date = history_df['transaction_date'].max()
-                    total_days = (max_date - min_date).days
+                    min_date = filtered_df['transaction_date'].min()
+                    max_date = filtered_df['transaction_date'].max()
 
-                    # 設定顯示範圍：始終顯示從最小到最大日期的完整範圍
                     initial_range = [min_date - pd.Timedelta(days=5), max_date + pd.Timedelta(days=5)]
 
                     fig.update_layout(
@@ -620,13 +668,13 @@ def show_detail_modal(view_clicks, table_data):
                         xaxis=dict(
                             type='date',
                             tickmode='linear',
-                            dtick='M1',  # 每月一個刻度
+                            dtick='M1',
                             showticklabels=True,
-                            tickformat='%Y/%m',  # 只顯示年/月格式
+                            tickformat='%Y/%m',
                             showgrid=True,
                             gridcolor="lightgray",
                             gridwidth=1,
-                            range=initial_range  # 設定初始顯示範圍，自動聚焦最初日期
+                            range=initial_range
                         ),
                         yaxis=dict(showticklabels=False, range=[-0.2, 2.5]),
                         height=300,
@@ -635,47 +683,49 @@ def show_detail_modal(view_clicks, table_data):
                         paper_bgcolor="white",
                         margin=dict(l=20, r=20, t=50, b=50)
                     )
-                    if scrollable:
-                        timeline_chart = html.Div([
-                            dcc.Graph(
-                                figure=fig, 
-                                id="timeline-chart", 
-                                style={"width": f"{chart_width}px"}, 
-                                config={'displayModeBar': False}
-                            ),
-                            dcc.Download(id="download-chart"),
-                            # 添加自動滾動的 JavaScript
-                            html.Script(f"""
-                                setTimeout(function() {{
-                                    var chartDiv = document.getElementById('timeline-chart');
-                                    if (chartDiv) {{
-                                        var scrollContainer = chartDiv.closest('[style*="overflowX"]');
-                                        if (scrollContainer) {{
-                                            var maxDate = new Date('{max_date.strftime('%Y-%m-%d')}');
-                                            var chartWidth = {chart_width};
-                                            var containerWidth = scrollContainer.clientWidth;
-                                            // 計算最新日期對應的滾動位置
-                                            var scrollPosition = chartWidth - containerWidth + 100;
-                                            scrollContainer.scrollLeft = Math.max(0, scrollPosition);
-                                        }}
+                    scroll_container_style = {
+                        'overflowX': 'auto',
+                        'width': '100%',
+                        'maxWidth': '100%',
+                        'paddingBottom': '10px',
+                        'display': 'block'
+                    }
+                    if not scrollable:
+                        scroll_container_style.update({'display': 'flex', 'justifyContent': 'center'})
+                    timeline_chart = html.Div([
+                        dcc.Graph(
+                            figure=fig,
+                            id='timeline-chart',
+                            style={'width': f"{chart_width}px", 'maxWidth': '100%'},
+                            config={'displayModeBar': False}
+                        ),
+                        dcc.Download(id='download-chart'),
+                        html.Script(f"""
+                            setTimeout(function() {{
+                                var chartDiv = document.getElementById('timeline-chart');
+                                if (chartDiv) {{
+                                    var scrollContainer = chartDiv.closest('[data-role=\"history-scroll\"]');
+                                    if (scrollContainer) {{
+                                        var chartWidth = {chart_width};
+                                        var containerWidth = scrollContainer.clientWidth;
+                                        var scrollPosition = Math.max(0, chartWidth - containerWidth + 100);
+                                        scrollContainer.scrollLeft = scrollPosition;
                                     }}
-                                }}, 500);
-                            """)
-                        ], style={"overflowX": "auto", "width": "100%"})
-                    else:
-                        timeline_chart = html.Div([
-                            dcc.Graph(figure=fig, id="timeline-chart", style={"width": f"{chart_width}px"}, config={'displayModeBar': False}),
-                            dcc.Download(id="download-chart")
-                        ])
-                else:
-                    timeline_chart = html.Div("無歷史資料", style={"textAlign": "center", "padding": "20px"})
+                                }}
+                            }}, 500);
+                        """)
+                    ], style=scroll_container_style, **{'data-role': 'history-scroll'})
             else:
                 timeline_chart = html.Div("無法載入歷史資料", style={"textAlign": "center", "padding": "20px"})
         except Exception as e:
             timeline_chart = html.Div(f"載入錯誤: {str(e)}", style={"textAlign": "center", "padding": "20px"})
-        
+
+        title = f"{customer_id} - {customer_name} 歷史補貨紀錄"
+        if product_label:
+            title = f"{title} ({product_label})"
+
         content = html.Div([
-            html.H2(f"{customer_id} - {customer_name} 歷史補貨紀錄", style={"textAlign": "center"}),
+            html.H2(title, style={"textAlign": "center"}),
             html.Hr(),
             timeline_chart,
             html.Hr(),
@@ -684,9 +734,9 @@ def show_detail_modal(view_clicks, table_data):
                 dbc.Button("關閉", id="close-modal", n_clicks=0, color="secondary")
             ], style={"textAlign": "center"})
         ])
-        
+
         return content, True, customer_info
-    
+
     return dash.no_update, False, dash.no_update
 
 # 下載圖表
@@ -704,21 +754,35 @@ def download_chart(n_clicks, figure, modal_open, customer_info):
         if ctx.triggered_id == "download-chart-btn":
             try:
                 import plotly.io as pio
-                
-                # 從 store 取得客戶資訊
-                customer_id = customer_info.get('customer_id', '客戶')
-                customer_name = customer_info.get('customer_name', '')
-                
-                # 組合檔名
-                filename = f"{customer_id} - {customer_name} 歷史補貨紀錄.png"
-                width = figure['layout']['width']
+
+                info = customer_info or {}
+                customer_id = info.get('customer_id', '客戶')
+                customer_name = info.get('customer_name', '')
+                product_id = info.get('product_id', '')
+                product_name = info.get('product_name', '')
+                product_label = " ".join(part for part in [product_id, product_name] if part)
+
+                safe_customer_id = sanitize_filename_component(customer_id) or '客戶'
+                safe_customer_name = sanitize_filename_component(customer_name)
+                safe_product_label = sanitize_filename_component(product_label)
+
+                filename_parts = [safe_customer_id]
+                if safe_customer_name:
+                    filename_parts.append(safe_customer_name)
+                if safe_product_label:
+                    filename_parts.append(safe_product_label)
+
+                filename = " - ".join(filename_parts + ['歷史補貨紀錄']) + ".png"
+
+                width = figure.get('layout', {}).get('width', 800)
                 img_bytes = pio.to_image(figure, format="png", width=width, height=300, scale=2)
                 return dcc.send_bytes(img_bytes, filename), False
             except Exception as e:
                 print(f"錯誤: {e}")
                 return dash.no_update, False
-    
+
     return dash.no_update, False
+
 
 # 顯示下載中 toast
 @app.callback(
@@ -1170,4 +1234,3 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
             return html.Div("無法載入資料"), updated_checkbox_state
     except Exception as e:
         return html.Div(f"載入錯誤: {str(e)}"), updated_checkbox_state
-
