@@ -207,10 +207,17 @@ def create_restock_table(df, customer_index_start=0):
         # 簡化的操作按鈕
         button_cell = html.Td(
             html.Button(
-                "查看歷史",
+                "查看歷史補貨紀錄",
                 id={'type': 'view-button', 'index': customer_index_start + i},
-                className="btn btn-outline-primary btn-sm",
-                style={'fontSize': '12px', 'padding': '4px 8px'}
+                className="btn btn-sm",  # 移除 btn-outline-primary
+                style={
+                    'fontSize': '12px', 
+                    'padding': '4px 8px',
+                    'backgroundColor': '#ff8c00',  # 橘色背景
+                    'color': 'white',              # 白色文字
+                    'border': '1px solid #ff8c00', # 橘色邊框
+                    'borderRadius': '8px'          # 圓角
+                }
             ),
             style={**base_cell_style, 'width': '100px', 'textAlign': 'center'}
         )
