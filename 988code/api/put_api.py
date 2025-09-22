@@ -447,7 +447,7 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
         print(f"[ERROR] 客戶資料更新失敗: {e}")
         raise HTTPException(status_code=500, detail="資料庫更新失敗")
 
-# 批量更新subcategory
+
 class ItemSubcategoryUpdate(BaseModel):
     item_id: str
     new_subcategory: str
@@ -456,15 +456,21 @@ class ItemSubcategoryUpdate(BaseModel):
 @router.put("/product_master/update_subcategory")
 def update_item_subcategory(update_data: ItemSubcategoryUpdate):
     check_editor_permission(update_data.user_role)
-    sql = "UPDATE product_master SET subcategory = %s WHERE product_id = %s"
-    params = (update_data.new_subcategory, update_data.item_id)
+    
+    # 修改 SQL 語句，同時更新 subcategory 和 updated_at
+    sql = "UPDATE product_master SET subcategory = %s, updated_at = %s WHERE product_id = %s"
+    
+    # 使用當前時間作為更新時間
+    current_time = datetime.now()
+    params = (update_data.new_subcategory, current_time, update_data.item_id)
 
     try:
         update_data_to_db(sql, params)
         return {
             "message": "品項商品群組更新成功",
             "item_id": update_data.item_id,
-            "new_subcategory": update_data.new_subcategory
+            "new_subcategory": update_data.new_subcategory,
+            "updated_at": current_time.isoformat()  # 返回更新時間供前端參考
         }
     except Exception as e:
         print(f"[ERROR] {e}")
