@@ -412,7 +412,7 @@ def toggle_management_mode(n_clicks, current_mode):
         return new_mode, edit_button_style, save_button_style, edit_indicator_style
     return current_mode, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}
 
-# 處理儲存變更
+# 處理儲存變更 - 修正版本，確保資料重新載入
 @app.callback(
     [Output("group-items-modal", "is_open", allow_duplicate=True),
      Output("product_inventory-success-toast", "is_open", allow_duplicate=True),
@@ -420,7 +420,9 @@ def toggle_management_mode(n_clicks, current_mode):
      Output("product_inventory-error-toast", "is_open", allow_duplicate=True),
      Output("product_inventory-error-toast", "children", allow_duplicate=True),
      Output("product_inventory-warning-toast", "is_open", allow_duplicate=True),
-     Output("product_inventory-warning-toast", "children", allow_duplicate=True)],
+     Output("product_inventory-warning-toast", "children", allow_duplicate=True),
+     Output("inventory-data", "data", allow_duplicate=True),  # 重新載入庫存資料
+     Output("modal-table-data", "data", allow_duplicate=True)],  # 清空modal資料
     Input("save-changes-button", "n_clicks"),
     [State({"type": "subcategory-change-dropdown", "index": ALL}, "value"),
      State({"type": "new-subcategory-input", "index": ALL}, "value"),
@@ -430,13 +432,18 @@ def toggle_management_mode(n_clicks, current_mode):
     prevent_initial_call=True
 )
 def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_title, user_role):
+    print(f"[DEBUG] save_changes called with n_clicks={n_clicks}")
+    
     if not n_clicks or n_clicks == 0:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        print("[DEBUG] No clicks, returning no_update")
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     if not modal_title or "商品群組：" not in modal_title:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        print(f"[DEBUG] Invalid modal_title: {modal_title}")
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     original_subcategory = modal_title.replace("商品群組：", "")
+    print(f"[DEBUG] Processing subcategory: {original_subcategory}")
     
     try:
         success_count = 0
@@ -459,6 +466,7 @@ def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_tit
                 # 如果商品群組有變更且新商品群組有效
                 if new_subcategory and new_subcategory != original_subcategory:
                     total_updates += 1
+                    print(f"[DEBUG] Updating item {item_id}: {original_subcategory} -> {new_subcategory}")
                     
                     update_payload = {
                         "item_id": item_id,
@@ -473,25 +481,44 @@ def save_changes(n_clicks, dropdown_values, input_values, stored_data, modal_tit
                     
                     if response.status_code == 200:
                         success_count += 1
-                        print(f"成功更新品項 {item_id} 的商品群組: {original_subcategory} -> {new_subcategory}")
+                        print(f"[DEBUG] 成功更新品項 {item_id} 的商品群組: {original_subcategory} -> {new_subcategory}")
                     elif response.status_code == 403:
-                        return False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能"
+                        print(f"[DEBUG] 權限不足錯誤")
+                        return False, False, "", False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update, dash.no_update
                     else:
-                        print(f"更新品項 {item_id} 失敗: {response.text}")
+                        print(f"[DEBUG] 更新品項 {item_id} 失敗: {response.text}")
+        
+        # 重新從API載入最新的庫存資料 - 不管是否有更新都重新載入
+        updated_inventory_data = []
+        try:
+            print("[DEBUG] 開始重新載入庫存資料")
+            reload_response = requests.get("http://127.0.0.1:8000/get_inventory_data")
+            if reload_response.status_code == 200:
+                updated_inventory_data = reload_response.json()
+                print(f"[DEBUG] 成功重新載入庫存資料，共 {len(updated_inventory_data)} 筆")
+            else:
+                print(f"[DEBUG] 重新載入庫存資料失敗: {reload_response.status_code}")
+                # 即使載入失敗，也返回空列表，這會觸發 display_inventory_table
+                updated_inventory_data = []
+        except Exception as reload_error:
+            print(f"[DEBUG] 重新載入庫存資料時發生錯誤: {reload_error}")
+            updated_inventory_data = []
         
         if total_updates > 0:
             success_msg = f"共完成 {success_count}/{total_updates} 項品項更新"
-            print(success_msg)
-            return False, True, success_msg, False, "", False, ""
+            print(f"[DEBUG] 成功訊息: {success_msg}")
+            # 關閉modal，顯示成功訊息，重新載入資料，清空modal資料
+            return False, True, success_msg, False, "", False, "", updated_inventory_data, []
         else:
             info_msg = "沒有發現需要更新的品項"
-            print(info_msg)
-            return False, True, info_msg, False, "", False, ""
+            print(f"[DEBUG] 資訊訊息: {info_msg}")
+            # 即使沒有更新，也重新載入資料來刷新顯示
+            return False, True, info_msg, False, "", False, "", updated_inventory_data, []
         
     except Exception as e:
         error_msg = f"儲存變更時發生錯誤: {e}"
-        print(error_msg)
-        return False, False, "", True, error_msg, False, ""
+        print(f"[DEBUG] 錯誤: {error_msg}")
+        return False, False, "", True, error_msg, False, "", dash.no_update, dash.no_update
 
 # 處理下拉選單變更，顯示/隱藏新商品群組輸入框
 @app.callback(
