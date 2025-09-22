@@ -176,7 +176,7 @@ def create_product_summary_list(product_stats):
                     title=product_name  # 完整名稱作為 tooltip
                 ),
                 html.Div(
-                    f"{quantity}箱", 
+                    f"{quantity}", 
                     style={
                         "flex": "1", 
                         "padding": "8px", 
@@ -296,7 +296,7 @@ tab_content = html.Div([
             html.Div(id="daily-statistics-container", children=[
                 create_summary_card("預計叫貨客戶", "15位"),
                 html.Div(style={"height": "10px"}),
-                create_summary_card("總銷售量", "0箱"),
+                create_summary_card("總銷售量", "0"),
                 html.Div(style={"height": "10px"}),
                 
                 # 主要商品預測銷量下拉選擇
@@ -561,7 +561,7 @@ def register_daily_delivery_callbacks(app):
         statistics_content = [
             create_summary_card("預計叫貨客戶", f"{total_customers}位"),
             html.Div(style={"height": "10px"}),
-            create_summary_card("總銷售量", f"{total_quantity}箱"),
+            create_summary_card("總銷售量", f"{total_quantity}"),
             html.Div(style={"height": "15px"}),
             
             # 主要商品預測銷量下拉選擇
@@ -790,7 +790,7 @@ def register_daily_delivery_callbacks(app):
                     display_name = product_name if len(product_name) <= 30 else product_name[:27] + "..."
                     
                     options.append({
-                        "label": f"{display_name} ({quantity}箱)",
+                        "label": f"{display_name} ({quantity})",
                         "value": product_name  # value 保持原始完整名稱
                     })
                 
@@ -861,7 +861,7 @@ def register_daily_delivery_callbacks(app):
                     ], style={"marginBottom": "5px"}),
                     html.Div([
                         html.Span("預測銷量: ", style={"fontWeight": "bold", "color": "#666"}),
-                        html.Span(f"{total_quantity}箱", style={"color": "#28a745", "fontWeight": "bold"})
+                        html.Span(f"{total_quantity}", style={"color": "#28a745", "fontWeight": "bold"})
                     ], style={"marginBottom": "5px"}),
                     html.Div([
                         html.Span("訂購客戶: ", style={"fontWeight": "bold", "color": "#666"}),
