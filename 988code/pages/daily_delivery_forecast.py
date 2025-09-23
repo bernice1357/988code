@@ -345,9 +345,12 @@ tab_content = html.Div([
                 
                 html.Div([
                     dbc.ButtonGroup([
-                        dbc.Button("全部", color="outline-primary", size="sm", id="daily-filter-all"),
-                        dbc.Button("已確認配送", color="outline-success", size="sm", id="daily-filter-confirmed"),
-                        dbc.Button("預計配送", color="outline-warning", size="sm", id="daily-filter-pending")
+                        dbc.Button("全部", color="light", size="sm", id="daily-filter-all", 
+                                style={"border": "2px solid #007bff"}),  # 改為 light
+                        dbc.Button("已確認配送", color="light", size="sm", id="daily-filter-confirmed", 
+                                style={"border": "2px solid #28a745"}),
+                        dbc.Button("預計配送", color="light", size="sm", id="daily-filter-pending",
+                                style={"border": "2px solid #ffc107"})
                     ])
                 ])
             ], style={
@@ -375,6 +378,41 @@ tab_content = html.Div([
 # 定義回調函數註冊器
 def register_daily_delivery_callbacks(app):
     """註冊每日配送預測頁面的回調函數"""
+    @app.callback(
+    [Output("daily-filter-all", "color"),
+     Output("daily-filter-confirmed", "color"), 
+     Output("daily-filter-confirmed", "style"),
+     Output("daily-filter-pending", "color"),
+     Output("daily-filter-pending", "style")],
+    [Input("daily-filter-all", "n_clicks"),
+     Input("daily-filter-confirmed", "n_clicks"),
+     Input("daily-filter-pending", "n_clicks"),
+     Input("daily-selected-date", "data")],  # 新增這行
+    prevent_initial_call=False
+    )
+    def update_button_styles(all_clicks, confirmed_clicks, pending_clicks, selected_date):
+        ctx = callback_context
+        
+        # 預設樣式 - 外框顏色與填滿顏色一致
+        default_style_all = {"border": "2px solid #007bff"}      # 藍色
+        default_style_confirmed = {"border": "2px solid #28a745"} # 綠色  
+        default_style_pending = {"border": "2px solid #ffc107"}   # 黃色
+        
+        if ctx.triggered:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            # 如果是日期變化，重置為預設狀態
+            if button_id == "daily-selected-date":
+                return "primary", "light", default_style_confirmed, "light", default_style_pending
+            elif button_id == "daily-filter-all":
+                return "primary", "light", default_style_confirmed, "light", default_style_pending
+            elif button_id == "daily-filter-confirmed":
+                return "light", "success", default_style_confirmed, "light", default_style_pending
+            elif button_id == "daily-filter-pending":
+                return "light", "light", default_style_confirmed, "light", default_style_pending
+        
+        # 預設狀態：「全部」按鈕被選中
+        return "light", "light", default_style_confirmed, "light", default_style_pending
     
     # 日曆日期點擊事件
     @app.callback(
