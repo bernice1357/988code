@@ -1069,7 +1069,7 @@ def save_current_files(n_clicks, session_data, user_role):
                     import os
                     
                     # 創建目標資料夾
-                    upload_folder = "/home/chou_fish_988/Documents/988"
+                    upload_folder = "/home/chou_fish_988/Documents/988/Line_bot/chat_history_original"
                     os.makedirs(upload_folder, exist_ok=True)
                     
                     saved_files = []
