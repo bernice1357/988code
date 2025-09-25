@@ -8,23 +8,32 @@ import os
 import sys
 from pathlib import Path
 
+# 載入環境變數
+sys.path.append(str(Path(__file__).parent.parent))
+from env_loader import load_env_file
+
+# 載入 .env 檔案
+load_env_file()
+
 print("使用環境變數配置")
 
-# 直接從環境變數讀取配置
+# 資料庫配置 - 現在使用統一的資料庫管理器，此配置已淘汰
+# 請使用 ../database_config.py 中的統一管理器
 DATABASE_CONFIG = {
-    'host': '127.0.0.1',
-    'database': '988',
-    'user': 'n8n',
-    'password': '1234',
-    'port': 5433
+    'host': os.getenv('LOCAL_DB_HOST', 'localhost'),
+    'database': os.getenv('LOCAL_DB_NAME', '988'),
+    'user': os.getenv('LOCAL_DB_USER', 'postgres'),
+    'password': os.getenv('LOCAL_DB_PASSWORD', '988988'),
+    'port': int(os.getenv('LOCAL_DB_PORT', 5432))
 }
 
+# LLM 配置 - 使用環境變數保護 API Key
 LLM_CONFIG = {
-    'api_key': '',
-    'model_name': 'gpt-5-mini',
+    'api_key': os.getenv('OPENAI_API_KEY'),
+    'model_name': os.getenv('LLM_MODEL_NAME', 'gpt-5-mini'),
     # 雙模型配置
-    'keyword_model': 'gpt-5-mini',
-    'validation_model': 'gpt-5-nano'
+    'keyword_model': os.getenv('LLM_KEYWORD_MODEL', 'gpt-5-mini'),
+    'validation_model': os.getenv('LLM_VALIDATION_MODEL', 'gpt-5-nano')
 }
 
 # --- 專案特定設定 ---

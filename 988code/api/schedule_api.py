@@ -1,4 +1,13 @@
 from fastapi import APIRouter, HTTPException
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import psycopg2
@@ -119,12 +128,13 @@ class TaskExecuteRequest(BaseModel):
 def get_data_from_db(sql_prompt: str, params=None):
     """從資料庫獲取數據"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
@@ -138,12 +148,13 @@ def get_data_from_db(sql_prompt: str, params=None):
 def update_data_to_db(sql_prompt: str, params=None):
     """更新資料庫數據"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
@@ -162,12 +173,13 @@ def get_taipei_time():
 def init_schedule_tables():
     """初始化排程相關資料表"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 # 建立排程設定表
@@ -214,12 +226,13 @@ def init_schedule_tables():
 def get_schedule_tasks():
     """獲取所有排程任務配置"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 # 獲取排程設定
@@ -275,12 +288,13 @@ def toggle_schedule(request: ScheduleToggleRequest):
         if request.category not in SCHEDULE_TASKS:
             raise HTTPException(status_code=400, detail="無效的排程分類")
         
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -326,12 +340,13 @@ def execute_task(request: TaskExecuteRequest):
         # 記錄執行開始（台北時間）
         start_time = get_taipei_time()
         
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -360,12 +375,13 @@ def execute_task(request: TaskExecuteRequest):
         if 'duration' not in locals():
             duration = int((end_time - start_time).total_seconds())
         
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -389,12 +405,13 @@ def execute_task(request: TaskExecuteRequest):
 def get_task_history(task_id: str, limit: int = 10):
     """獲取任務執行歷史"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -425,12 +442,13 @@ def get_task_history(task_id: str, limit: int = 10):
 def get_schedule_status():
     """獲取排程系統狀態"""
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 # 獲取今日執行統計

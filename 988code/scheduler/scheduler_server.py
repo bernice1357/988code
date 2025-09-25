@@ -38,7 +38,8 @@ app.add_middleware(
         "http://127.0.0.1:8050", 
         "http://localhost:8050",
         "http://127.0.0.1:8000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "https://988kitchen.com/"
     ],
     allow_credentials=True,
     allow_methods=["*"],

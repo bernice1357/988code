@@ -10,11 +10,11 @@ class DatabaseConfig:
     """數據庫配置類"""
     
     # 主數據庫配置
-    HOST = '26.210.160.206'
-    PORT = 5433
+    HOST = 'localhost'
+    PORT = 5432
     DATABASE = '988'
-    USER = 'n8n'
-    PASSWORD = '1234'
+    USER = 'postgres'
+    PASSWORD = '988988'
     
     @classmethod
     def get_config(cls) -> dict:

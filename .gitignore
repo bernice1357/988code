@@ -25,3 +25,28 @@ fix_*.py
 get_*.py
 test_*.py
 update_*.py
+
+# Environment and sensitive configuration files
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+
+# Database dumps and backups
+*.sql
+*.backup
+Database_backup/
+
+# Cache files
+988code/potential_customer_finder/cache/
+988code/customer_search_results/
+988code/potential_customer_finder/test_results/
+
+# Secrets and credentials
+secrets/
+credentials/
+*.key
+*.pem
+*.p12
+*.crt

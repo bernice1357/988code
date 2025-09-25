@@ -34,11 +34,11 @@ class CatBoostPredictionSystem:
         
         # 資料庫連接配置
         self.db_config = {
-            'host': "26.210.160.206",
+            'host': "localhost",
             'database': "988", 
-            'user': "n8n",
+            'user': "postgres",
             'password': "1234",
-            'port': 5433
+            'port': 5432
         }
         
         print("=== CatBoost 客戶補貨預測系統 ===")

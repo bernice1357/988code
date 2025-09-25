@@ -159,10 +159,10 @@ def generate_inactive_customer_report(db_config=None):
     """生成不活躍客戶檢查，返回統計資料"""
     if db_config is None:
         db_config = {
-            'host': '26.210.160.206',
-            'port': 5433,
+            'host': 'localhost',
+            'port': 5432,
             'database': '988',
-            'user': 'n8n',
+            'user': 'postgres',
             'password': '1234'
         }
     
@@ -187,10 +187,10 @@ def generate_inactive_customer_report(db_config=None):
 def main():
     """測試用主函數"""
     db_config = {
-        'host': '26.210.160.206',
-        'port': 5433,
+        'host': 'localhost',
+        'port': 5432,
         'database': '988',
-        'user': 'n8n',
+        'user': 'postgres',
         'password': '1234'
     }
     

@@ -103,7 +103,8 @@ def get_orders():
     else:
         print(f"API 錯誤，狀態碼：{response.status_code}")
         return []
-
+    
+    
 def make_card_item(order):
     # 獲取客戶備註
     customer_notes = ""
@@ -343,7 +344,12 @@ def create_grouped_orders_layout(orders):
     
     return dbc.Accordion(customer_groups, flush=True, always_open=False)
 
-orders = get_orders()
+# 嘗試載入訂單資料，如果失敗則使用空列表
+try:
+    orders = get_orders()
+except Exception as e:
+    print(f"初始化載入訂單資料失敗: {e}")
+    orders = []
 
 layout = dbc.Container([
     success_toast("new_orders", message="訂單已確認"),

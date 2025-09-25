@@ -1,4 +1,13 @@
 from fastapi import APIRouter, HTTPException
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 from pydantic import BaseModel
 import pandas as pd
 import psycopg2
@@ -9,12 +18,13 @@ router = APIRouter()
 
 def role_data_from_db(sql_prompt: str, params=None) -> pd.DataFrame:
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)

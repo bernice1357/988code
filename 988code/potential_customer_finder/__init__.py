@@ -8,6 +8,6 @@ Potential Customer Finder Module
 __version__ = "1.0.0"
 __author__ = "988code Team"
 
-from .organized_search_system import organized_complete_search
+from potential_customer_finder.organized_search_system import organized_complete_search
 
 __all__ = ['organized_complete_search']

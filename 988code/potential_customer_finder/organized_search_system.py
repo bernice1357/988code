@@ -10,14 +10,14 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict
-from chat_analyzer import get_chat_analyzer
-from keyword_generator import get_keyword_generator
-from database_manager import get_database_manager
-from customer_integration_analyzer import get_customer_integration_analyzer
+from potential_customer_finder.chat_analyzer import get_chat_analyzer
+from potential_customer_finder.keyword_generator import get_keyword_generator
+from potential_customer_finder.database_manager import get_database_manager
+from potential_customer_finder.customer_integration_analyzer import get_customer_integration_analyzer
 
 # 設定統一日誌配置
-from logging_setup import setup_logging
-from progress_tracker import progress_tracker
+from potential_customer_finder.logging_setup import setup_logging
+from potential_customer_finder.progress_tracker import progress_tracker
 logger = setup_logging(__name__)
 
 # 主要搜尋結果資料夾 - 使用絕對路徑確保在API環境中正確保存
