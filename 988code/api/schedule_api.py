@@ -173,51 +173,42 @@ def get_taipei_time():
 def init_schedule_tables():
     """初始化排程相關資料表"""
     try:
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
-            with conn.cursor() as cursor:
-                # 建立排程設定表
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS schedule_settings (
-                        id SERIAL PRIMARY KEY,
-                        category VARCHAR(50) NOT NULL UNIQUE,
-                        category_name VARCHAR(100) NOT NULL,
-                        enabled BOOLEAN DEFAULT true,
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')
-                    )
-                """)
-                
-                # 建立任務執行歷史表
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS schedule_history (
-                        id SERIAL PRIMARY KEY,
-                        task_id VARCHAR(50) NOT NULL,
-                        task_name VARCHAR(100) NOT NULL,
-                        category VARCHAR(50) NOT NULL,
-                        execution_time TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'),
-                        status VARCHAR(20) NOT NULL,
-                        message TEXT,
-                        duration_seconds INTEGER
-                    )
-                """)
-                
-                # 插入預設排程設定
-                for category, config in SCHEDULE_TASKS.items():
-                    cursor.execute("""
-                        INSERT INTO schedule_settings (category, category_name, enabled)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (category) DO NOTHING
-                    """, (category, config["name"], True))
-                
-                conn.commit()
-                return True
-                
+        # 使用新的資料庫連線系統
+        # 建立排程設定表
+        execute_query("""
+            CREATE TABLE IF NOT EXISTS schedule_settings (
+                id SERIAL PRIMARY KEY,
+                category VARCHAR(50) NOT NULL UNIQUE,
+                category_name VARCHAR(100) NOT NULL,
+                enabled BOOLEAN DEFAULT true,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')
+            )
+        """, fetch='none')
+
+        # 建立任務執行歷史表
+        execute_query("""
+            CREATE TABLE IF NOT EXISTS schedule_history (
+                id SERIAL PRIMARY KEY,
+                task_id VARCHAR(50) NOT NULL,
+                task_name VARCHAR(100) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                execution_time TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'),
+                status VARCHAR(20) NOT NULL,
+                message TEXT,
+                duration_seconds INTEGER
+            )
+        """, fetch='none')
+
+        # 插入預設排程設定
+        for category, config in SCHEDULE_TASKS.items():
+            execute_query("""
+                INSERT INTO schedule_settings (category, category_name, enabled)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (category) DO NOTHING
+            """, (category, config["name"], True), fetch='none')
+
+        return True
+
     except Exception as e:
         logging.error(f"初始化排程表失敗: {e}")
         return False

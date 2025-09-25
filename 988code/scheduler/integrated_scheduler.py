@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 import time
 import logging
 import schedule
@@ -13,7 +14,14 @@ import pytz
 from datetime import datetime, timedelta
 from task_executor import execute_task
 # from database_integration import DatabaseIntegration  # 暫時註解掉
-import psycopg2
+
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import execute_query
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 
 class IntegratedScheduler:
     """整合排程管理系統"""
@@ -25,14 +33,7 @@ class IntegratedScheduler:
         self.running = False
         self.scheduler_thread = None
         
-        # 資料庫配置
-        self.db_config = {
-            'host': 'localhost',
-            'port': '5432',
-            'database': '988',
-            'user': 'postgres',
-            'password': '1234'
-        }
+        # 使用新的資料庫連線系統，環境由 .env 控制
         
         # 載入排程狀態
         self.load_schedule_states()
@@ -58,12 +59,10 @@ class IntegratedScheduler:
     def load_schedule_states(self):
         """從資料庫載入排程開關狀態"""
         try:
-            with psycopg2.connect(**self.db_config) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT category, enabled FROM schedule_settings")
-                    for category, enabled in cursor.fetchall():
-                        self.schedule_enabled[category] = enabled
-            
+            results = execute_query("SELECT category, enabled FROM schedule_settings")
+            for category, enabled in results:
+                self.schedule_enabled[category] = enabled
+
             self.logger.info(f"Loaded schedule states: {self.schedule_enabled}")
         except Exception as e:
             self.logger.error(f"Failed to load schedule states: {e}")
@@ -133,13 +132,11 @@ class IntegratedScheduler:
             
             task_name = task_names.get(task_id, task_id)
             
-            with psycopg2.connect(**self.db_config) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO schedule_history (task_id, task_name, category, status, message, duration_seconds)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (task_id, task_name, category, status, message, duration))
-                    conn.commit()
+            execute_query(
+                "INSERT INTO schedule_history (task_id, task_name, category, status, message, duration_seconds) VALUES (%s, %s, %s, %s, %s, %s)",
+                (task_id, task_name, category, status, message, duration),
+                fetch='none'
+            )
         except Exception as e:
             self.logger.error(f"Failed to record task execution: {e}")
     

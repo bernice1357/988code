@@ -2,13 +2,14 @@ import os
 from fastapi import FastAPI
 import sys
 import os
-# 新增資料庫連線管理
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database_config import get_db_connection, execute_query, execute_transaction
-from env_loader import load_env_file
 
-# 載入環境變數
+# 首先載入環境變數
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from env_loader import load_env_file
 load_env_file()
+
+# 然後載入資料庫連線管理
+from database_config import get_db_connection, execute_query, execute_transaction
 from fastapi.middleware.cors import CORSMiddleware
 
 # 引入各個路由模組
