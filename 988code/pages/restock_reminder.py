@@ -393,7 +393,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     html.Div([
         restock_offcanvas["trigger_button"],
         dbc.Button(
-            "確認補貨狀態",
+            "取消補貨狀態",
             id="confirm-status-btn",
             color="success",
             style={"marginLeft": "10px", "display": "none"}  # 預設隱藏
@@ -441,7 +441,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             "minWidth": "95vw"
         },
         children=[
-            dbc.ModalHeader(dbc.ModalTitle("確認補貨狀態")),
+            dbc.ModalHeader(dbc.ModalTitle("取消補貨狀態")),
             dbc.ModalBody([
                 html.Div(id="confirm-status-content"),
                 html.Div([
@@ -502,7 +502,8 @@ def reload_table_data():
                 '客戶ID': row.get('客戶ID', ''),
                 '客戶名稱': row.get('客戶名稱', ''),
                 '商品ID': row.get('商品ID', ''),
-                '商品名稱': row.get('商品名稱', '')
+                '商品名稱': row.get('商品名稱', ''),
+                '預計補貨日期': row.get('預計補貨日期', '')
             }
             records_for_modal.append(record_for_modal)
         
@@ -562,7 +563,8 @@ def load_data_and_handle_errors(page_loaded):
                     '客戶ID': row.get('客戶ID', ''),
                     '客戶名稱': row.get('客戶名稱', ''),
                     '商品ID': row.get('商品ID', ''),
-                    '商品名稱': row.get('商品名稱', '')
+                    '商品名稱': row.get('商品名稱', ''),
+                    '預計補貨日期': row.get('預計補貨日期', '')
                 }
                 for _, row in all_records.iterrows()
             ]
@@ -866,93 +868,49 @@ def toggle_confirm_button(checkbox_values):
      Input("close-confirm-modal-btn", "n_clicks")],
     [State({"type": "restock-checkbox", "customer_id": dash.ALL, "row_index": dash.ALL}, "value"),
      State({"type": "restock-checkbox", "customer_id": dash.ALL, "row_index": dash.ALL}, "id"),
-     State("checkbox-state-store", "data"),
+     State("table-data-store", "data"),
      State("restock_reminder-customer-id", "value"),
      State("restock_reminder-prediction-date", "value")],
     prevent_initial_call=True
 )
-def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, checkbox_ids, checkbox_state, customer_search_value, date_search_value):
+def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, checkbox_ids, table_data, customer_search_value, date_search_value):
     ctx = dash.callback_context
     if not ctx.triggered:
-        return False, ""
+        return False, "", []
     
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
     
     if button_id == "confirm-status-btn":
-        # 先更新Store狀態 - 保存當前畫面的checkbox狀態到Store
-        current_checkbox_state = checkbox_state.copy() if checkbox_state else {}
-        if checkbox_values and checkbox_ids:
+        
+        # 直接從當前的 checkbox 狀態收集選中的項目
+        selected_items = []
+        
+        if checkbox_values and checkbox_ids and table_data:
             for i, checkbox_value in enumerate(checkbox_values):
-                if i < len(checkbox_ids):
+                if i < len(checkbox_ids) and i < len(table_data):
+                    # 檢查這個 checkbox 是否被選中
                     customer_id = checkbox_ids[i]['customer_id']
                     row_index = checkbox_ids[i]['row_index']
                     checkbox_key = f"{customer_id}-{row_index}"
+                    
                     # checkbox_value 是陣列，檢查是否包含 checkbox_key
                     is_checked = checkbox_key in (checkbox_value or [])
-                    current_checkbox_state[checkbox_key] = is_checked
-                    # if is_checked:
-                        # print(f"[DEBUG] 勾選的項目: {checkbox_key}")  # 暫時註解
-                    # print(f"[DEBUG] checkbox_ids[{i}]: customer_id={customer_id}, row_index={row_index}, checkbox_value={checkbox_value}")  # 暫時註解
-        
-        # print(f"[DEBUG] 總共有 {sum(current_checkbox_state.values())} 個項目被勾選")  # 暫時註解
-        # print(f"[DEBUG] 所有 checkbox 狀態: {current_checkbox_state}")  # 暫時註解
-        
-        # 獲取被選中的項目資訊 - 從Store中的所有勾選狀態收集
-        selected_items = []
-        
-        # 重新獲取最新的資料
-        try:
-            response = requests.get('http://127.0.0.1:8000/get_restock_data')
-            if response.status_code == 200:
-                data = response.json()
-                df = pd.DataFrame(data)
-                
-                # 重新命名欄位
-                df = df.rename(columns={
-                    'prediction_id': '預測ID',
-                    'customer_id': '客戶ID',
-                    'customer_name': '客戶名稱',
-                    'phone_number': '電話號碼',
-                    'product_id': '商品ID',
-                    'product_name': '商品名稱',
-                    'prediction_date': '預計補貨日期',
-                    'estimated_quantity': '預估數量',
-                    'confidence_level': '信心度'
-                })
-                
-                # 應用相同的搜尋條件篩選
-                if customer_search_value:
-                    df = df[df['客戶ID'] == customer_search_value]
-                
-                if date_search_value:
-                    df = df[df['預計補貨日期'] == date_search_value]
-                
-                # 如果篩選後沒有資料，直接返回空的 selected_items
-                if df.empty:
-                    selected_items = []
-                else:
-                    # 按預計補貨日期和客戶名稱排序（與主要顯示邏輯一致）
-                    df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
-                    df_reset = df.reset_index(drop=True)
                     
-                    # 根據Store中的勾選狀態收集所有選中的項目
-                    if current_checkbox_state:
-                        for row_index, (_, row) in enumerate(df_reset.iterrows()):
-                            customer_id = row.get('客戶ID', '')
-                            checkbox_key = f"{customer_id}-{row_index}"
-                            if current_checkbox_state.get(checkbox_key, False):  # 如果這個項目被勾選
-                                selected_items.append({
-                                    '預測ID': row.get('預測ID', ''),
-                                    '客戶ID': customer_id,
-                                    '商品ID': row.get('商品ID', ''),
-                                    '商品名稱': row.get('商品名稱', ''),
-                                    '預測日期': row.get('預計補貨日期', ''),
-                                    '預估數量': row.get('預估數量', ''),
-                                    '信心度': row.get('信心度', '')
-                                })
+                    if is_checked:
+                        # 從 table_data 中獲取對應的資料
+                        row_data = table_data[i]
+                        selected_item = {
+                            '預測ID': row_data.get('預測ID', ''),
+                            '客戶ID': row_data.get('客戶ID', ''),
+                            '商品ID': row_data.get('商品ID', ''),
+                            '商品名稱': row_data.get('商品名稱', ''),
+                            '預計補貨日期': row_data.get('預計補貨日期', ''),
+                            # 移除了 '預估數量' 和 '信心度'
+                        }
+                        selected_items.append(selected_item)
                         
-        except Exception as e:
-            print(f"[ERROR] 獲取選中項目時出錯: {e}")
+        
+        
         
         # 建立modal內容
         if selected_items:
@@ -964,10 +922,9 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                         dcc.RadioItems(
                             id={'type': 'status-radio', 'index': idx},
                             options=[
-                                {'label': '已補貨', 'value': 'fulfilled'},
-                                {'label': '已取消', 'value': 'cancelled'}
+                                {'label': '確認取消', 'value': 'cancelled'}
                             ],
-                            value=None,
+                            value='cancelled',  # 預設選中
                             inline=True,
                             style={'display': 'flex', 'justify-content': 'center', 'gap': '15px'}
                         )
@@ -985,9 +942,8 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                     html.Td(str(item['客戶ID']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
                     html.Td(str(item['商品ID']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
                     html.Td(str(item['商品名稱']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
-                    html.Td(str(item['預測日期']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
-                    html.Td(str(item['預估數量']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'}),
-                    html.Td(str(item['信心度']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap', 'color': get_confidence_color(item['信心度']), 'fontWeight': 'bold'})
+                    # 修復：加入預計補貨日期欄位 ↓
+                    html.Td(str(item['預計補貨日期']), style={'padding': '10px', 'text-align': 'center', 'border-bottom': '1px solid #eee', 'white-space': 'nowrap'})
                 ], style={'background-color': 'white'})
                 table_rows.append(table_row)
             
@@ -1012,15 +968,14 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                                 html.Th('客戶ID', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2}),
                                 html.Th('商品ID', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2}),
                                 html.Th('商品名稱', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2}),
-                                html.Th('預計補貨日期', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2}),
-                                html.Th('預估數量', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2}),
-                                html.Th('信心度', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2})
+                                html.Th('預計補貨日期', style={'font-weight': 'bold', 'padding': '10px', 'text-align': 'center', 'background-color': '#f8f9fa', 'border-bottom': '1px solid #ddd', 'white-space': 'nowrap', 'position': 'sticky', 'top': '0px', 'zIndex': 2})
+                                # 移除了 '預估數量' 和 '信心度' 的表頭
                             ])
                         ]),
                         html.Tbody(table_rows)
                     ], style={
                         'border-collapse': 'collapse', 
-                        'width': '1200px', 
+                        'width': '800px',  # 調整表格寬度，因為少了兩個欄位
                         'position': 'relative'
                     })
                 ], style={
@@ -1034,7 +989,7 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
                     'position': 'relative'
                 }),
                 html.Hr(),
-                html.P("請為每個項目選擇補貨狀態，然後點選「確認」按鈕", style={"marginTop": "20px"})
+                html.P("即將取消以下補貨提醒，點選「確認」按鈕執行", style={"marginTop": "20px"})
             ])
         else:
             content = html.Div([
@@ -1044,7 +999,7 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
         
         return True, content, selected_items
     elif button_id == "close-confirm-modal-btn":
-        return False, "", dash.no_update
+        return False, "", []
     
     return dash.no_update, dash.no_update, dash.no_update
 
@@ -1055,13 +1010,8 @@ def toggle_confirm_status_modal(open_clicks, close_clicks, checkbox_values, chec
     prevent_initial_call=True
 )
 def toggle_confirm_button(radio_values):
-    # 檢查是否所有 RadioItems 都已選擇
-    if not radio_values:
-        return True  # 沒有任何 RadioItems 時保持 disabled
-    
-    # 檢查是否每個 RadioItem 都有值（不是 None）
-    all_selected = all(value is not None for value in radio_values)
-    return not all_selected  # 如果全部選擇則啟用（disabled=False），否則保持禁用
+    # 由於預設都已選中 'cancelled'，所以直接啟用按鈕
+    return False
 
 # 設置確認按鈕的載入狀態
 @app.callback(
@@ -1103,7 +1053,7 @@ def handle_final_confirm(confirm_clicks, radio_values, selected_items_from_store
                 if status and idx < len(selected_items):
                     item = selected_items[idx]
                     prediction_id = item['預測ID']
-                    print(f"[DEBUG] 處理項目 {idx}: prediction_id={prediction_id}, status={status}, type={type(prediction_id)}")
+                    
                     
                     # 確保 prediction_id 是整數
                     if isinstance(prediction_id, str):
@@ -1121,7 +1071,7 @@ def handle_final_confirm(confirm_clicks, radio_values, selected_items_from_store
                             'prediction_status': status,
                             'user_role': 'editor'
                         }
-                        print(f"[DEBUG] 發送 API 請求: {payload}")
+                        
                         
                         update_response = requests.put(
                             'http://127.0.0.1:8000/update_restock_prediction_status',
@@ -1129,9 +1079,7 @@ def handle_final_confirm(confirm_clicks, radio_values, selected_items_from_store
                             timeout=30  # 加上逾時設定
                         )
                         
-                        print(f"[DEBUG] API 回應狀態碼: {update_response.status_code}")
-                        if update_response.status_code != 200:
-                            print(f"[DEBUG] API 回應內容: {update_response.text}")
+                        
                         
                         if update_response.status_code == 200:
                             success_count += 1
@@ -1197,6 +1145,7 @@ register_offcanvas_callback(app, "restock_reminder")
 # 搜尋功能callback
 @app.callback(
     [Output("table-container", "children", allow_duplicate=True),
+     Output("table-data-store", "data", allow_duplicate=True),  # 新增：同時更新 table-data-store
      Output("checkbox-state-store", "data", allow_duplicate=True)],
     [Input("restock_reminder-customer-id", "value"),
      Input("restock_reminder-prediction-date", "value")],
@@ -1219,11 +1168,13 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
                 # checkbox_value 是陣列，檢查是否包含 checkbox_key
                 updated_checkbox_state[checkbox_key] = checkbox_key in (checkbox_value or [])
     
-    # 重新獲取數據並重建 accordion
+    # 重新獲取數據並重建表格
     try:
         response = requests.get('http://127.0.0.1:8000/get_restock_data')
         if response.status_code == 200:
-            data = response.json()
+            result = response.json()
+            # 處理新的分頁回應格式
+            data = result.get('data', []) if isinstance(result, dict) else result
             df = pd.DataFrame(data)
             
             # 如果有搜尋條件，過濾資料
@@ -1234,7 +1185,8 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
                 df = df[df['prediction_date'] == selected_date]
             
             if df.empty:
-                return html.Div("無符合條件的資料", className="text-center text-muted", style={"padding": "50px"}), updated_checkbox_state
+                return (html.Div("無符合條件的資料", className="text-center text-muted", style={"padding": "50px"}), 
+                       [], updated_checkbox_state)
             
             # 重新命名欄位
             df = df.rename(columns={
@@ -1252,14 +1204,28 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
             # 按預計補貨日期和客戶名稱排序
             df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
             
-            # 顯示所有資料
+            # 創建表格
+            table, filtered_records = create_restock_table(df, 0)
             
-            # 創建一般表格
-            table, _ = create_restock_table(df, 0)
+            # 準備 table-data-store 的資料（與 load_data_and_handle_errors 格式一致）
+            records_for_store = []
+            for _, row in filtered_records.iterrows():
+                record_for_store = {
+                    '預測ID': row.get('預測ID', ''),
+                    '客戶ID': row.get('客戶ID', ''),
+                    '客戶名稱': row.get('客戶名稱', ''),
+                    '商品ID': row.get('商品ID', ''),
+                    '商品名稱': row.get('商品名稱', ''),
+                    '預計補貨日期': row.get('預計補貨日期', ''),
+                    '預估數量': row.get('預估數量', ''),
+                    '信心度': row.get('信心度', '')
+                }
+                records_for_store.append(record_for_store)
             
-            return table, updated_checkbox_state
+            return table, records_for_store, updated_checkbox_state
         else:
-            return html.Div("無法載入資料"), updated_checkbox_state
+            return (html.Div("無法載入資料"), [], updated_checkbox_state)
     except Exception as e:
-        return html.Div(f"載入錯誤: {str(e)}"), updated_checkbox_state
+        print(f"[ERROR] 搜尋時載入資料錯誤: {e}")
+        return (html.Div(f"載入錯誤: {str(e)}"), [], updated_checkbox_state)
 
