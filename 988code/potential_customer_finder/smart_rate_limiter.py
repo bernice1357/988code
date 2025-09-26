@@ -9,10 +9,10 @@ import time
 import logging
 from typing import Dict, Optional
 from datetime import datetime, timedelta
-from config import API_RATE_LIMITING
+from potential_customer_finder.config import API_RATE_LIMITING
 
 # 設定統一日誌配置
-from logging_setup import setup_logging
+from potential_customer_finder.logging_setup import setup_logging
 logger = setup_logging(__name__)
 
 class SmartRateLimiter:

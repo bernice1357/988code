@@ -12,21 +12,21 @@ from openai import OpenAI
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
-from config import (
-    LLM_CONFIG, 
-    KEYWORD_GENERATION_CONFIG, 
-    KEYWORDS_CACHE_DIR, 
+from potential_customer_finder.config import (
+    LLM_CONFIG,
+    KEYWORD_GENERATION_CONFIG,
+    KEYWORDS_CACHE_DIR,
     CACHE_EXPIRY_DAYS
 )
-from cost_tracker import track_openai_usage
-from database_manager import get_database_manager
-from smart_rate_limiter import get_rate_limiter
+from potential_customer_finder.cost_tracker import track_openai_usage
+from potential_customer_finder.database_manager import get_database_manager
+from potential_customer_finder.smart_rate_limiter import get_rate_limiter
 # 移除複雜的錯誤處理和日誌配置
 # from error_handler import get_error_handler, get_batch_error_handler
 # from logging_config import get_logger
 
 # 設定統一日誌配置
-from logging_setup import setup_logging, log_api_call
+from potential_customer_finder.logging_setup import setup_logging, log_api_call
 logger = setup_logging(__name__)
 
 class KeywordGenerator:

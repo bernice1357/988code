@@ -1,6 +1,15 @@
 # TODO 要改回ORDER_TRANSACTIONS
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 from fastapi.responses import JSONResponse
 import datetime
 import tempfile
@@ -48,12 +57,13 @@ class SalesDataUploader:
         """連接數據庫"""
         try:
             # 使用專案的實際資料庫連接參數
-            self.connection = psycopg2.connect(
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
+            self.connection =psycopg2.connect(
                 dbname='988',
-                user='n8n',  
-                password='1234',
-                host='26.210.160.206',
-                port='5433',
+                user='postgres',  
+                password='988988',
+                host='localhost',
+                port='5432',
                 connect_timeout=DEFAULT_CONFIG['timeout']
             )
             logger.info("數據庫連接成功")
@@ -1059,12 +1069,13 @@ class InventoryDataUploader:
         """連接數據庫"""
         try:
             # 使用專案的實際資料庫連接參數
-            self.connection = psycopg2.connect(
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
+            self.connection =psycopg2.connect(
                 dbname='988',
-                user='n8n',  
-                password='1234',
-                host='26.210.160.206',
-                port='5433',
+                user='postgres',  
+                password='988988',
+                host='localhost',
+                port='5432',
                 connect_timeout=DEFAULT_CONFIG['timeout']
             )
             logger.info("庫存數據庫連接成功")

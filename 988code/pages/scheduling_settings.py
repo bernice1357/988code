@@ -14,8 +14,12 @@ SCHEDULER_AVAILABLE = False
 # 存儲排程狀態
 schedule_store = dcc.Store(id='schedule-status-store')
 
+# 存儲 LINE Bot 設定狀態
+line_settings_store = dcc.Store(id='line-settings-store')
+
 layout = html.Div([
     schedule_store,
+    line_settings_store,
     html.Div([
 
         # 排程項目容器
@@ -133,6 +137,38 @@ layout = html.Div([
                 ], style={"flex": "1"}),
                 dbc.Switch(
                     id="restock-switch",
+                    value=False,
+                    style={"transform": "scale(1.2)"}
+                )
+            ], style={
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "space-between",
+                "padding": "2rem",
+                "backgroundColor": "white",
+                "borderRadius": "12px",
+                "border": "1px solid #e0e6ed",
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+                "marginBottom": "1.5rem"
+            }),
+
+            # LINE Bot 回覆客人開關
+            html.Div([
+                html.Div([
+                    html.H3("line回覆功能開關", style={
+                        "fontSize": "1.4rem",
+                        "fontWeight": "500",
+                        "color": "#333",
+                        "margin": "0"
+                    }),
+                    html.P("開啟後就會開始回覆客戶訊息 ", style={
+                        "color": "#666",
+                        "fontSize": "1.0rem",
+                        "margin": "0.25rem 0 0 0"
+                    })
+                ], style={"flex": "1"}),
+                dbc.Switch(
+                    id="line-reply-switch",
                     value=False,
                     style={"transform": "scale(1.2)"}
                 )
@@ -295,4 +331,79 @@ def show_schedule_times(category):
         print(f"Scheduled times for {category}:")
         for time_desc in schedule_times[category]:
             print(f"  - {time_desc}")
+
+# === LINE Bot 設定相關 callbacks ===
+
+# 載入 LINE Bot 設定狀態
+@app.callback(
+    [Output('line-settings-store', 'data'),
+     Output("line-reply-switch", "value")],
+    [Input('schedule-refresh-interval', 'n_intervals')],
+    prevent_initial_call=False
+)
+def load_line_settings(n_intervals):
+    """從後端載入 LINE Bot 設定狀態"""
+    try:
+        # 從 cookie 獲取用戶資訊
+        from flask import request
+        user_info = request.cookies.get('user_info')
+        if not user_info:
+            return {}, False
+
+        user_data = json.loads(user_info)
+
+        # 調用 GET API 獲取當前狀態
+        response = requests.get(f'{SCHEDULER_BASE_POST}/line-reply-status')
+        if response.status_code == 200:
+            data = response.json()
+            enabled = data.get('enabled', False)
+            return {'enabled': enabled}, enabled
+        else:
+            print(f"Failed to load LINE settings: HTTP {response.status_code}")
+            return {}, False
+    except Exception as e:
+        print(f"Error loading LINE settings: {e}")
+        return {}, False
+
+# LINE Bot 回覆開關
+@app.callback(
+    Output("line-reply-switch", "value", allow_duplicate=True),
+    Input("line-reply-switch", "value"),
+    prevent_initial_call=True
+)
+def toggle_line_reply(value):
+    """切換 LINE Bot 回覆開關"""
+    try:
+        # 從 cookie 獲取用戶資訊
+        from flask import request
+        user_info = request.cookies.get('user_info')
+        if not user_info:
+            print("No user info found")
+            return not value
+
+        user_data = json.loads(user_info)
+        user_role = user_data.get('role', '')
+
+        # 檢查權限
+        if user_role != 'editor':
+            print("Permission denied: editor role required")
+            return not value
+
+        # 調用 PUT API 更新狀態
+        response = requests.put(f'{SCHEDULER_BASE_POST}/line-reply-status',
+                               json={"enabled": value, "user_role": user_role})
+
+        if response.status_code == 200:
+            status_text = 'enabled' if value else 'disabled'
+            print(f"LINE Bot reply {status_text}")
+            return value
+        else:
+            print(f"Toggle LINE reply failed: HTTP {response.status_code}")
+            if response.text:
+                print(f"Error: {response.text}")
+            return not value
+
+    except Exception as e:
+        print(f"Toggle LINE reply failed: {e}")
+        return not value
 

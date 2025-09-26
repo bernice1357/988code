@@ -2,3 +2,8 @@
 [API] 2025-08-19 16:19:33,048 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=891tokens | 輸出=3106tokens | 成本=NT$0.20 | 耗時=34.09s
 [API] 2025-08-19 17:00:18,926 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=889tokens | 輸出=3084tokens | 成本=NT$0.20 | 耗時=35.53s
 [API] 2025-08-19 17:15:23,375 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=889tokens | 輸出=3195tokens | 成本=NT$0.21 | 耗時=54.79s
+[API] 2025-09-23 14:40:18,825 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=903tokens | 輸出=3413tokens | 成本=NT$0.22 | 耗時=54.07s
+[API] 2025-09-23 14:42:50,770 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=891tokens | 輸出=4079tokens | 成本=NT$0.26 | 耗時=59.54s
+[API] 2025-09-23 15:18:47,660 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=889tokens | 輸出=3515tokens | 成本=NT$0.23 | 耗時=49.71s
+[API] 2025-09-23 15:21:13,139 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=891tokens | 輸出=3414tokens | 成本=NT$0.22 | 耗時=45.93s
+[API] 2025-09-23 15:23:29,220 - api_calls - INFO - 模型=gpt-5-mini | 操作=keyword_generation | 輸入=901tokens | 輸出=2664tokens | 成本=NT$0.17 | 耗時=35.53s

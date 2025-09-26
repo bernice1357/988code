@@ -1,4 +1,13 @@
 from fastapi import APIRouter, HTTPException
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 import psycopg2
 import pandas as pd
 from typing import Optional
@@ -8,12 +17,13 @@ router = APIRouter()
 # 需要新增一個支援參數的資料庫查詢函數
 def get_data_from_db_with_params(sql_prompt: str, params: tuple = ()) -> pd.DataFrame:
     try:
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
@@ -50,12 +60,30 @@ def get_customer_transactions(customer_id: str, product_id: Optional[str] = None
 def get_customer_transactions(customer_id: str):
     try:
         query = """
-        SELECT product_name, quantity, transaction_date
-        FROM order_transactions 
-        WHERE customer_id = %s 
+        WITH net_transactions AS (
+            SELECT 
+                product_name,
+                transaction_date,
+                SUM(quantity) as net_quantity,
+                -- 保留原始交易類型信息
+                STRING_AGG(DISTINCT document_type, ',') as doc_types
+            FROM order_transactions 
+            WHERE customer_id = %s
+            GROUP BY product_name, transaction_date
+        )
+        SELECT 
+            product_name,
+            net_quantity as quantity,
+            transaction_date,
+            CASE 
+                WHEN net_quantity > 0 THEN '銷貨'
+                WHEN net_quantity < 0 THEN '銷退'
+                ELSE '抵銷'
+            END as document_type
+        FROM net_transactions
+        WHERE net_quantity != 0  -- 只顯示非零的淨交易
         ORDER BY transaction_date DESC
         """
-        # 使用參數化查詢避免 SQL 注入
         df = get_data_from_db_with_params(query, (customer_id,))
         return df.to_dict(orient="records")
     except Exception as e:

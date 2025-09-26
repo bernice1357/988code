@@ -8,13 +8,13 @@
 import logging
 from typing import Dict, Optional
 from datetime import datetime
-from config import OPENAI_PRICING
+from potential_customer_finder.config import OPENAI_PRICING
 
 # 美元轉台幣匯率 (可以根據實際匯率調整)
 USD_TO_TWD_RATE = 31.5
 
 # 設定統一日誌配置
-from logging_setup import setup_logging
+from potential_customer_finder.logging_setup import setup_logging
 logger = setup_logging(__name__)
 
 class CostTracker:

@@ -8,7 +8,7 @@
 import logging
 import logging.handlers
 from pathlib import Path
-from config import LOGGING_CONFIG
+from potential_customer_finder.config import LOGGING_CONFIG
 
 class ImmediateFileHandler(logging.handlers.RotatingFileHandler):
     """立即刷新的檔案處理器，確保日誌即時寫入檔案"""

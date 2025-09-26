@@ -1,5 +1,15 @@
 import os
 from fastapi import FastAPI
+import sys
+import os
+
+# 首先載入環境變數
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from env_loader import load_env_file
+load_env_file()
+
+# 然後載入資料庫連線管理
+from database_config import get_db_connection, execute_query, execute_transaction
 from fastapi.middleware.cors import CORSMiddleware
 
 # 引入各個路由模組
@@ -15,7 +25,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:8050", "http://localhost:8050"],
+    allow_origins=["http://127.0.0.1:8050", "http://localhost:8050","https://988kitchen.com/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

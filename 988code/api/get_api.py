@@ -1,4 +1,13 @@
 from fastapi import APIRouter, HTTPException, Form, Query
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 from typing import Optional
 import psycopg2
 import pandas as pd
@@ -10,21 +19,20 @@ router = APIRouter()
 # get
 def get_data_from_db(sql_prompt: str, params: tuple = None) -> pd.DataFrame:
     try:
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
+        # 使用新的資料庫連線系統
+        rows = execute_query(sql_prompt, params or (), fetch='all')
+
+        # 如果沒有結果，返回空 DataFrame
+        if not rows:
+            return pd.DataFrame()
+
+        # 需要獲取列名，使用新的連線方式
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                if params:
-                    cursor.execute(sql_prompt, params)
-                else:
-                    cursor.execute(sql_prompt)
-                rows = cursor.fetchall()
+                cursor.execute(sql_prompt, params or ())
                 columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
+
+        df = pd.DataFrame(rows, columns=columns)
         return df
     except Exception as e:
         print(f"[DB ERROR] {e}")
@@ -109,6 +117,7 @@ def get_customer_data(
         LIMIT %s OFFSET %s
         """
 
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
             user='n8n',
@@ -183,6 +192,7 @@ def get_customer_latest_transactions(limit: int = 50, offset: int = 0):
         query_start = time.time()
         
         import psycopg2
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
             user='n8n', 
@@ -477,12 +487,13 @@ def get_rag_content(title: str):
     try:
         query = "SELECT title, text_content, file_content, file_name FROM rag WHERE title = %s"
         
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (title,))
@@ -539,12 +550,13 @@ def get_monthly_sales_predictions(period: str = Query(None, description="預測�
             ORDER BY subcategory, product_id
             """
             # 使用參數化查詢
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
             with psycopg2.connect(
                 dbname='988',
-                user='n8n',
-                password='1234',
-                host='26.210.160.206',
-                port='5433'
+                user='postgres',
+                password='988988',
+                host='localhost',
+                port='5432'
             ) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, (period_date,))
@@ -602,12 +614,13 @@ def get_delivery_schedule_by_date(delivery_date: str):
         ORDER BY ds.id
         """
         # 使用參數化查詢
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (delivery_date,))
@@ -653,12 +666,13 @@ def get_delivery_schedule_by_category(category: str):
             WHERE pm.category = %s
             ORDER BY ds.delivery_date DESC, ds.id
             """
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
             with psycopg2.connect(
                 dbname='988',
-                user='n8n',
-                password='1234',
-                host='26.210.160.206',
-                port='5433'
+                user='postgres',
+                password='988988',
+                host='localhost',
+                port='5432'
             ) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, (category,))
@@ -715,12 +729,13 @@ def get_delivery_schedule_filtered(delivery_date: str = None, category: str = No
         
         base_query += " ORDER BY ds.delivery_date DESC, ds.id"
         
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(base_query, tuple(params))
@@ -776,12 +791,13 @@ def get_delivery_schedule_by_date(delivery_date: str):
         ORDER BY ds.id
         """
         # 使用參數化查詢
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (delivery_date,))
@@ -825,12 +841,13 @@ def get_delivery_schedule_by_category(category: str):
             WHERE pm.category = %s
             ORDER BY ds.delivery_date DESC, ds.id
             """
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
             with psycopg2.connect(
                 dbname='988',
-                user='n8n',
-                password='1234',
-                host='26.210.160.206',
-                port='5433'
+                user='postgres',
+                password='988988',
+                host='localhost',
+                port='5432'
             ) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, (category,))
@@ -863,12 +880,13 @@ def get_regions(county: str = Query(..., description="縣市名稱")):
     print(f"[API] get_regions 被呼叫，縣市: {county}")
     try:
         # 使用參數化查詢避免 SQL 注入
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL AND district != '' ORDER BY district"
@@ -969,8 +987,11 @@ def get_potential_customers_details(product_name: str = Query(..., description="
     print(f"[API] get_potential_customers_details 被呼叫，產品: {product_name}")
     
     try:
-        # 搜尋最新的整合客戶檔案
-        results_dir = Path("C:/Users/user/Desktop/988/988code/988code/customer_search_results")
+        # 搜尋最新的整合客戶檔案 - 使用動態路徑解析
+        # 獲取當前文件所在目錄的上層目錄，然後找到customer_search_results
+        api_dir = Path(__file__).parent  # api目錄
+        code_dir = api_dir.parent  # 988code目錄
+        results_dir = code_dir / "customer_search_results"
         
         # 尋找所有相關的整合客戶檔案
         integrated_files = []
@@ -1067,12 +1088,13 @@ def check_customer_exists(customer_id: str):
     print(f"[API] check_customer_exists 被呼叫，客戶ID: {customer_id}")
     try:
         query = "SELECT COUNT(*) as count FROM customer WHERE customer_id = %s"
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (customer_id,))
@@ -1088,12 +1110,13 @@ def check_customer_exists(customer_id: str):
 def get_customer_notes(customer_id: str):
     try:
         query = "SELECT notes FROM customer WHERE customer_id = %s"
+        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
         with psycopg2.connect(
             dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
+            user='postgres',
+            password='988988',
+            host='localhost',
+            port='5432'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (customer_id,))

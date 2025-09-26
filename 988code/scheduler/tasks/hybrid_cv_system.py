@@ -656,10 +656,10 @@ def main():
     
     # 數據庫配置
     db_config = {
-        'host': '26.210.160.206',
-        'port': 5433,
+        'host': 'localhost',
+        'port': 5432,
         'database': '988',
-        'user': 'n8n',
+        'user': 'postgres',
         'password': '1234'
     }
     

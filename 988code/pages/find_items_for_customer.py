@@ -67,7 +67,7 @@ tab_content = html.Div([
                         html.Div([
                             html.Div(id='current-month-spending', children='當月消費總金額 $ 0', 
                                     style={'text-align': 'left', 'font-size': '16px', 'flex': '1'}),
-                            html.Div(id='monthly-average', children='所有月份平均消費 $ 0', 
+                            html.Div(id='monthly-average', children='每月平均消費 $ 0', 
                                     style={'text-align': 'right', 'font-size': '16px', 'flex': '1', 'font-weight': 'bold'})
                         ], style={'display': 'flex'})
                     ])
@@ -166,7 +166,7 @@ def update_month_options(selected_customer_id):
 )
 def update_customer_info_and_history(selected_customer_id, selected_month):
     if not selected_customer_id:
-        return [], '當月消費總金額 $ 0', '所有月份平均消費 $ 0'
+        return [], '當月消費總金額 $ 0', '每月平均消費 $ 0'
     
     try:
         # 調用 API 獲取歷史購買記錄
@@ -177,7 +177,7 @@ def update_customer_info_and_history(selected_customer_id, selected_month):
         
         table_rows = []
         current_month_text = '當月消費總金額 $ 0'
-        monthly_average_text = '所有月份平均消費 $ 0'
+        monthly_average_text = '每月平均消費 $ 0'
         
         # 處理歷史購買記錄
         if purchase_response.status_code == 200:
@@ -227,25 +227,24 @@ def update_customer_info_and_history(selected_customer_id, selected_month):
                 total_amount = sum(item['total_amount'] for item in monthly_data)
                 month_count = len(monthly_data)
                 monthly_average = total_amount / month_count if month_count > 0 else 0
-                monthly_average_text = f'所有月份平均消費 $ {monthly_average:,.0f}'
+                monthly_average_text = f'每月平均消費 $ {monthly_average:,.0f}'
                 
-                # 計算當月消費（選擇的月份或最新月份）
+                # 計算當月消費（選擇的月份或所有月份總額）
                 if selected_month and selected_month != 'all':
                     # 如果選擇了特定月份，顯示該月的消費
                     current_month_data = next((item for item in monthly_data if item['month'] == selected_month), None)
                     if current_month_data:
                         current_month_text = f'當月消費總金額 $ {current_month_data["total_amount"]:,.0f}'
                 else:
-                    # 如果選擇全部，顯示最新月份的消費
-                    latest_month_data = max(monthly_data, key=lambda x: x['month'])
-                    current_month_text = f'當月消費總金額 $ {latest_month_data["total_amount"]:,.0f}'
+                    # 如果選擇全部，顯示所有月份的消費總額
+                    current_month_text = f'所有月份消費總金額 $ {total_amount:,.0f}'
         
         return table_rows, current_month_text, monthly_average_text
             
     except Exception as e:
         return [
             html.Div(f'載入資料時發生錯誤：{str(e)}', style={'padding': '10px', 'color': 'red'})
-        ], '當月消費總金額 $ 0', '所有月份平均消費 $ 0'
+        ], '當月消費總金額 $ 0', '每月平均消費 $ 0'
     
 @app.callback(
     Output('recommended-products-table', 'children'),

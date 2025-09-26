@@ -23,7 +23,7 @@ def print_banner():
     print("-" * 60)
     print("\nScheduled Tasks:")
     print("\n[RESTOCK]")
-    print("  - Saturday 08:00 - Prophet model training")
+    print("  - Saturday 08:00 - CatBoost model training")
     print("  - Daily 22:00 - Daily prediction")
     print("  - Daily 02:00 - Trigger health check")
     print("\n[SALES]")

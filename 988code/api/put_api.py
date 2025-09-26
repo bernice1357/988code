@@ -1,6 +1,15 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 import psycopg2
 from pydantic import BaseModel
+import sys
+import os
+# 新增資料庫連線管理
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database_config import get_db_connection, execute_query, execute_transaction
+from env_loader import load_env_file
+
+# 載入環境變數
+load_env_file()
 from typing import Optional, List
 from datetime import datetime
 import base64
@@ -247,65 +256,27 @@ def create_word_placeholder_pdf(filename, has_chinese_font):
 
 # put
 def update_data_to_db(sql_prompt: str, params: tuple = ()):
+    """使用新的資料庫連線管理器執行更新操作"""
     try:
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql_prompt, params)
-                conn.commit()
+        return execute_query(sql_prompt, params, env='local', fetch='none')
     except Exception as e:
         print(f"[DB ERROR] {e}")
         raise
 
 # 優化的資料庫更新函數
 def update_data_to_db_optimized(sql_prompt: str, params: tuple = ()):
-    """優化的資料庫更新函數，使用更好的連接管理"""
+    """優化的資料庫更新函數，使用遠端資料庫連線"""
     try:
-        # 使用連接池會更好，但目前先優化連接參數
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433',
-            # 優化連接參數
-            connect_timeout=5,  # 連接超時
-            application_name='customer_update_api'  # 應用程式標識
-        ) as conn:
-            # 設定會話參數以提升性能
-            conn.autocommit = False
-            with conn.cursor() as cursor:
-                cursor.execute(sql_prompt, params)
-                conn.commit()
-    except psycopg2.OperationalError as e:
-        print(f"[DB CONNECTION ERROR] {e}")
-        # 回退到原始函數，避免503錯誤
-        return update_data_to_db(sql_prompt, params)
-    except psycopg2.IntegrityError as e:
-        print(f"[DB INTEGRITY ERROR] {e}")
-        raise HTTPException(status_code=400, detail="資料完整性錯誤")
+        return execute_query(sql_prompt, params, env='remote', fetch='none')
     except Exception as e:
-        print(f"[DB ERROR] {e}")
-        # 回退到原始函數
+        print(f"[DB ERROR] 遠端資料庫錯誤，回退到本地: {e}")
+        # 回退到本地資料庫
         return update_data_to_db(sql_prompt, params)
 
 def query_data_from_db(sql_prompt: str, params: tuple = ()):
+    """使用新的資料庫連線管理器執行查詢操作"""
     try:
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql_prompt, params)
-                return cursor.fetchall()
+        return execute_query(sql_prompt, params, env='local', fetch='all')
     except Exception as e:
         print(f"[DB ERROR] {e}")
         raise
@@ -1231,53 +1202,47 @@ def create_customer(customer_data: CustomerCreate):
     check_editor_permission(customer_data.user_role)
     
     try:
-        # 使用事務確保資料一致性
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                # 創建客戶 - 新增 is_enabled 和 updated_date 欄位
-                customer_sql = """
-                INSERT INTO customer 
-                (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id, is_enabled, updated_date) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                customer_params = (
-                    customer_data.customer_id,
-                    customer_data.customer_name,
-                    customer_data.phone_number,
-                    customer_data.address,
-                    customer_data.city,
-                    customer_data.district,
-                    customer_data.notes,
-                    customer_data.delivery_schedule,
-                    customer_data.line_id,
-                    customer_data.is_enabled if customer_data.is_enabled is not None else True,  # 預設為 True
-                    datetime.now().date()  # 設定為今天日期
-                )
-                cursor.execute(customer_sql, customer_params)
-                
-                # 如果有 line_id，則寫入 customer_line_mapping 表
-                if customer_data.line_id:
-                    mapping_sql = """
-                    INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes) 
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (customer_id, line_id) DO NOTHING
-                    """
-                    mapping_params = (
-                        customer_data.customer_id,
-                        customer_data.line_id,
-                        datetime.now(),
-                        f"從新訂單系統創建客戶時建立對應關係 - {customer_data.customer_name}"
-                    )
-                    cursor.execute(mapping_sql, mapping_params)
-                
-                # 提交事務
-                conn.commit()
+        # 準備事務查詢
+        queries_params = []
+
+        # 創建客戶 - 新增 is_enabled 和 updated_date 欄位
+        customer_sql = """
+        INSERT INTO customer
+        (customer_id, customer_name, phone_number, address, city, district, notes, delivery_schedule, line_id, is_enabled, updated_date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        customer_params = (
+            customer_data.customer_id,
+            customer_data.customer_name,
+            customer_data.phone_number,
+            customer_data.address,
+            customer_data.city,
+            customer_data.district,
+            customer_data.notes,
+            customer_data.delivery_schedule,
+            customer_data.line_id,
+            customer_data.is_enabled if customer_data.is_enabled is not None else True,  # 預設為 True
+            datetime.now().date()  # 設定為今天日期
+        )
+        queries_params.append((customer_sql, customer_params))
+
+        # 如果有 line_id，則寫入 customer_line_mapping 表
+        if customer_data.line_id:
+            mapping_sql = """
+            INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (customer_id, line_id) DO NOTHING
+            """
+            mapping_params = (
+                customer_data.customer_id,
+                customer_data.line_id,
+                datetime.now(),
+                f"從新訂單系統創建客戶時建立對應關係 - {customer_data.customer_name}"
+            )
+            queries_params.append((mapping_sql, mapping_params))
+
+        # 執行事務
+        execute_transaction(queries_params, env='local')
         
         return {"message": "客戶創建成功", "customer_id": customer_data.customer_id}
     except Exception as e:
@@ -1309,46 +1274,36 @@ def create_temp_order(order_data: TempOrderCreate):
     current_time = datetime.now().isoformat()
     
     try:
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                # 只插入到 temp_customer_records
-                temp_sql = """
-                INSERT INTO temp_customer_records 
-                (customer_id, customer_name, line_id, product_id, purchase_record, quantity, 
-                unit_price, amount, conversation_record, order_note, label, is_new_product, 
-                status, confirmed_by, confirmed_at, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                
-                temp_params = (
-                    order_data.customer_id,
-                    order_data.customer_name,
-                    order_data.line_id,
-                    order_data.product_id,
-                    order_data.purchase_record,
-                    order_data.quantity,
-                    order_data.unit_price,
-                    order_data.amount,
-                    order_data.conversation_record,
-                    order_data.order_note,
-                    order_data.label,
-                    order_data.is_new_product,
-                    order_data.status,
-                    order_data.confirmed_by,
-                    order_data.confirmed_at,
-                    current_time,
-                    current_time
-                )
-                
-                cursor.execute(temp_sql, temp_params)
-                
-                conn.commit()
+        # 只插入到 temp_customer_records
+        temp_sql = """
+        INSERT INTO temp_customer_records
+        (customer_id, customer_name, line_id, product_id, purchase_record, quantity,
+        unit_price, amount, conversation_record, order_note, label, is_new_product,
+        status, confirmed_by, confirmed_at, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        temp_params = (
+            order_data.customer_id,
+            order_data.customer_name,
+            order_data.line_id,
+            order_data.product_id,
+            order_data.purchase_record,
+            order_data.quantity,
+            order_data.unit_price,
+            order_data.amount,
+            order_data.conversation_record,
+            order_data.order_note,
+            order_data.label,
+            order_data.is_new_product,
+            order_data.status,
+            order_data.confirmed_by,
+            order_data.confirmed_at,
+            current_time,
+            current_time
+        )
+
+        execute_query(temp_sql, temp_params, env='local', fetch='none')
         
         return {"message": "訂單新增成功"}
         
@@ -1371,40 +1326,30 @@ def create_customer_line_mapping(mapping_data: CustomerLineMappingCreate):
         
         # 檢查是否已存在對應關係
         check_sql = "SELECT COUNT(*) FROM customer_line_mapping WHERE customer_id = %s AND line_id = %s"
-        
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(check_sql, (mapping_data.customer_id, mapping_data.line_id))
-                exists = cursor.fetchone()[0] > 0
-                
-                if not exists:
-                    # 新增對應關係
-                    insert_sql = """
-                    INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes)
-                    VALUES (%s, %s, %s, %s)
-                    """
-                    cursor.execute(insert_sql, (
-                        mapping_data.customer_id, 
-                        mapping_data.line_id, 
-                        current_time, 
-                        f"由 {mapping_data.user_role} 創建"
-                    ))
-                    conn.commit()
-                    
-                    return {"success": True, "message": "客戶Line對應關係已建立"}
-                else:
-                    return {"success": True, "message": "對應關係已存在"}
+        result = execute_query(check_sql, (mapping_data.customer_id, mapping_data.line_id), env='local', fetch='one')
+        exists = result[0] > 0
+
+        if not exists:
+            # 新增對應關係
+            insert_sql = """
+            INSERT INTO customer_line_mapping (customer_id, line_id, created_date, notes)
+            VALUES (%s, %s, %s, %s)
+            """
+            execute_query(insert_sql, (
+                mapping_data.customer_id,
+                mapping_data.line_id,
+                current_time,
+                f"由 {mapping_data.user_role} 創建"
+            ), env='local', fetch='none')
+
+            return {"success": True, "message": "客戶Line對應關係已建立"}
+        else:
+            return {"success": True, "message": "對應關係已存在"}
                     
     except Exception as e:
         print(f"[ERROR] create_customer_line_mapping: {e}")
         raise HTTPException(status_code=500, detail="建立對應關係失敗")
-    
+
 # 滯銷品狀態更新
 class SalesChangeStatusUpdate(BaseModel):
     product_name: str
@@ -1415,36 +1360,36 @@ class SalesChangeStatusUpdate(BaseModel):
 @router.put("/update_sales_change_status")
 def update_sales_change_status(update_data: SalesChangeStatusUpdate):
     check_editor_permission(update_data.user_role)
-    
+
     try:
         # 根據商品名稱更新 sales_change_table 的狀態
         sql = """
-        UPDATE sales_change_table 
+        UPDATE sales_change_table
         SET status = %s, processed_by = %s, processed_at = %s
         WHERE product_id IN (
             SELECT product_id FROM product_master WHERE name_zh = %s
         )
         """
         params = (
-            update_data.status, 
-            update_data.processed_by, 
+            update_data.status,
+            update_data.processed_by,
             datetime.now(),
             update_data.product_name
         )
-        
+
         update_data_to_db(sql, params)
-        
+
         return {
             "message": "滯銷品狀態更新成功",
             "product_name": update_data.product_name,
             "status": update_data.status,
             "processed_by": update_data.processed_by
         }
-        
+
     except Exception as e:
         print(f"[ERROR] 滯銷品狀態更新失敗: {e}")
         raise HTTPException(status_code=500, detail="滯銷品狀態更新失敗")
-    
+
 # 滯銷品狀態更新 - 使用 product_id
 class SalesChangeStatusUpdateById(BaseModel):
     product_id: str
@@ -1455,27 +1400,135 @@ class SalesChangeStatusUpdateById(BaseModel):
 @router.put("/update_sales_change_status_by_id")
 def update_sales_change_status_by_id(update_data: SalesChangeStatusUpdateById):
     check_editor_permission(update_data.user_role)
-    
+
     try:
         # 只更新 status 欄位，不更新 processed_by 和 processed_at
         sql = """
-        UPDATE sales_change_table 
+        UPDATE sales_change_table
         SET status = %s
         WHERE product_id = %s
         """
         params = (
-            update_data.status, 
+            update_data.status,
             update_data.product_id
         )
-        
+
         update_data_to_db(sql, params)
-        
+
         return {
             "message": "滯銷品狀態更新成功",
             "product_id": update_data.product_id,
             "status": update_data.status
         }
-        
+
     except Exception as e:
         print(f"[ERROR] 滯銷品狀態更新失敗: {e}")
         raise HTTPException(status_code=500, detail="滯銷品狀態更新失敗")
+
+# === LINE Bot 設定管理 ===
+import re
+
+def read_line_env_variable(key: str) -> str:
+    """讀取 LINE Bot .env 檔案中的特定變數"""
+    env_file_path = "/home/chou_fish_988/Documents/988/Line_bot/.env"
+    try:
+        with open(env_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    env_key, env_value = line.split('=', 1)
+                    if env_key.strip() == key:
+                        return env_value.strip()
+        return ""
+    except Exception as e:
+        print(f"[ERROR] 讀取 .env 檔案失敗: {e}")
+        raise HTTPException(status_code=500, detail="讀取設定檔失敗")
+
+def update_line_env_variable(key: str, value: str) -> bool:
+    """更新 LINE Bot .env 檔案中的特定變數"""
+    env_file_path = "/home/chou_fish_988/Documents/988/Line_bot/.env"
+    try:
+        # 讀取現有內容
+        with open(env_file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # 尋找並更新指定的變數
+        updated = False
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped and not line_stripped.startswith('#') and '=' in line_stripped:
+                env_key = line_stripped.split('=', 1)[0].strip()
+                if env_key == key:
+                    lines[i] = f"{key}={value}\n"
+                    updated = True
+                    break
+
+        # 如果變數不存在，添加到檔案末尾
+        if not updated:
+            lines.append(f"{key}={value}\n")
+
+        # 寫回檔案
+        with open(env_file_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+        return True
+    except Exception as e:
+        print(f"[ERROR] 更新 .env 檔案失敗: {e}")
+        raise HTTPException(status_code=500, detail="更新設定檔失敗")
+
+def reload_line_env():
+    """通知 LINE Bot 重新載入環境變數"""
+    try:
+        # 這裡可以發送信號給 LINE Bot 重新載入 .env
+        # 目前簡單地更新系統環境變數
+        env_file_path = "/home/chou_fish_988/Documents/988/Line_bot/.env"
+        with open(env_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+        return True
+    except Exception as e:
+        print(f"[ERROR] 重新載入環境變數失敗: {e}")
+        return False
+
+class LineReplyToggleRequest(BaseModel):
+    enabled: bool
+    user_role: str
+
+@router.get("/line-reply-status")
+def get_line_reply_status():
+    """獲取 LINE Bot 回覆開關狀態"""
+    try:
+        current_value = read_line_env_variable("ENABLE_LINE_REPLY")
+        enabled = current_value.lower() == 'true'
+        return {"enabled": enabled}
+    except Exception as e:
+        print(f"[ERROR] 獲取 LINE 回覆狀態失敗: {e}")
+        raise HTTPException(status_code=500, detail="獲取設定失敗")
+
+@router.put("/line-reply-status")
+def update_line_reply_status(request: LineReplyToggleRequest):
+    """更新 LINE Bot 回覆開關狀態"""
+    check_editor_permission(request.user_role)
+    try:
+        # 更新 .env 檔案
+        value = "true" if request.enabled else "false"
+        success = update_line_env_variable("ENABLE_LINE_REPLY", value)
+
+        if success:
+            # 重新載入環境變數
+            reload_line_env()
+            return {
+                "message": "LINE Bot 回覆設定更新成功",
+                "enabled": request.enabled
+            }
+        else:
+            raise HTTPException(status_code=500, detail="設定更新失敗")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] 更新 LINE 回覆狀態失敗: {e}")
+        raise HTTPException(status_code=500, detail="設定更新失敗")

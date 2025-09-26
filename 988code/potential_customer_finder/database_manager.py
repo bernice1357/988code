@@ -7,7 +7,7 @@
 import psycopg2
 import logging
 from typing import List, Dict, Optional, Tuple
-from config import DATABASE_CONFIG
+from potential_customer_finder.config import DATABASE_CONFIG
 
 logger = logging.getLogger(__name__)
 

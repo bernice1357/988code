@@ -4,11 +4,16 @@
 簡化的搜尋測試 - 避免使用複雜的整合分析器
 """
 
+import sys
+import os
+# 添加上層目錄到 Python 路徑
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import json
 from pathlib import Path
 from datetime import datetime
-from chat_analyzer import get_chat_analyzer
-from keyword_generator import get_keyword_generator
+from potential_customer_finder.chat_analyzer import get_chat_analyzer
+from potential_customer_finder.keyword_generator import get_keyword_generator
 
 def simple_product_search(product_name: str):
     """簡化的產品搜尋測試"""
@@ -67,7 +72,7 @@ def simple_product_search(product_name: str):
                 'product_name': product_name,
                 'timestamp': timestamp,
                 'results_count': len(all_results),
-                'results': all_results[:5]  # 只保存前5個結果
+                'results': all_results  # 保存所有結果
             }, f, ensure_ascii=False, indent=2)
         
         print(f"5. 測試檔案已保存: {test_file}")
@@ -83,5 +88,5 @@ def simple_product_search(product_name: str):
 
 if __name__ == "__main__":
     # 測試簡單的產品搜尋
-    test_product = "白花菜"
+    test_product = " 台灣薄鹽鯖魚"
     simple_product_search(test_product)

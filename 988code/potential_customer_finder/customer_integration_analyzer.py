@@ -6,7 +6,7 @@
 
 import logging
 from typing import List, Dict, Optional
-from database_manager import get_database_manager
+from potential_customer_finder.database_manager import get_database_manager
 
 logger = logging.getLogger(__name__)
 

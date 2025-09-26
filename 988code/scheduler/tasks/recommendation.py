@@ -660,10 +660,10 @@ def generate_recommendations(db_config=None):
     # 使用傳入的數據庫配置或默認配置
     if db_config is None:
         db_config = {
-            'host': '26.210.160.206',
-            'port': 5433,
+            'host': 'localhost',
+            'port': 5432,
             'database': '988',
-            'user': 'n8n',
+            'user': 'postgres',
             'password': '1234'
         }
     
