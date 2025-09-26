@@ -841,22 +841,28 @@ def convert_file_to_pdf(file_content: bytes, filename: str) -> bytes:
                 return buffer.getvalue()
         
         # 處理Word檔案
-        elif file_extension == 'docx':
+        elif file_extension in ['doc', 'docx']:
             try:
-                # .docx 使用 python-docx
-                pdf_content = word_to_pdf_docx(file_content, filename, has_chinese_font)
+                # 先嘗試使用 win32com 保持原始版面
+                pdf_content = word_to_pdf_win32com(file_content, filename)
                 if pdf_content:
                     return pdf_content
-                
-                # 如果失敗，返回佔位符 PDF
+
+                # win32com 不可用時，對 .docx 使用 python-docx
+                if file_extension == 'docx':
+                    pdf_content = word_to_pdf_docx(file_content, filename, has_chinese_font)
+                    if pdf_content:
+                        return pdf_content
+
+                # 無法轉換時提供佔位內容
                 return create_word_placeholder_pdf(filename, has_chinese_font)
-                
+
             except Exception as word_error:
                 print(f"[ERROR] Word 檔案處理失敗: {word_error}")
                 return create_word_placeholder_pdf(filename, has_chinese_font)
-        
+
         else:
-            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {file_extension}。支援的格式: pdf, xls, xlsx, docx")
+            raise HTTPException(status_code=400, detail=f"不支援的檔案格式: {file_extension}。支援的格式: pdf, doc, docx, xls, xlsx")
             
     except Exception as e:
         print(f"[ERROR] 檔案轉換失敗: {e}")

@@ -2,6 +2,7 @@ from .common import *
 from dash import callback_context
 from dash.exceptions import PreventUpdate
 from dash import ALL, no_update
+import datetime
 import openpyxl
 import xlrd
 from reportlab.lib.pagesizes import letter, A4
@@ -14,6 +15,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 import tempfile
 import base64
 import os
+
+from env_loader import get_env_int
 
 # TODO 現在還不知道檔案要存到哪
 
@@ -822,6 +825,37 @@ def add_client(n_clicks, new_name, current_list, user_role):
 # 儲存已上傳檔案的變數（模擬全局狀態）
 uploaded_files_store = []
 
+MAX_UPLOAD_SIZE_MB = get_env_int('MAX_UPLOAD_SIZE_MB', 50)
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+
+def normalize_upload_timestamp(raw_timestamp):
+    """將瀏覽器提供的 last_modified 格式安全轉換為秒，允許 None 或毫秒值"""
+    try:
+        if raw_timestamp is None:
+            return datetime.datetime.now().timestamp()
+
+        if isinstance(raw_timestamp, str):
+            if raw_timestamp.isdigit():
+                raw_timestamp = float(raw_timestamp)
+            else:
+                # 嘗試解析 ISO 格式字串
+                try:
+                    return datetime.datetime.fromisoformat(raw_timestamp).timestamp()
+                except ValueError:
+                    return datetime.datetime.now().timestamp()
+
+        if isinstance(raw_timestamp, (int, float)):
+            value = float(raw_timestamp)
+            # html input lastModified 通常是毫秒
+            if value > 1e11:
+                value /= 1000.0
+            return value
+    except Exception:
+        pass
+
+    return datetime.datetime.now().timestamp()
+
 # 檔案類型檢查和圖示判斷函數
 def get_file_icon(filename):
     """根據檔案副檔名返回對應的 Font Awesome 圖示類別"""
@@ -855,7 +889,7 @@ def is_allowed_file(filename):
         return False
     
     extension = filename.lower().split('.')[-1]
-    allowed_extensions = ['pdf', 'docx', 'xls', 'xlsx']
+    allowed_extensions = ['pdf']
     return extension in allowed_extensions
 
 # 處理檔案上傳
@@ -876,7 +910,17 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
     # 如果沒有檔案上傳，不要更新顯示
     if list_of_contents is None:
         raise PreventUpdate
-    
+
+    # dash 可能在單檔時傳回字串，統一轉為列表
+    if isinstance(list_of_contents, str):
+        list_of_contents = [list_of_contents]
+    if isinstance(list_of_names, str):
+        list_of_names = [list_of_names]
+    if list_of_dates is None:
+        list_of_dates = [None] * len(list_of_contents)
+    elif isinstance(list_of_dates, (int, float, str)):
+        list_of_dates = [list_of_dates]
+
     error_message = ""
     show_error = False
     
@@ -898,23 +942,37 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
             if not is_allowed_file(filename):
                 invalid_files.append(filename)
                 continue
-            
+
             # 處理 Excel 檔案：轉換為 PDF
             processed_contents = contents
             processed_filename = filename
-            
+            upload_timestamp = normalize_upload_timestamp(date)
+
+            content_string = contents.split(',', 1)[1] if ',' in contents else contents
+            try:
+                decoded_content = base64.b64decode(content_string)
+            except Exception as decode_error:
+                print(f"[ERROR] 檔案 base64 解碼失敗: {decode_error}")
+                show_error = True
+                error_msg = f"檔案 {filename} 解析失敗，請重新上傳"
+                error_message = error_msg if not error_message else f"{error_message}；{error_msg}"
+                continue
+
+            if len(decoded_content) > MAX_UPLOAD_SIZE_BYTES:
+                show_error = True
+                size_error = f"檔案 {filename} 超過 {MAX_UPLOAD_SIZE_MB}MB 限制，請壓縮或拆分後再上傳"
+                error_message = size_error if not error_message else f"{error_message}；{size_error}"
+                continue
+
             # 檢查是否為 Excel 檔案
             extension = filename.lower().split('.')[-1] if '.' in filename else ''
             if extension in ['xls', 'xlsx']:
                 try:
                     # 解碼 base64 內容
-                    content_type, content_string = contents.split(',')
-                    decoded_content = base64.b64decode(content_string)
-                    
                     # 轉換 Excel 為 PDF
                     print(f"正在將 {filename} 轉換為 PDF...")
                     print(f"原始檔案大小: {len(decoded_content)} bytes")
-                    
+
                     pdf_bytes = excel_to_pdf_bytes_win32com(decoded_content, filename)
                     
                     if pdf_bytes:
@@ -956,7 +1014,7 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
                 # 更新現有檔案
                 uploaded_files_store[existing_file_index] = {
                     'filename': processed_filename,
-                    'date': date,
+                    'date': upload_timestamp,
                     'contents': processed_contents,
                     'frontend_converted': conversion_success
                 }
@@ -964,7 +1022,7 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
                 # 新增檔案
                 uploaded_files_store.append({
                     'filename': processed_filename,
-                    'date': date,
+                    'date': upload_timestamp,
                     'contents': processed_contents,
                     'frontend_converted': conversion_success
                 })
@@ -972,9 +1030,10 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
         if invalid_files:
             show_error = True
             if len(invalid_files) == 1:
-                error_message = f"僅支援 .pdf、.docx、.xls、.xlsx 格式"
+                invalid_msg = "僅支援 .pdf 格式"
             else:
-                error_message = f"以下檔案格式不符合要求：{', '.join(invalid_files)}，僅支援 .pdf、.docx、.xls、.xlsx 格式"
+                invalid_msg = f"以下檔案格式不符合要求：{', '.join(invalid_files)}，僅支援 .pdf 格式"
+            error_message = invalid_msg if not error_message else f"{error_message}；{invalid_msg}"
     
     # 生成檔案列表顯示 - 同時顯示資料庫檔案和新上傳檔案
     all_file_items = []
@@ -1354,7 +1413,16 @@ def display_client_data(n_clicks_list, id_list, current_list):
                     value=client_name,
                     style={"marginBottom": "20px"}
                 ),
-                html.H4("知識庫內容", style={
+                # 隱藏文字內容輸入，保留給後端使用
+                html.Div([
+                    dbc.Textarea(
+                        id="content-input",
+                        value=text_content,
+                        readOnly=True,
+                        style={"display": "none"}
+                    )
+                ], style={"display": "none"}),
+                html.H4("知識庫檔案", style={
                     "borderBottom": "1px solid #6c757d",
                     "paddingBottom": "10px",
                     "marginBottom": "10px",
@@ -1363,23 +1431,8 @@ def display_client_data(n_clicks_list, id_list, current_list):
                 # TABS 區域
                 dbc.Tabs(
                     id="content-tabs",
-                    active_tab="text-tab",
+                    active_tab="file-tab",
                     children=[
-                        dbc.Tab(
-                            label="編輯文字內容",
-                            tab_id="text-tab",
-                            children=[
-                                html.Div([
-                                    dbc.Textarea(
-                                        id="content-input",
-                                        className="mt-3",
-                                        placeholder=f"請在此輸入 {client_name} 的知識庫內容...",
-                                        value=text_content,
-                                        style={"height": "45vh", "resize": "none"}
-                                    )
-                                ])
-                            ]
-                        ),
                         dbc.Tab(
                             label="上傳檔案",
                             tab_id="file-tab",
@@ -1401,11 +1454,19 @@ def display_client_data(n_clicks_list, id_list, current_list):
                                                         "color": "#666",
                                                         "margin": "0"
                                                     }),
-                                                    html.P("支援格式：PDF、DOC、DOCX、XLS、XLSX", style={
+                                                    html.P("支援格式：PDF", style={
                                                         "fontSize": "0.8rem",
                                                         "color": "#999",
                                                         "margin": "0.5rem 0 0 0"
                                                     }),
+                                                    html.P(
+                                                        f"大小限制：≤ {MAX_UPLOAD_SIZE_MB} MB",
+                                                        style={
+                                                            "fontSize": "0.8rem",
+                                                            "color": "#999",
+                                                            "margin": "0.2rem 0 0 0"
+                                                        }
+                                                    ),
                                                 ], style={
                                                     "display": "flex",
                                                     "flexDirection": "column",

@@ -1,16 +1,18 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 import sys
 import os
 
 # 首先載入環境變數
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from env_loader import load_env_file
+from env_loader import load_env_file, get_env_int
 load_env_file()
 
 # 然後載入資料庫連線管理
 from database_config import get_db_connection, execute_query, execute_transaction
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 # 引入各個路由模組
 from get_api import router as get_data_router
@@ -21,6 +23,28 @@ from import_data_api import router as import_data_router
 from sales_predict_api import router as sales_predict_router
 from schedule_api import router as schedule_router
 
+MAX_UPLOAD_SIZE_MB = get_env_int('MAX_UPLOAD_SIZE_MB', 50)
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+
+class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
+    """限制請求內容長度，避免過大的檔案造成 413 或佔用過多資源"""
+
+    def __init__(self, app, max_upload_size: int):
+        super().__init__(app)
+        self.max_upload_size = max_upload_size
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit():
+            if int(content_length) > self.max_upload_size:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"上傳內容超過 {MAX_UPLOAD_SIZE_MB}MB 限制"
+                )
+        return await call_next(request)
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -30,6 +54,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(LimitUploadSizeMiddleware, max_upload_size=MAX_UPLOAD_SIZE_BYTES)
 
 # 註冊路由
 app.include_router(get_data_router)
