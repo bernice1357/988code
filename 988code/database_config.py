@@ -26,7 +26,7 @@ class DatabaseConfig:
         self.configs = {
             'local': {
                 'host': os.getenv('LOCAL_DB_HOST', 'localhost'),
-                'port': os.getenv('LOCAL_DB_PORT', '5432'),
+                'port': os.getenv('LOCAL_DB_PORT', '5433'),
                 'database': os.getenv('LOCAL_DB_NAME', '988'),
                 'user': os.getenv('LOCAL_DB_USER', 'postgres'),
                 'password': os.getenv('LOCAL_DB_PASSWORD', '988988'),
