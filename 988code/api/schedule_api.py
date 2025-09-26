@@ -134,7 +134,7 @@ def get_data_from_db(sql_prompt: str, params=None):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
@@ -154,7 +154,7 @@ def update_data_to_db(sql_prompt: str, params=None):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
@@ -223,7 +223,7 @@ def get_schedule_tasks():
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 # 獲取排程設定
@@ -285,7 +285,7 @@ def toggle_schedule(request: ScheduleToggleRequest):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -337,7 +337,7 @@ def execute_task(request: TaskExecuteRequest):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -372,7 +372,7 @@ def execute_task(request: TaskExecuteRequest):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -402,7 +402,7 @@ def get_task_history(task_id: str, limit: int = 10):
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -439,7 +439,7 @@ def get_schedule_status():
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 # 獲取今日執行統計

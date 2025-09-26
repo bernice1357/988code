@@ -63,7 +63,7 @@ class SalesDataUploader:
                 user='postgres',  
                 password='988988',
                 host='localhost',
-                port='5432',
+                port='5433',
                 connect_timeout=DEFAULT_CONFIG['timeout']
             )
             logger.info("數據庫連接成功")
@@ -1075,7 +1075,7 @@ class InventoryDataUploader:
                 user='postgres',  
                 password='988988',
                 host='localhost',
-                port='5432',
+                port='5433',
                 connect_timeout=DEFAULT_CONFIG['timeout']
             )
             logger.info("庫存數據庫連接成功")

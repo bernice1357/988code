@@ -32,7 +32,7 @@ def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
             user='postgres',
             password='988988',
             host='localhost',
-            port='5432'
+            port='5433'
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt)

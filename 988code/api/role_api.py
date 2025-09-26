@@ -18,14 +18,8 @@ router = APIRouter()
 
 def role_data_from_db(sql_prompt: str, params=None) -> pd.DataFrame:
     try:
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
+        # 使用新的資料庫連線管理系統
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt, params)
                 rows = cursor.fetchall()
