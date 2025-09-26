@@ -117,26 +117,29 @@ def get_customer_data(
         LIMIT %s OFFSET %s
         """
 
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n',
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
-            with conn.cursor() as cursor:
-                if filter_params:
-                    cursor.execute(count_query, tuple(filter_params))
-                else:
-                    cursor.execute(count_query)
-                total_count = cursor.fetchone()[0]
+        # 使用統一的資料庫連線系統
+        try:
+            # 計算總數
+            if filter_params:
+                total_count = execute_query(count_query, tuple(filter_params), fetch='one')[0]
+            else:
+                total_count = execute_query(count_query, (), fetch='one')[0]
 
-                query_params = tuple(filter_params + [page_size, offset])
-                cursor.execute(data_query, query_params)
-                rows = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
+            # 獲取資料
+            query_params = tuple(filter_params + [page_size, offset])
+            rows = execute_query(data_query, query_params, fetch='all')
+
+            # 獲取欄位名稱
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(data_query, query_params)
+                    columns = [desc[0] for desc in cursor.description]
+
+            df = pd.DataFrame(rows, columns=columns)
+
+        except Exception as e:
+            print(f"[DB ERROR] get_customer_data: {e}")
+            raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
         total_pages = (total_count + page_size - 1) // page_size if total_count else 0
         return {
@@ -191,29 +194,22 @@ def get_customer_latest_transactions(limit: int = 50, offset: int = 0):
         # 使用原生 cursor 優化性能（避免 pandas 開銷）
         query_start = time.time()
         
-        import psycopg2
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='n8n', 
-            password='1234',
-            host='26.210.160.206',
-            port='5433'
-        ) as conn:
+        # 使用統一的資料庫連線系統
+        main_results = execute_query(query, (limit, offset), fetch='all')
+
+        # 獲取欄位名稱
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                # 主查詢
                 cursor.execute(query, (limit, offset))
-                main_results = cursor.fetchall()
                 column_names = [desc[0] for desc in cursor.description]
-                
-                # 計數查詢
-                count_query = """
-                SELECT COUNT(*) as total
-                FROM prophet_predictions pp
-                WHERE pp.prediction_status = 'active'
-                """
-                cursor.execute(count_query)
-                total_records = cursor.fetchone()[0]
+
+        # 計數查詢
+        count_query = """
+        SELECT COUNT(*) as total
+        FROM prophet_predictions pp
+        WHERE pp.prediction_status = 'active'
+        """
+        total_records = execute_query(count_query, (), fetch='one')[0]
         
         query_time = time.time() - query_start
         print(f"[PERF] 原生查詢耗時: {query_time:.3f}秒")

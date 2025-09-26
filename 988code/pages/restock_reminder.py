@@ -463,7 +463,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
 def reload_table_data():
     """重新載入表格資料並返回表格內容和資料"""
     try:
-        response = requests.get('http://127.0.0.1:8000/get_restock_data')
+        response = requests.get('http://127.0.0.1:8000/get_restock_data', timeout=60)
         if response.status_code != 200:
             return None, [], True, "無法獲取資料"
         
@@ -529,9 +529,9 @@ def load_data_and_handle_errors(page_loaded):
     
     try:
         # 使用分頁參數載入數據
-        response = requests.get('http://127.0.0.1:8000/get_restock_data', 
-                              params={'limit': 50, 'offset': 0}, 
-                              timeout=10)  # 添加超時
+        response = requests.get('http://127.0.0.1:8000/get_restock_data',
+                              params={'limit': 50, 'offset': 0},
+                              timeout=60)  # 增加超時至1分鐘
         if response.status_code == 200:
             result = response.json()
             data = result.get('data', [])
@@ -1170,7 +1170,7 @@ def update_accordion_with_search(selected_customer_id, selected_date, checkbox_v
     
     # 重新獲取數據並重建表格
     try:
-        response = requests.get('http://127.0.0.1:8000/get_restock_data')
+        response = requests.get('http://127.0.0.1:8000/get_restock_data', timeout=60)
         if response.status_code == 200:
             result = response.json()
             # 處理新的分頁回應格式

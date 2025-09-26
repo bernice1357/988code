@@ -359,14 +359,24 @@ layout = dbc.Container([
     dcc.Store(id='current-order-id-store'),
     html.Div([
         # 左側：新增訂單按鈕
+        html.Div([
         dbc.Button(
             ["新增訂單"],
             id="add-new-order-btn",
             color="success",
             outline=True,
             size="sm",
-            style={"fontWeight": "500","fontSize": "16px"}
+            style={"fontWeight": "500", "fontSize": "16px", "marginRight": "15px"}
         ),
+        dbc.Input(
+            id="customer-search-input",
+            placeholder="搜尋客戶名稱...",
+            type="text",
+            size="sm",
+            style={"width": "250px", "display": "inline-block"}
+        )
+    ], style={"display": "flex", "alignItems": "center"}),
+
         # 右側：篩選按鈕群組
         dbc.ButtonGroup([
             dbc.Button("全部", id="filter-all", color="primary", outline=False),
@@ -516,7 +526,8 @@ layout = dbc.Container([
      Output("filter-all", "outline", allow_duplicate=True),
      Output("filter-unconfirmed", "outline", allow_duplicate=True),
      Output("filter-confirmed", "outline", allow_duplicate=True),
-     Output("filter-deleted", "outline", allow_duplicate=True)],
+     Output("filter-deleted", "outline", allow_duplicate=True),
+     Output("customer-search-input", "value", allow_duplicate=True)],  # 新增這行
     [Input("filter-all", "n_clicks"),
      Input("filter-unconfirmed", "n_clicks"),
      Input("filter-confirmed", "n_clicks"),
@@ -526,26 +537,26 @@ layout = dbc.Container([
 def filter_orders(all_clicks, unconfirmed_clicks, confirmed_clicks, deleted_clicks):
     ctx = dash.callback_context
     if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     triggered_id = ctx.triggered[0]["prop_id"].split('.')[0]
     orders = get_orders()
     
     if triggered_id == "filter-all":
         filtered_orders = orders
-        return create_grouped_orders_layout(filtered_orders), False, True, True, True
+        return create_grouped_orders_layout(filtered_orders), False, True, True, True, ""  # 清空搜尋框
     elif triggered_id == "filter-unconfirmed":
         filtered_orders = [order for order in orders if order.get("status") == "0"]
-        return create_grouped_orders_layout(filtered_orders), True, False, True, True
+        return create_grouped_orders_layout(filtered_orders), True, False, True, True, ""  # 清空搜尋框
     elif triggered_id == "filter-confirmed":
         filtered_orders = [order for order in orders if order.get("status") == "1"]
-        return create_grouped_orders_layout(filtered_orders), True, True, False, True
+        return create_grouped_orders_layout(filtered_orders), True, True, False, True, ""  # 清空搜尋框
     elif triggered_id == "filter-deleted":
         filtered_orders = [order for order in orders if order.get("status") == "2"]
-        return create_grouped_orders_layout(filtered_orders), True, True, True, False
+        return create_grouped_orders_layout(filtered_orders), True, True, True, False, ""  # 清空搜尋框
     else:
         filtered_orders = orders
-        return create_grouped_orders_layout(filtered_orders), False, True, True, True
+        return create_grouped_orders_layout(filtered_orders), False, True, True, True, ""  # 清空搜尋框
 
 # 刪除按鈕，顯示確認刪除modal
 @app.callback(
@@ -1295,3 +1306,59 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
             return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+# 客戶名稱搜尋功能
+@app.callback(
+    Output("orders-container", "children", allow_duplicate=True),
+    [Input("customer-search-input", "value")],
+    [State("filter-all", "outline"),
+     State("filter-unconfirmed", "outline"),
+     State("filter-confirmed", "outline"),
+     State("filter-deleted", "outline")],
+    prevent_initial_call=True
+)
+def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_outline, deleted_outline):
+    if not search_value:
+        # 如果搜尋框為空，根據當前篩選狀態顯示所有訂單
+        orders = get_orders()
+        
+        # 判斷當前篩選狀態
+        if not all_outline:  # 全部按鈕被選中
+            filtered_orders = orders
+        elif not unconfirmed_outline:  # 未確認按鈕被選中
+            filtered_orders = [order for order in orders if order.get("status") == "0"]
+        elif not confirmed_outline:  # 已確認按鈕被選中
+            filtered_orders = [order for order in orders if order.get("status") == "1"]
+        elif not deleted_outline:  # 已刪除按鈕被選中
+            filtered_orders = [order for order in orders if order.get("status") == "2"]
+        else:
+            filtered_orders = orders
+        
+        return create_grouped_orders_layout(filtered_orders)
+    
+    # 執行搜尋
+    orders = get_orders()
+    
+    # 根據當前篩選狀態先篩選訂單
+    if not all_outline:  # 全部按鈕被選中
+        filtered_orders = orders
+    elif not unconfirmed_outline:  # 未確認按鈕被選中
+        filtered_orders = [order for order in orders if order.get("status") == "0"]
+    elif not confirmed_outline:  # 已確認按鈕被選中
+        filtered_orders = [order for order in orders if order.get("status") == "1"]
+    elif not deleted_outline:  # 已刪除按鈕被選中
+        filtered_orders = [order for order in orders if order.get("status") == "2"]
+    else:
+        filtered_orders = orders
+    
+    # 根據搜尋詞進一步篩選客戶名稱
+    search_value_lower = search_value.lower()
+    search_result_orders = []
+    
+    for order in filtered_orders:
+        # 只檢查 customer_name 是否包含搜尋詞
+        customer_name = order.get("customer_name", "")
+        if customer_name and search_value_lower in customer_name.lower():
+            search_result_orders.append(order)
+    
+    return create_grouped_orders_layout(search_result_orders)
