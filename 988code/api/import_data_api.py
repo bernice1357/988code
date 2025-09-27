@@ -1245,6 +1245,9 @@ class InventoryDataUploader:
         """
         if not self.connection:
             raise Exception("數據庫未連接")
+        def safe_str(value):
+            return str(value).strip() if value is not None else ""
+
         
         # 收集唯一的產品資料，包含Excel中的相關欄位
         unique_products = {}
@@ -1256,10 +1259,10 @@ class InventoryDataUploader:
                     # 從Excel記錄中提取產品資訊
                     unique_products[product_id] = {
                         'product_id': product_id,
-                        'name_zh': record.get('product_name_zh', ''),  # 品名規格
-                        'category': record.get('category', ''),        # 類別
-                        'unit': record.get('unit', ''),               # 單位
-                        'warehouse_id': record.get('warehouse_id', '') # 倉庫名稱
+                        'name_zh': safe_str(record.get('product_name_zh')),
+                        'category': safe_str(record.get('category')),
+                        'unit': safe_str(record.get('unit')),
+                        'warehouse_id': safe_str(record.get('warehouse_id'))
                     }
         
         missing_products = []
@@ -1461,7 +1464,7 @@ class InventoryDataUploader:
                 self.connection.rollback()
                 logger.error(f"刪除庫存記錄失敗: {str(e)}")
                 raise
-    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, int, List[str]]:
+    def process_file_with_product_check(self, file_path: str, replace_existing: bool = True) -> Tuple[int, int, int, List[Dict]]:
         """
         處理庫存文件：解析文件 -> 上傳存在的記錄 -> 返回缺失產品列表
         
@@ -1470,7 +1473,7 @@ class InventoryDataUploader:
             replace_existing (bool): 是否替換現有記錄，默認為 True
             
         Returns:
-            tuple: (刪除記錄數, 插入記錄數, 跳過記錄數, 缺失產品ID列表)
+            tuple: (deleted_count, inserted_count, skipped_count, missing_products_details)
         """
         deleted_count = 0
         
@@ -1489,6 +1492,8 @@ class InventoryDataUploader:
             
             # 2. 過濾有效記錄（混合模式：上傳存在的，返回缺失的）
             valid_records, skipped_count, skipped_products = self.filter_valid_inventory_records(data)
+            missing_products = self.get_missing_products(data)
+
             
             if skipped_count > 0:
                 logger.info(f"將上傳 {len(valid_records)} 筆有效庫存記錄，跳過 {skipped_count} 筆記錄（缺失 {len(skipped_products)} 個產品）")
@@ -1510,7 +1515,7 @@ class InventoryDataUploader:
                 inserted_count = 0
             
             # 4. 返回結果：包含上傳統計和缺失產品
-            return deleted_count, inserted_count, skipped_count, skipped_products
+            return deleted_count, inserted_count, skipped_count, missing_products
             
         finally:
             # 關閉數據庫連接

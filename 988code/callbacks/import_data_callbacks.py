@@ -1492,6 +1492,13 @@ def finish_and_import(n_clicks, file_store_data, session_data, user_role):
     prevent_initial_call=True
 )
 def setup_product_modal(missing_products, is_open):
+    def safe_value(value):
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
+
     if is_open and missing_products:
         current_product = missing_products[0]
         total_products = len(missing_products)
@@ -1504,14 +1511,14 @@ def setup_product_modal(missing_products, is_open):
         
         # 從Excel資料預填欄位
         if isinstance(current_product, dict):
-            product_id = current_product.get('product_id', '')
-            name_zh = current_product.get('name_zh', '')
-            category = current_product.get('category', '')
-            unit = current_product.get('unit', '')
-            warehouse_id = current_product.get('warehouse_id', '')
+            product_id = safe_value(current_product.get('product_id'))
+            name_zh = safe_value(current_product.get('name_zh'))
+            category = safe_value(current_product.get('category'))
+            unit = safe_value(current_product.get('unit'))
+            warehouse_id = safe_value(current_product.get('warehouse_id'))
         else:
             # 向後相容：如果還是字串格式
-            product_id = current_product
+            product_id = safe_value(current_product)
             name_zh = category = unit = warehouse_id = ""
         
         return (title, product_id, warehouse_id, name_zh, category, "", "", "", "", unit, "", None,
