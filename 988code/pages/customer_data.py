@@ -999,9 +999,12 @@ def show_delete_confirmation(delete_clicks, customer_name, customer_id):
     State('input-customer-id', 'value'),
     State("customer-data", "data"),
     State("user-role-store", "data"),
+    State("current-page", "data"),
+    State("customer_data-customer-id", "value"),
+    State("customer_data-customer-name", "value"),
     prevent_initial_call=True
 )
-def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, customer_data, user_role):
+def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, customer_data, user_role, current_page, selected_customer_id, selected_customer_name):
     ctx = callback_context
     if not ctx.triggered:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
@@ -1018,11 +1021,33 @@ def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, custo
                                      json={"user_role": user_role or "viewer"})
             
             if response.status_code == 200:
-                # 從本地資料中移除該客戶
-                updated_customer_data = [
-                    customer for customer in customer_data 
-                    if customer.get('customer_id') != customer_id
-                ]
+                # 重新載入當前頁面資料
+                try:
+                    params = {
+                        "page": current_page or 1,
+                        "page_size": 50
+                    }
+                    if selected_customer_id:
+                        params["customer_id"] = selected_customer_id
+                    if selected_customer_name:
+                        params["customer_name"] = selected_customer_name
+
+                    reload_response = requests.get("http://127.0.0.1:8000/get_customer_data", params=params)
+                    if reload_response.status_code == 200:
+                        reload_result = reload_response.json()
+                        updated_customer_data = reload_result.get("data", [])
+                    else:
+                        # 如果重新載入失敗，使用本地更新作為備案
+                        updated_customer_data = [
+                            customer for customer in customer_data 
+                            if customer.get('customer_id') != customer_id
+                        ]
+                except:
+                    # 如果重新載入失敗，使用本地更新作為備案
+                    updated_customer_data = [
+                        customer for customer in customer_data 
+                        if customer.get('customer_id') != customer_id
+                    ]
                 
                 return False, False, True, "客戶刪除成功！", False, "", updated_customer_data
             elif response.status_code == 403:
@@ -1031,6 +1056,6 @@ def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, custo
                 return False, dash.no_update, False, "", True, "刪除失敗", dash.no_update
                 
         except Exception as e:
-            return False, dash.no_update, False, "", True, f"刪除時發生錯誤：{e}"
+            return False, dash.no_update, False, "", True, f"刪除時發生錯誤：{e}", dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
