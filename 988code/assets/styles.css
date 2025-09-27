@@ -366,3 +366,9 @@ div[id*="status-dropdown"] .Select-value-label {
     background-color: #6c757d !important;
     border-color: #6c757d !important;
 }
+
+.customer-data-modal-dialog {
+    max-width: 95vw !important;
+    width: 95vw !important;
+    margin: 1.75rem auto !important;
+}

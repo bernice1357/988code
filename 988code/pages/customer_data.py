@@ -6,6 +6,28 @@ import json
 
 from datetime import datetime
 # DataFrame 處理輔助函數
+
+
+"""表單欄位驗證輔助"""
+def get_missing_required_fields(field_pairs):
+    missing = []
+    for label, value in field_pairs:
+        if value is None:
+            missing.append(label)
+        elif isinstance(value, str):
+            if not value.strip():
+                missing.append(label)
+        elif isinstance(value, (list, tuple, set)):
+            if not value:
+                missing.append(label)
+    return missing
+
+
+def build_required_field_warning(missing_fields):
+    if not missing_fields:
+        return ""
+    return f"請填寫以下欄位：{'、'.join(missing_fields)}"
+
 def process_customer_dataframe(customer_data, selected_customer_id=None, selected_customer_name=None, missing_filter=False):
     """統一處理客戶資料DataFrame的函數，避免重複代碼"""
     if not customer_data:
@@ -220,49 +242,77 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         is_open=False,
         size="xl",
         centered=True,
-        style={"fontSize": "18px"},
+        style={"fontSize": "18px", "width": "90%", "maxWidth": "1100px"},
+        dialogClassName="customer-data-modal-dialog",
         children=[
             dbc.ModalHeader("客戶資訊", style={"fontWeight": "bold", "fontSize": "24px"}),
             dbc.ModalBody([
                 dbc.Form([
+                    dbc.Row([
+                        # 左欄
+                        dbc.Col([
+                            html.Div([
+                                dbc.Label([
+                                    "客戶名稱", 
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-name", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-name", type="text", style={"width": "100%"})
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label([
+                                    "客戶ID", 
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-id", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-id", type="text", style={"width": "100%"})
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label([
+                                    "電話", 
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-phone", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-phone", type="text", style={"width": "100%"})
+                            ], className="mb-3")
+                        ], width=6),
+                        
+                        # 右欄
+                        dbc.Col([
+                            html.Div([
+                                dbc.Label([
+                                    "客戶地址", 
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-address", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-address", type="text", style={"width": "100%"})
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label([
+                                    "每週配送日", 
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], className="form-label", style={"fontSize": "14px"}),
+                                dcc.Checklist(
+                                    id="input-delivery-schedule",
+                                    options=[
+                                        {"label": "一", "value": "一"},
+                                        {"label": "二", "value": "二"},
+                                        {"label": "三", "value": "三"},
+                                        {"label": "四", "value": "四"},
+                                        {"label": "五", "value": "五"},
+                                        {"label": "六", "value": "六"},
+                                        {"label": "日", "value": "日"}
+                                    ],
+                                    value=[],
+                                    inline=True,
+                                    style={"display": "flex", "gap": "15px", "flexWrap": "wrap"}
+                                )
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label("備註", html_for="input-notes", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Textarea(id="input-notes", rows=3, style={"width": "100%"})
+                            ], className="mb-3")
+                        ], width=6)
+                    ]),
                     html.Div([
-                        dbc.Label("客戶名稱", html_for="input-customer-name", className="form-label", style={"fontSize": "14px"}),
-                        dbc.Input(id="input-customer-name", type="text", style={"width": "500px"})
-                    ], className="mb-3"),
-                    html.Div([
-                        dbc.Label("客戶ID", html_for="input-customer-id", className="form-label", style={"fontSize": "14px"}),
-                        dbc.Input(id="input-customer-id", type="text", style={"width": "500px"})
-                    ], className="mb-3"),
-                    html.Div([
-                        dbc.Label("電話", html_for="input-customer-phone", className="form-label", style={"fontSize": "14px"}),
-                        dbc.Input(id="input-customer-phone", type="text", style={"width": "500px"})
-                    ], className="mb-3"),
-                    html.Div([
-                        dbc.Label("客戶地址", html_for="input-customer-address", className="form-label", style={"fontSize": "14px"}),
-                        dbc.Input(id="input-customer-address", type="text", style={"width": "500px"})
-                    ], className="mb-3"),
-                    html.Div([
-                        dbc.Label("每週配送日", className="form-label", style={"fontSize": "14px"}),
-                        dcc.Checklist(
-                            id="input-delivery-schedule",
-                            options=[
-                                {"label": "一", "value": "一"},
-                                {"label": "二", "value": "二"},
-                                {"label": "三", "value": "三"},
-                                {"label": "四", "value": "四"},
-                                {"label": "五", "value": "五"},
-                                {"label": "六", "value": "六"},
-                                {"label": "日", "value": "日"}
-                            ],
-                            value=[],
-                            inline=True,
-                            style={"display": "flex", "gap": "15px"}
-                        )
-                    ], className="mb-3"),
-                    html.Div([
-                        dbc.Label("備註", html_for="input-notes", className="form-label", style={"fontSize": "14px"}),
-                        dbc.Textarea(id="input-notes", rows=3, style={"width": "500px"})
-                    ], className="mb-3")
+                        html.Span("* 必填欄位", style={"color": "red", "fontSize": "12px", "fontWeight": "bold"})
+                    ], className="mt-2")
                 ])
             ], id="customer_data_modal_body"),
             dbc.ModalFooter([
@@ -724,7 +774,19 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
 def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, missing_filter, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    
+
+    required_fields = [
+        ("客戶名稱", customer_name),
+        ("客戶ID", customer_id),
+        ("電話", phone_number),
+        ("客戶地址", address),
+        ("每週配送日", delivery_schedule),
+    ]
+    missing_fields = get_missing_required_fields(required_fields)
+    if missing_fields:
+        warning_message = build_required_field_warning(missing_fields)
+        return dash.no_update, False, "", False, "", True, warning_message, dash.no_update
+
     ctx = callback_context
     button_index = None
     
