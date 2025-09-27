@@ -31,6 +31,25 @@ CITY_DISTRICT_MAP = {
     "連江縣": ["南竿鄉", "北竿鄉", "莒光鄉", "東引鄉"]
 }
 
+def get_missing_required_fields(field_pairs):
+    missing_fields = []
+    for label, value in field_pairs:
+        if value is None:
+            missing_fields.append(label)
+        elif isinstance(value, str):
+            if not value.strip():
+                missing_fields.append(label)
+        elif isinstance(value, (list, tuple, set)):
+            if not value:
+                missing_fields.append(label)
+    return missing_fields
+
+
+def build_required_field_warning(missing_fields):
+    if not missing_fields:
+        return ""
+    return f"請填寫以下欄位：{'、'.join(missing_fields)}"
+
 # 生成隨機客戶ID的函數
 def generate_customer_id():
     import random
@@ -813,6 +832,20 @@ def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id
 )
 def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, current_order_id, user_role):
     if n_clicks:
+        required_fields = [
+            ("客戶 ID", customer_id),
+            ("客戶名稱", customer_name),
+            ("產品 ID", product_id),
+            ("購買品項", purchase_record),
+            ("數量", quantity),
+            ("單價", unit_price),
+            ("金額", amount),
+        ]
+        missing_fields = get_missing_required_fields(required_fields)
+        if missing_fields:
+            warning_message = build_required_field_warning(missing_fields)
+            return dash.no_update, False, dash.no_update, False, True, warning_message, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
         orders = get_orders()
         order_id = current_order_id
         original_order = None
@@ -963,6 +996,8 @@ def set_customer_data(order_data):
      Output("new_orders-success-toast", "is_open", allow_duplicate=True),
      Output("new_orders-success-toast", "children", allow_duplicate=True),
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "children", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True)],
     Input("save-new-customer-btn", "n_clicks"),
     [State("new-customer-id", "value"),
@@ -979,7 +1014,29 @@ def set_customer_data(order_data):
 )
 def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, notes, delivery_schedule, pending_order, user_role):
     if n_clicks and pending_order:
-        # 建構完整地址
+        required_fields = [
+            ("客戶ID", customer_id),
+            ("客戶名稱", customer_name),
+            ("電話號碼", phone),
+            ("客戶地址", address),
+            ("直轄市、縣市", city),
+            ("鄉鎮市區", district),
+            ("每週配送日", delivery_schedule),
+        ]
+        missing_fields = get_missing_required_fields(required_fields)
+        if missing_fields:
+            warning_message = build_required_field_warning(missing_fields)
+            return (
+                dash.no_update,
+                False,
+                dash.no_update,
+                False,
+                True,
+                warning_message,
+                dash.no_update,
+            )
+
+        # 實際組合完整地址
         full_address = ""
         if city:
             full_address += city
@@ -1073,9 +1130,9 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         
                         orders = get_orders()
                         updated_orders = create_grouped_orders_layout(orders)
-                        return False, True, "新客戶創建成功，訂單已新增", False, updated_orders
+                        return False, True, "新客戶創建成功，訂單已新增", False, False, "", updated_orders
                     else:
-                        return dash.no_update, False, dash.no_update, True, dash.no_update
+                        return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
                 else:
                     # 這是確認訂單，使用原有的更新邏輯
                     update_data = {
@@ -1112,17 +1169,17 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         
                         orders = get_orders()
                         updated_orders = create_grouped_orders_layout(orders)
-                        return False, True, "新客戶創建成功，訂單已確認", False, updated_orders
+                        return False, True, "新客戶創建成功，訂單已確認", False, False, "", updated_orders
                     else:
-                        return dash.no_update, False, dash.no_update, True, dash.no_update
+                        return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
             else:
-                return dash.no_update, False, dash.no_update, True, dash.no_update
+                return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
                 
         except Exception as e:
             print(f"新客戶創建失敗：{e}")
-            return dash.no_update, False, dash.no_update, True, dash.no_update
+            return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
     
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 # 跳過客戶創建，直接處理訂單
 @app.callback(
@@ -1187,6 +1244,8 @@ def close_add_order_modal(n_clicks):
      Output("new_orders-success-toast", "is_open", allow_duplicate=True),
      Output("new_orders-success-toast", "children", allow_duplicate=True),
      Output("new_orders-error-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "is_open", allow_duplicate=True),
+     Output("new_orders-warning-toast", "children", allow_duplicate=True),
      Output("orders-container", "children", allow_duplicate=True),
      Output("create-customer-modal", "is_open", allow_duplicate=True),
      Output("pending-order-store", "data", allow_duplicate=True),
@@ -1204,33 +1263,50 @@ def close_add_order_modal(n_clicks):
     prevent_initial_call=True
 )
 def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, user_role):
-    if n_clicks:
-        # 驗證必填欄位
-        if not purchase_record:
-            return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
-        
-        # 檢查客戶是否存在
-        if customer_id:
-            if not check_customer_exists(customer_id):
-                # 客戶不存在，需要創建新客戶
-                pending_order_data = {
-                    "is_new_order": True,  # 標記這是新增訂單
-                    "customer_id": customer_id,
-                    "customer_name": customer_name,
-                    "customer_notes": customer_notes,
-                    "product_id": product_id,
-                    "purchase_record": purchase_record,
-                    "quantity": quantity,
-                    "unit_price": unit_price,
-                    "amount": amount,
-                    "user_role": user_role
-                }
-                return False, False, dash.no_update, False, dash.no_update, True, pending_order_data, {"customer_id": customer_id, "customer_name": customer_name}
-        else:
-            # 如果沒有 customer_id，也需要創建新客戶
+    if not n_clicks:
+        return (
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+        )
+
+    required_fields = [
+        ("客戶 ID", customer_id),
+        ("客戶名稱", customer_name),
+        ("產品 ID", product_id),
+        ("購買品項", purchase_record),
+        ("數量", quantity),
+        ("單價", unit_price),
+        ("金額", amount),
+    ]
+    missing_fields = get_missing_required_fields(required_fields)
+    if missing_fields:
+        warning_message = build_required_field_warning(missing_fields)
+        return (
+            dash.no_update,
+            False,
+            dash.no_update,
+            False,
+            True,
+            warning_message,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+        )
+
+    if customer_id:
+        if not check_customer_exists(customer_id):
             pending_order_data = {
-                "is_new_order": True,  # 標記這是新增訂單
-                "customer_id": customer_id or "",
+                "is_new_order": True,
+                "customer_id": customer_id,
                 "customer_name": customer_name,
                 "customer_notes": customer_notes,
                 "product_id": product_id,
@@ -1238,74 +1314,144 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "amount": amount,
-                "user_role": user_role
+                "user_role": user_role,
             }
-            return False, False, dash.no_update, False, dash.no_update, True, pending_order_data, {"customer_id": customer_id or "", "customer_name": customer_name}
-        
-        # 如果客戶存在，直接創建訂單
-        # 先更新客戶備註
-        if customer_id and customer_notes:
-            try:
-                notes_update_data = {
-                    "notes": customer_notes,
-                    "user_role": user_role
-                }
-                notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
-                if notes_response.status_code != 200:
-                    print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
-            except Exception as e:
-                print(f"客戶備註更新異常：{str(e)}")
-        
-        # 準備新增訂單資料
-        new_order_data = {
-            "customer_id": customer_id,
+            return (
+                False,
+                False,
+                dash.no_update,
+                False,
+                False,
+                "",
+                dash.no_update,
+                True,
+                pending_order_data,
+                {"customer_id": customer_id, "customer_name": customer_name},
+            )
+    else:
+        pending_order_data = {
+            "is_new_order": True,
+            "customer_id": customer_id or "",
             "customer_name": customer_name,
+            "customer_notes": customer_notes,
             "product_id": product_id,
             "purchase_record": purchase_record,
             "quantity": quantity,
             "unit_price": unit_price,
             "amount": amount,
-            "status": "1",
-            "confirmed_by": "user",  
-            "confirmed_at": datetime.now().isoformat(),
-            "user_role": user_role or "viewer"
+            "user_role": user_role,
         }
-        
+        return (
+            False,
+            False,
+            dash.no_update,
+            False,
+            False,
+            "",
+            dash.no_update,
+            True,
+            pending_order_data,
+            {"customer_id": customer_id or "", "customer_name": customer_name},
+        )
+
+    if customer_id and customer_notes:
         try:
-            response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
-            if response.status_code == 200:
-                # 新增到 order_transactions 表
-                try:
-                    transaction_data = {
-                        "customer_id": customer_id,
-                        "product_id": product_id,
-                        "product_name": purchase_record,
-                        "quantity": quantity,
-                        "unit_price": unit_price,
-                        "amount": amount,
-                        "transaction_date": datetime.now().isoformat(),
-                        "user_role": user_role
-                    }
-                    
-                    transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
-                    if transaction_response.status_code != 200:
-                        print(f"order_transactions 更新失敗，狀態碼：{transaction_response.status_code}")
-                except Exception as e:
-                    print(f"order_transactions 更新異常：{str(e)}")
-                
-                # 重新載入訂單列表
-                orders = get_orders()
-                updated_orders = create_grouped_orders_layout(orders)
-                return False, True, "訂單新增成功", False, updated_orders, False, dash.no_update, dash.no_update
-            elif response.status_code == 403:
-                return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
-            else:
-                return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
+            notes_update_data = {"notes": customer_notes, "user_role": user_role}
+            notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
+            if notes_response.status_code != 200:
+                print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
         except Exception as e:
-            print(f"API 呼叫失敗：{e}")
-            return dash.no_update, False, dash.no_update, True, dash.no_update, False, dash.no_update, dash.no_update
-    
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            print(f"客戶備註更新異常：{str(e)}")
+
+    new_order_data = {
+        "customer_id": customer_id,
+        "customer_name": customer_name,
+        "product_id": product_id,
+        "purchase_record": purchase_record,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "amount": amount,
+        "status": "1",
+        "confirmed_by": "user",
+        "confirmed_at": datetime.now().isoformat(),
+        "user_role": user_role or "viewer",
+    }
+
+    try:
+        response = requests.post("http://127.0.0.1:8000/create_temp_order", json=new_order_data)
+        if response.status_code == 200:
+            try:
+                transaction_data = {
+                    "customer_id": customer_id,
+                    "product_id": product_id,
+                    "product_name": purchase_record,
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "amount": amount,
+                    "transaction_date": datetime.now().isoformat(),
+                    "user_role": user_role,
+                }
+                transaction_response = requests.post("http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                if transaction_response.status_code != 200:
+                    print(f"order_transactions 更新失敗，狀態碼：{transaction_response.status_code}")
+            except Exception as e:
+                print(f"order_transactions 更新異常：{str(e)}")
+
+            orders = get_orders()
+            updated_orders = create_grouped_orders_layout(orders)
+            return (
+                False,
+                True,
+                "訂單新增成功",
+                False,
+                False,
+                "",
+                updated_orders,
+                False,
+                dash.no_update,
+                dash.no_update,
+            )
+        elif response.status_code == 403:
+            return (
+                dash.no_update,
+                False,
+                dash.no_update,
+                True,
+                False,
+                "",
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+            )
+        else:
+            return (
+                dash.no_update,
+                False,
+                dash.no_update,
+                True,
+                False,
+                "",
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+            )
+    except Exception as e:
+        print(f"API 呼叫失敗：{e}")
+        return (
+            dash.no_update,
+            False,
+            dash.no_update,
+            True,
+            False,
+            "",
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+        )
+
 
 # 客戶名稱搜尋功能
 @app.callback(

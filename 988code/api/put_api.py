@@ -258,7 +258,7 @@ def create_word_placeholder_pdf(filename, has_chinese_font):
 def update_data_to_db(sql_prompt: str, params: tuple = ()):
     """使用新的資料庫連線管理器執行更新操作"""
     try:
-        return execute_query(sql_prompt, params, env='local', fetch='none')
+        return execute_query(sql_prompt, params, fetch='none')
     except Exception as e:
         print(f"[DB ERROR] {e}")
         raise
@@ -276,7 +276,7 @@ def update_data_to_db_optimized(sql_prompt: str, params: tuple = ()):
 def query_data_from_db(sql_prompt: str, params: tuple = ()):
     """使用新的資料庫連線管理器執行查詢操作"""
     try:
-        return execute_query(sql_prompt, params, env='local', fetch='all')
+        return execute_query(sql_prompt, params, fetch='all')
     except Exception as e:
         print(f"[DB ERROR] {e}")
         raise
@@ -1248,7 +1248,7 @@ def create_customer(customer_data: CustomerCreate):
             queries_params.append((mapping_sql, mapping_params))
 
         # 執行事務
-        execute_transaction(queries_params, env='local')
+        execute_transaction(queries_params)
         
         return {"message": "客戶創建成功", "customer_id": customer_data.customer_id}
     except Exception as e:
@@ -1309,7 +1309,7 @@ def create_temp_order(order_data: TempOrderCreate):
             current_time
         )
 
-        execute_query(temp_sql, temp_params, env='local', fetch='none')
+        execute_query(temp_sql, temp_params, fetch='none')
         
         return {"message": "訂單新增成功"}
         
@@ -1332,7 +1332,7 @@ def create_customer_line_mapping(mapping_data: CustomerLineMappingCreate):
         
         # 檢查是否已存在對應關係
         check_sql = "SELECT COUNT(*) FROM customer_line_mapping WHERE customer_id = %s AND line_id = %s"
-        result = execute_query(check_sql, (mapping_data.customer_id, mapping_data.line_id), env='local', fetch='one')
+        result = execute_query(check_sql, (mapping_data.customer_id, mapping_data.line_id), fetch='one')
         exists = result[0] > 0
 
         if not exists:
@@ -1346,7 +1346,7 @@ def create_customer_line_mapping(mapping_data: CustomerLineMappingCreate):
                 mapping_data.line_id,
                 current_time,
                 f"由 {mapping_data.user_role} 創建"
-            ), env='local', fetch='none')
+            ), fetch='none')
 
             return {"success": True, "message": "客戶Line對應關係已建立"}
         else:
