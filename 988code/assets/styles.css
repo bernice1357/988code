@@ -372,3 +372,7 @@ div[id*="status-dropdown"] .Select-value-label {
     width: 95vw !important;
     margin: 1.75rem auto !important;
 }
+#orders-container pre {
+    color: #000000 !important;
+}
+

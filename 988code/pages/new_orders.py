@@ -187,21 +187,21 @@ def make_card_item(order):
                 html.Div([
                     html.Span(order.get('product_id', ''), style={"color": "black", "fontWeight": "bold", "fontSize": "0.9rem"}) if order.get('product_id') else None,
                     html.Span(" ", style={"fontSize": "0.9rem"}) if order.get('product_id') else None,
-                    html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap"})
-                ], style={"whiteSpace": "pre-wrap"}),
+                    html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap", "color": "#000000"})
+                ], style={"whiteSpace": "pre-wrap", "color": "#000000"}),
                 # 新增數量、單價、金額資訊
                 html.Div([
                     html.Div([
-                        html.Span("數量: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
-                        html.Span(f"{order.get('quantity', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                        html.Span("數量: ", style={"color": "#000000", "fontSize": "0.8rem"}),
+                        html.Span(f"{order.get('quantity', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
                     ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('quantity') is not None else None,
                     html.Div([
-                        html.Span("單價: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
-                        html.Span(f"NT$ {order.get('unit_price', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                        html.Span("單價: ", style={"color": "#000000", "fontSize": "0.8rem"}),
+                        html.Span(f"NT$ {order.get('unit_price', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
                     ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('unit_price') is not None else None,
                     html.Div([
-                        html.Span("總金額: ", style={"color": "#6c757d", "fontSize": "0.8rem"}),
-                        html.Span(f"NT$ {order.get('amount', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold"})
+                        html.Span("總金額: ", style={"color": "#000000", "fontSize": "0.8rem"}),
+                        html.Span(f"NT$ {order.get('amount', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
                     ], style={"display": "inline-block"}) if order.get('amount') is not None else None
                 ], style={"marginTop": "8px"}) if any(order.get(field) is not None for field in ['quantity', 'unit_price', 'amount']) else None
             ], className="mb-3"),
@@ -209,13 +209,13 @@ def make_card_item(order):
             # Order Notes 區塊
             html.Div([
                 html.Small("訊息備註", className="text-info mb-1 d-block"),
-                html.Pre(order.get("order_note", ""), style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
+                html.Pre(order.get("order_note", ""), style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem", "color": "#000000"})
             ], className="mb-3"),
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
             # 歷史備註區塊
             html.Div([
                 html.Small("歷史備註", className="text-info mb-1 d-block"),
-                html.Pre(customer_notes, style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem"})
+                html.Pre(customer_notes, style={"whiteSpace": "pre-wrap", "fontSize": "0.9rem", "color": "#000000"})
             ], className="mb-3"),
             html.Div(style={"margin": "20px 0"}),
             # 建立時間
