@@ -137,6 +137,23 @@ def make_card_item(order):
             customer_notes = ""
     
     # 客戶標題已移至群組標題，這裡不再需要
+    status = str(order.get("status", ""))
+    base_time = order.get("created_at")
+    timestamp_label = "建立時間"
+    timestamp_value = base_time
+
+    if status == "1":
+        timestamp_label = "已確定時間"
+        timestamp_value = order.get("confirmed_at") or order.get("updated_at") or base_time
+    elif status == "2":
+        timestamp_label = "已刪除時間"
+        timestamp_value = order.get("deleted_at") or order.get("updated_at") or base_time
+
+    if timestamp_value:
+        timestamp_display = str(timestamp_value)[:16].replace("T", " ")
+    else:
+        timestamp_display = "N/A"
+
     return dbc.Card([
         dbc.CardHeader([
             html.Div([
@@ -207,7 +224,7 @@ def make_card_item(order):
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
                     dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
                 ]) if order.get("status") == "0" else html.Div(),
-                html.Small(f"建立時間: {order['created_at'][:16].replace('T', ' ')}", className="text-muted", style={"fontSize": "0.7rem"})
+                html.Small(f"{timestamp_label}: {timestamp_display}", className="text-muted", style={"fontSize": "0.7rem"})
             ], className="d-flex justify-content-between align-items-center mt-2")
         ])
     ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
@@ -723,7 +740,8 @@ def confirm_delete(n_clicks, modal_body, user_role):
             # 準備更新資料，只更新status為2
             update_data = {
                 "status": "2",
-                "updated_at": current_time
+                "updated_at": current_time,
+                "deleted_at": current_time
             }
             
             print(f"更新數據: {update_data}")
