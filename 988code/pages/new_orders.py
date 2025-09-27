@@ -229,7 +229,10 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
             # 左欄：客戶ID 和 客戶名稱
             dbc.Col([
                 html.Div([
-                    dbc.Label("客戶 ID", html_for="customer-id", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "客戶 ID ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="customer-id", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="customer-id", 
                         type="text",
@@ -239,7 +242,10 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                     )
                 ], className="mb-3"),
                 html.Div([
-                    dbc.Label("客戶名稱", html_for="customer-name", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "客戶名稱 ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="customer-name", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="customer-name", 
                         type="text",
@@ -263,7 +269,10 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
             # 右欄：其他欄位
             dbc.Col([
                 html.Div([
-                    dbc.Label("產品 ID", html_for="product-id", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "產品 ID ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="product-id", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="product-id", 
                         type="text",
@@ -272,11 +281,17 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                     )
                 ], className="mb-3"),
                 html.Div([
-                    dbc.Label("購買品項", html_for="purchase-record", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "購買品項 ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="purchase-record", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(id="purchase-record", value=purchase_record, style={"width": "100%"})
                 ], className="mb-3"),
                 html.Div([
-                    dbc.Label("數量", html_for="quantity", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "數量 ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="quantity", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="quantity", 
                         type="number",
@@ -287,7 +302,10 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                     )
                 ], className="mb-3"),
                 html.Div([
-                    dbc.Label("單價", html_for="unit-price", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "單價 ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="unit-price", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="unit-price", 
                         type="number",
@@ -298,7 +316,10 @@ def get_modal_fields(customer_id, customer_name, purchase_record, product_id=Non
                     )
                 ], className="mb-3"),
                 html.Div([
-                    dbc.Label("金額", html_for="amount", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Label([
+                        "金額 ", 
+                        html.Span("*", style={"color": "red"})
+                    ], html_for="amount", className="form-label", style={"fontSize": "14px"}),
                     dbc.Input(
                         id="amount", 
                         type="number",
@@ -444,9 +465,12 @@ layout = dbc.Container([
             get_modal_fields("", "", "", None, None, None, None)
         ]),
         dbc.ModalFooter([
-            dbc.Button("取消", id="cancel-add-order", color="secondary", outline=True),
-            dbc.Button("新增", id="submit-add-order", color="success")
-        ])
+        html.Div([
+            html.Small("* 必填欄位", className="text-danger", style={"fontSize": "12px"}),
+        ], className="flex-grow-1"),
+        dbc.Button("取消", id="cancel-add-order", color="secondary", outline=True),
+        dbc.Button("新增", id="submit-add-order", color="success")
+    ], className="d-flex align-items-center")
     ], id="add-order-modal", is_open=False, size="xl", centered=True, style={"fontSize": "18px"}),
 
     # 新增客戶創建 Modal
@@ -460,22 +484,34 @@ layout = dbc.Container([
                 dbc.Col([
                     # 客戶ID
                     dbc.Row([
-                        dbc.Label("客戶ID", width=4),
+                        dbc.Label([
+                            "客戶ID ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dbc.Input(id="new-customer-id", type="text", placeholder="請輸入客戶ID"), width=8)
                     ], className="mb-3"),
                     # 客戶名稱
                     dbc.Row([
-                        dbc.Label("客戶名稱", width=4),
+                        dbc.Label([
+                            "客戶名稱 ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"), width=8)
                     ], className="mb-3"),
                     # 電話號碼
                     dbc.Row([
-                        dbc.Label("電話號碼", width=4),
+                        dbc.Label([
+                            "電話號碼 ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"), width=8)
                     ], className="mb-3"),
                     # 客戶地址
                     dbc.Row([
-                        dbc.Label("客戶地址", width=4),
+                        dbc.Label([
+                            "客戶地址 ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址"), width=8)
                     ], className="mb-3"),
                 ], width=6),
@@ -484,7 +520,10 @@ layout = dbc.Container([
                 dbc.Col([
                     # 直轄市、縣、市
                     dbc.Row([
-                        dbc.Label("直轄市、縣、市", width=4),
+                        dbc.Label([
+                            "直轄市、縣、市 ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dcc.Dropdown(
                             id="new-customer-city",
                             options=[{"label": city, "value": city} for city in CITY_DISTRICT_MAP.keys()],
@@ -493,7 +532,10 @@ layout = dbc.Container([
                     ], className="mb-3"),
                     # 鄉鎮市區
                     dbc.Row([
-                        dbc.Label("鄉鎮市區", width=4),
+                        dbc.Label([
+                            "鄉鎮市區 ", 
+                            html.Span("*", style={"color": "red"})
+                        ], width=4),
                         dbc.Col(dcc.Dropdown(
                             id="new-customer-district",
                             options=[],
@@ -509,7 +551,10 @@ layout = dbc.Container([
             ], className="mb-3"),
             # 每週配送日放在底部，橫跨整個寬度
             dbc.Row([
-                dbc.Label("每週配送日", width=2),
+                dbc.Label([
+                    "每週配送日 ", 
+                    html.Span("*", style={"color": "red"})
+                ], width=2),
                 dbc.Col(dcc.Checklist(
                     id="new-customer-delivery-schedule",
                     options=[
@@ -528,9 +573,12 @@ layout = dbc.Container([
             ], className="mb-3"),
         ]),
         dbc.ModalFooter([
-            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
-            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
-        ])
+        html.Div([
+            html.Small("* 必填欄位", className="text-danger", style={"fontSize": "12px"}),
+        ], className="flex-grow-1"),
+        dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
+        dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
+    ], className="d-flex align-items-center")
     ], id="create-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
     
     # 儲存需要創建客戶的訂單資料
