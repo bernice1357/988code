@@ -251,7 +251,11 @@ def get_sales_change_data_by_threshold(threshold: float):
             COALESCE(c3.phone_number, NULL) as recommended_customer_3_phone,
             COALESCE(sct.status, false) as status
         FROM sales_change_table sct
-        LEFT JOIN product_master pm ON sct.product_id = pm.product_id
+        LEFT JOIN (
+            SELECT product_id, MAX(name_zh) AS name_zh
+            FROM product_master
+            GROUP BY product_id
+        ) pm ON sct.product_id = pm.product_id
         LEFT JOIN customer c1 ON sct.recommended_customer_id_rank1 = c1.customer_id
         LEFT JOIN customer c2 ON sct.recommended_customer_id_rank2 = c2.customer_id
         LEFT JOIN customer c3 ON sct.recommended_customer_id_rank3 = c3.customer_id
