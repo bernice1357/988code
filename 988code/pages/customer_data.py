@@ -265,11 +265,29 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                 ])
             ], id="customer_data_modal_body"),
             dbc.ModalFooter([
+                dbc.Button("刪除", id="input-customer-delete", color="danger", className="me-auto"),  # 新增刪除按鈕，置左
                 dbc.Button("取消", id="input-customer-cancel", color="secondary", className="me-2"),
                 dbc.Button("儲存", id="input-customer-save", color="primary")
             ])
         ]
     ),
+    dbc.Modal(
+    id="delete-customer-confirm-modal",
+    is_open=False,
+    size="md",
+    centered=True,
+    children=[
+        dbc.ModalHeader("確認刪除客戶"),
+        dbc.ModalBody([
+            html.P("確定要刪除此客戶嗎？此操作無法復原。", style={"color": "red", "fontWeight": "bold"}),
+            html.Div(id="delete-customer-info")
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("取消", id="cancel-delete-customer", color="secondary", className="me-2"),
+            dbc.Button("確認刪除", id="confirm-delete-customer", color="danger")
+        ])
+    ]
+),
     success_toast("customer_data", message=""),
     error_toast("customer_data", message=""),
     warning_toast("customer_data", message=""),
@@ -947,3 +965,72 @@ def handle_page_selection_dropdown(item_clicks, current_page):
 )
 def reset_current_page_on_search(customer_id, customer_name):
     return 1
+
+
+# 顯示刪除確認 Modal
+@app.callback(
+    Output('delete-customer-confirm-modal', 'is_open'),
+    Output('delete-customer-info', 'children'),
+    Input('input-customer-delete', 'n_clicks'),
+    State('input-customer-name', 'value'),
+    State('input-customer-id', 'value'),
+    prevent_initial_call=True
+)
+def show_delete_confirmation(delete_clicks, customer_name, customer_id):
+    if delete_clicks:
+        info = html.Div([
+            html.P(f"客戶ID: {customer_id}"),
+            html.P(f"客戶名稱: {customer_name}")
+        ])
+        return True, info
+    return False, ""
+
+# 處理確認刪除
+@app.callback(
+    Output('delete-customer-confirm-modal', 'is_open', allow_duplicate=True),
+    Output('customer_data_modal', 'is_open', allow_duplicate=True),
+    Output('customer_data-success-toast', 'is_open', allow_duplicate=True),
+    Output('customer_data-success-toast', 'children', allow_duplicate=True),
+    Output('customer_data-error-toast', 'is_open', allow_duplicate=True),
+    Output('customer_data-error-toast', 'children', allow_duplicate=True),
+    Output("customer-data", "data", allow_duplicate=True),
+    Input('confirm-delete-customer', 'n_clicks'),
+    Input('cancel-delete-customer', 'n_clicks'),
+    State('input-customer-id', 'value'),
+    State("customer-data", "data"),
+    State("user-role-store", "data"),
+    prevent_initial_call=True
+)
+def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, customer_data, user_role):
+    ctx = callback_context
+    if not ctx.triggered:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if button_id == 'cancel-delete-customer':
+        return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
+    if button_id == 'confirm-delete-customer' and confirm_clicks:
+        try:
+            # 調用刪除 API
+            response = requests.delete(f"http://127.0.0.1:8000/customer/{customer_id}", 
+                                     json={"user_role": user_role or "viewer"})
+            
+            if response.status_code == 200:
+                # 從本地資料中移除該客戶
+                updated_customer_data = [
+                    customer for customer in customer_data 
+                    if customer.get('customer_id') != customer_id
+                ]
+                
+                return False, False, True, "客戶刪除成功！", False, "", updated_customer_data
+            elif response.status_code == 403:
+                return False, dash.no_update, False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update
+            else:
+                return False, dash.no_update, False, "", True, "刪除失敗", dash.no_update
+                
+        except Exception as e:
+            return False, dash.no_update, False, "", True, f"刪除時發生錯誤：{e}"
+    
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update

@@ -1538,3 +1538,31 @@ def update_line_reply_status(request: LineReplyToggleRequest):
     except Exception as e:
         print(f"[ERROR] 更新 LINE 回覆狀態失敗: {e}")
         raise HTTPException(status_code=500, detail="設定更新失敗")
+
+# 新增 Pydantic 模型
+class CustomerDeleteRequest(BaseModel):
+    user_role: str
+
+# 修改刪除端點
+@router.delete("/customer/{customer_id}")
+def delete_customer(customer_id: str, request: CustomerDeleteRequest):
+    check_editor_permission(request.user_role)
+    
+    try:
+        # 檢查客戶是否存在
+        check_sql = "SELECT COUNT(*) FROM customer WHERE customer_id = %s"
+        result = query_data_from_db(check_sql, (customer_id,))
+        if not result or result[0][0] == 0:
+            raise HTTPException(status_code=404, detail="客戶不存在")
+        
+        # 刪除客戶
+        delete_sql = "DELETE FROM customer WHERE customer_id = %s"
+        update_data_to_db(delete_sql, (customer_id,))
+        
+        return {
+            "message": "客戶刪除成功",
+            "customer_id": customer_id
+        }
+    except Exception as e:
+        print(f"[ERROR] 客戶刪除失敗: {e}")
+        raise HTTPException(status_code=500, detail="客戶刪除失敗")
