@@ -56,16 +56,10 @@ class SalesDataUploader:
     def connect_database(self):
         """連接數據庫"""
         try:
-            # 使用專案的實際資料庫連接參數
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-            self.connection =psycopg2.connect(
-                dbname='988',
-                user='postgres',  
-                password='988988',
-                host='localhost',
-                port='5433',
-                connect_timeout=DEFAULT_CONFIG['timeout']
-            )
+            # 使用新的統一資料庫連接管理
+            db_manager = get_db_connection()
+            self.connection = db_manager.__enter__()
+            self.db_manager = db_manager  # 保存 context manager 以便後續關閉
             logger.info("數據庫連接成功")
             return True
         except Exception as e:
@@ -74,8 +68,8 @@ class SalesDataUploader:
     
     def close_connection(self):
         """關閉數據庫連接"""
-        if self.connection:
-            self.connection.close()
+        if hasattr(self, 'db_manager') and self.db_manager:
+            self.db_manager.__exit__(None, None, None)
             logger.info("數據庫連接已關閉")
     
     def delete_records_by_months(self, months: set) -> int:
@@ -1068,16 +1062,10 @@ class InventoryDataUploader:
     def connect_database(self):
         """連接數據庫"""
         try:
-            # 使用專案的實際資料庫連接參數
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-            self.connection =psycopg2.connect(
-                dbname='988',
-                user='postgres',  
-                password='988988',
-                host='localhost',
-                port='5433',
-                connect_timeout=DEFAULT_CONFIG['timeout']
-            )
+            # 使用新的統一資料庫連接管理
+            db_manager = get_db_connection()
+            self.connection = db_manager.__enter__()
+            self.db_manager = db_manager  # 保存 context manager 以便後續關閉
             logger.info("庫存數據庫連接成功")
             return True
         except Exception as e:
@@ -1086,8 +1074,8 @@ class InventoryDataUploader:
     
     def close_connection(self):
         """關閉數據庫連接"""
-        if self.connection:
-            self.connection.close()
+        if hasattr(self, 'db_manager') and self.db_manager:
+            self.db_manager.__exit__(None, None, None)
             logger.info("庫存數據庫連接已關閉")
     
     def parse_inventory_data(self, file_path: str) -> List[Dict]:
