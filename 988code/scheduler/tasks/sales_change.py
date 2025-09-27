@@ -205,8 +205,8 @@ class SalesChangeManager:
                 SUM(quantity) as current_sales
             FROM order_transactions
             WHERE product_id = %s
-              AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-              AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              AND EXTRACT(YEAR FROM transaction_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+              AND EXTRACT(MONTH FROM transaction_date) = EXTRACT(MONTH FROM CURRENT_DATE)
             GROUP BY product_id
         ) calc,
         inventory inv,
