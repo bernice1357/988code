@@ -1,5 +1,5 @@
 import dash
-from dash import Input, Output, State, no_update, ALL, callback_context
+from dash import Input, Output, State, no_update, ALL, callback_context, html
 import datetime
 import base64
 import io
@@ -907,6 +907,7 @@ def process_sales_import(current_files, session_data, user_role):
                             session_data['deleted_count'] = deleted_count
                             session_data['inserted_count'] = inserted_count
                             session_data['skipped_count'] = skipped_count
+                            session_data['last_processed_type'] = 'sales'
                             
                             if skipped_count > 0:
                                 status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆交易記錄，跳過 {skipped_count} 筆記錄"
@@ -1034,6 +1035,7 @@ def save_current_files(n_clicks, session_data, user_role):
                                 session_data['total_records'] = inserted_count
                                 session_data['deleted_count'] = deleted_count
                                 session_data['inserted_count'] = inserted_count
+                                session_data['last_processed_type'] = 'sales'
                                 
                                 success_message = f"✅ 銷貨資料上傳完成！\n檔案: {filename}\n刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆記錄"
                                 
@@ -1085,6 +1087,8 @@ def save_current_files(n_clicks, session_data, user_role):
                     
                     # 清空已上傳的檔案
                     uploaded_files_store[current_data_type] = []
+                    session_data['status'] = 'completed'
+                    session_data['last_processed_type'] = 'line_zip'
                     
                     success_message = f"✅ 已成功儲存 {len(saved_files)} 個檔案到 {upload_folder} 資料夾\n\n檔案清單:\n" + "\n".join(saved_files)
                     return (
@@ -1431,6 +1435,7 @@ def skip_all_customers(n_clicks, missing_customers, current_file_store_data, mis
     else:
         # 沒有缺失產品，完成上傳流程
         session_data['status'] = 'completed'
+        session_data['last_processed_type'] = 'sales'
         success_msg = f"✅ 上傳完成！已上傳 {inserted_count} 筆記錄，跳過 {skipped_count} 個客戶"
         warning_msg = f"⚠️ 注意：跳過的客戶可能導致匯入失敗。"
         return ("匯入上傳檔案", False, session_data, [], False, False, True, success_msg, True, warning_msg)
@@ -1664,6 +1669,7 @@ def skip_all_products(n_clicks, missing_products, session_data):
     
     # 更新會話數據為完成狀態
     session_data['status'] = 'completed'
+    session_data['last_processed_type'] = 'inventory'
     
     # 構建成功訊息
     deleted_count = session_data.get('deleted_count', 0)
@@ -1728,6 +1734,7 @@ def process_inventory_import(current_files, session_data, user_role):
                             session_data['total_records'] = inserted_count
                             session_data['deleted_count'] = deleted_count
                             session_data['inserted_count'] = inserted_count
+                            session_data['last_processed_type'] = 'inventory'
                             
                             status_message = f"刪除 {deleted_count} 筆舊記錄，新增 {inserted_count} 筆庫存記錄"
                             processing_results.append(f"{filename}: {status_message}")
@@ -1811,3 +1818,42 @@ def finish_and_import_inventory(n_clicks, file_store_data, session_data, user_ro
         error_msg = "未找到要匯入的庫存檔案資訊"
         return ("匯入上傳檔案", False, {"display": "none"}, session_data, 
                False, "", True, error_msg, False)
+
+def _build_empty_upload_panel():
+    return html.Div([
+        html.Span(
+            "尚未上傳任何檔案",
+            style={
+                "color": "#6c757d",
+                "fontStyle": "italic",
+                "fontSize": "1rem"
+            }
+        )
+    ], style={
+        "textAlign": "center",
+        "padding": "2rem"
+    })
+
+
+@app.callback(
+    Output('import-output-data-upload', 'children', allow_duplicate=True),
+    Input('import-session-store', 'data'),
+    prevent_initial_call=True
+)
+def clear_uploaded_files_after_completion(session_data):
+    global uploaded_files_store, current_data_type
+
+    if not session_data or session_data.get('status') != 'completed':
+        return no_update
+
+    data_type = session_data.get('last_processed_type') or current_data_type
+
+    if data_type:
+        if data_type in uploaded_files_store:
+            uploaded_files_store[data_type] = []
+    else:
+        for key in uploaded_files_store:
+            uploaded_files_store[key] = []
+
+    logger.info(f"已在 {session_data.get('status')} 狀態下清除 {data_type or '所有'} 資料類型的暫存檔案列表")
+    return _build_empty_upload_panel()
