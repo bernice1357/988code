@@ -154,6 +154,7 @@ search_customers = create_search_offcanvas(
 )
 
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
+    dcc.Location(id="page-reload-trigger", refresh=True),
     dcc.Store(id="page-loaded", data=True),
     dcc.Store(id="missing-data-filter", data=False),
     dcc.Store(id="customer-data", data=[]),
@@ -993,7 +994,7 @@ def show_delete_confirmation(delete_clicks, customer_name, customer_id):
     Output('customer_data-success-toast', 'children', allow_duplicate=True),
     Output('customer_data-error-toast', 'is_open', allow_duplicate=True),
     Output('customer_data-error-toast', 'children', allow_duplicate=True),
-    Output("customer-data", "data", allow_duplicate=True),
+    Output("page-reload-trigger", "href", allow_duplicate=True),  # 添加這個輸出
     Input('confirm-delete-customer', 'n_clicks'),
     Input('cancel-delete-customer', 'n_clicks'),
     State('input-customer-id', 'value'),
@@ -1021,35 +1022,10 @@ def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, custo
                                      json={"user_role": user_role or "viewer"})
             
             if response.status_code == 200:
-                # 重新載入當前頁面資料
-                try:
-                    params = {
-                        "page": current_page or 1,
-                        "page_size": 50
-                    }
-                    if selected_customer_id:
-                        params["customer_id"] = selected_customer_id
-                    if selected_customer_name:
-                        params["customer_name"] = selected_customer_name
-
-                    reload_response = requests.get("http://127.0.0.1:8000/get_customer_data", params=params)
-                    if reload_response.status_code == 200:
-                        reload_result = reload_response.json()
-                        updated_customer_data = reload_result.get("data", [])
-                    else:
-                        # 如果重新載入失敗，使用本地更新作為備案
-                        updated_customer_data = [
-                            customer for customer in customer_data 
-                            if customer.get('customer_id') != customer_id
-                        ]
-                except:
-                    # 如果重新載入失敗，使用本地更新作為備案
-                    updated_customer_data = [
-                        customer for customer in customer_data 
-                        if customer.get('customer_id') != customer_id
-                    ]
+                # 刪除成功後重新載入整個頁面
+                # 通過改變 href 觸發頁面重新載入
+                return False, False, True, "客戶刪除成功！正在重新載入頁面...", False, "", "/customer_data"
                 
-                return False, False, True, "客戶刪除成功！", False, "", updated_customer_data
             elif response.status_code == 403:
                 return False, dash.no_update, False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update
             else:
