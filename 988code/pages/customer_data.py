@@ -277,16 +277,67 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     is_open=False,
     size="md",
     centered=True,
+    backdrop="static",  # 防止點擊背景關閉modal
+    className="custom-delete-modal",  # 添加自定義class
+    style={
+        "z-index": "1060",  # 確保modal在最上層
+    },
     children=[
-        dbc.ModalHeader("確認刪除客戶"),
+        dbc.ModalHeader(
+            "確認刪除客戶",
+            style={
+                "background-color": "#f8f9fa",
+                "border-bottom": "2px solid #dc3545",
+                "font-weight": "bold",
+                "color": "#dc3545"
+            }
+        ),
         dbc.ModalBody([
-            html.P("確定要刪除此客戶嗎？此操作無法復原。", style={"color": "red", "fontWeight": "bold"}),
-            html.Div(id="delete-customer-info")
-        ]),
+            html.P(
+                "確定要刪除此客戶嗎？此操作無法復原。", 
+                style={
+                    "color": "red", 
+                    "fontWeight": "bold",
+                    "margin-bottom": "15px",
+                    "text-align": "center"
+                }
+            ),
+            html.Div(
+                id="delete-customer-info",
+                style={
+                    "background-color": "#fff3cd",
+                    "border": "1px solid #ffeaa7",
+                    "border-radius": "5px",
+                    "padding": "10px",
+                    "margin-top": "10px",
+                    "font-weight": "bold",
+                    "color": "black"
+                }
+            )
+        ], style={
+            "padding": "20px",
+            "background-color": "#ffffff"
+        }),
         dbc.ModalFooter([
-            dbc.Button("取消", id="cancel-delete-customer", color="secondary", className="me-2"),
-            dbc.Button("確認刪除", id="confirm-delete-customer", color="danger")
-        ])
+            dbc.Button(
+                "取消", 
+                id="cancel-delete-customer", 
+                color="secondary", 
+                className="me-2",
+                style={"min-width": "80px"}
+            ),
+            dbc.Button(
+                "確認刪除", 
+                id="confirm-delete-customer", 
+                color="danger",
+                style={"min-width": "80px"}
+            )
+        ], style={
+            "background-color": "#f8f9fa",
+            "border-top": "1px solid #dee2e6",
+            "justify-content": "center",
+            "gap": "10px"
+        })
     ]
 ),
     success_toast("customer_data", message=""),
