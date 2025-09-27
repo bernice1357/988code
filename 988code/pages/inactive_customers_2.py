@@ -348,6 +348,9 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
     
     df = pd.DataFrame(sales_data)
     
+    if 'product_id' in df.columns and '商品_ID' not in df.columns:
+        df['商品_ID'] = df['product_id']
+    
     # 類型篩選
     if filter_type == "increase":
         df = df[df['變化比例原始值'] > 0]
@@ -361,7 +364,7 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
         df = df[df['商品名稱'] == product_name_filter]  # 改為精確匹配
     
     # 只保留需要的欄位
-    columns_to_keep = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
+    columns_to_keep = ['product_id', '商品_ID', '商品名稱', '上月銷量', '本月銷量', '變化比例', '變化比例原始值', '目前庫存', '狀態', '推薦客戶1', '推薦客戶1電話', '推薦客戶2', '推薦客戶2電話', '推薦客戶3', '推薦客戶3電話']
     df = df[columns_to_keep]
     
     # 確保所有需要的欄位都存在
@@ -547,7 +550,7 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
             df['變化比例'] = df.apply(apply_percentage_style, axis=1)
         
         # 只保留表格顯示的欄位
-        display_columns = ['product_id', '商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
+        display_columns = ['商品_ID', '商品名稱', '上月銷量', '本月銷量', '變化比例', '目前庫存', '狀態']
         # 確保所有欄位都存在
         available_columns = [col for col in display_columns if col in df.columns]
         df_display = df[available_columns].copy()
