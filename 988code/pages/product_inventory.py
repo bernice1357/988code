@@ -88,6 +88,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         centered=True,
         className="custom-delete-modal",
         style={"z-index": "1060"},
+        size="xl",  # 增加寬度
         children=[
             dbc.ModalHeader(
                 dbc.ModalTitle("確定刪除品項", id="delete-confirm-modal-title"),
@@ -112,8 +113,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                     html.Div(
                         id="delete-items-list",
                         style={
-                            "background-color": "#fff3cd",
-                            "border": "1px solid #ffeaa7",
+                            "background-color": "#f2f3f5",
+                            "border": "1px solid #d9d9d9",
                             "border-radius": "5px",
                             "padding": "10px",
                             "margin-top": "10px",
@@ -780,22 +781,73 @@ def handle_delete_button(delete_clicks, cancel_clicks, is_open, stored_data, mod
         subcategory = modal_title.replace("商品群組：", "")
 
         # 建立要刪除的品項列表
-        items_list = []
-        items_list.append(html.H6(f"商品群組：{subcategory}", style={"color": "#dc3545", "marginBottom": "10px"}))
+        # 建立要刪除的項目列表
+        header = html.H6(
+            f"商品群組：{subcategory}",
+            style={"color": "#dc3545", "marginBottom": "10px"},
+            className="delete-items-header"
+        )
 
-        for item in stored_data:
+        # 全選/全不選按鈕
+        actions = html.Div(
+            [
+                dbc.Button("全選", id="select-all-delete-items", size="sm", color="secondary", outline=True, className="me-2"),
+                dbc.Button("全不選", id="deselect-all-delete-items", size="sm", color="secondary", outline=True)
+            ],
+            className="delete-items-actions",
+            style={"marginBottom": "10px", "textAlign": "center"}
+        )
+
+        # 建立勾選的項目列表
+        item_entries = []
+        for i, item in enumerate(stored_data):
             product_id = item.get("商品ID", "")
             product_name = item.get("商品名稱", "")
+            location = item.get("存放地點", "")
             if product_id:
-                items_list.append(
-                    html.Div([
-                        html.Strong(f"• {product_id}"),
-                        html.Span(f" - {product_name}", style={"marginLeft": "10px"})
-                    ], style={"marginBottom": "5px"})
+                item_entries.append(
+                    html.Div(
+                        [
+                            dbc.Checkbox(
+                                id={"type": "delete-item-checkbox", "index": i},
+                                value=True,  # 預設全選
+                                style={"marginTop": "4px"}
+                            ),
+                            html.Div(
+                                [
+                                    html.Strong(f"{product_id}"),
+                                    html.Span(f" - {product_name}", style={"marginLeft": "10px"}),
+                                    html.Span(
+                                        f" | 存放地點：{location}",
+                                        style={"marginLeft": "10px", "color": "#666", "fontSize": "0.9em"}
+                                    )
+                                ],
+                                style={"flex": "1", "display": "flex", "flexWrap": "wrap"}
+                            )
+                        ],
+                        className="delete-item-entry",
+                        style={
+                            "display": "flex",
+                            "alignItems": "flex-start",
+                            "gap": "10px",
+                            "padding": "10px",
+                            "backgroundColor": "#f8f9fa",
+                            "borderRadius": "6px",
+                            "border": "1px solid #dee2e6"
+                        }
+                    )
                 )
 
-        items_list.append(html.Hr(style={"margin": "10px 0"}))
-        items_list.append(html.P(f"共計 {len(stored_data)} 個品項將被刪除", style={"fontWeight": "bold", "color": "#dc3545"}))
+        grid = html.Div(item_entries, className="delete-items-grid")
+
+        items_list = [
+            header,
+            actions,
+            grid,
+            html.Hr(style={"margin": "15px 0"}),
+            html.Div(id="selected-items-count", style={"fontWeight": "bold", "color": "#dc3545", "textAlign": "center"})
+        ]
+
 
         return True, items_list
 
@@ -813,15 +865,20 @@ def handle_delete_button(delete_clicks, cancel_clicks, is_open, stored_data, mod
     Input("delete-confirm-button", "n_clicks"),
     [State("modal-table-data", "data"),
      State("inventory-modal-title", "children"),
-     State("user-role-store", "data")],
+     State("user-role-store", "data"),
+     State({"type": "delete-item-checkbox", "index": ALL}, "value")],
     prevent_initial_call=True
 )
-def execute_delete(n_clicks, stored_data, modal_title, user_role):
+def execute_delete(n_clicks, stored_data, modal_title, user_role, checkbox_values):
     if not n_clicks or n_clicks == 0:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     if not stored_data or not modal_title or "商品群組：" not in modal_title:
         return False, dash.no_update, False, "", True, "無效的品項資料", dash.no_update
+
+    # 檢查是否有選中的品項
+    if not checkbox_values or not any(checkbox_values):
+        return False, dash.no_update, False, "", True, "請至少選擇一個品項進行刪除", dash.no_update
 
     subcategory = modal_title.replace("商品群組：", "")
 
@@ -830,7 +887,11 @@ def execute_delete(n_clicks, stored_data, modal_title, user_role):
         total_deletes = 0
         failed_items = []
 
-        for item in stored_data:
+        # 只處理被選中的品項
+        for i, (item, is_selected) in enumerate(zip(stored_data, checkbox_values)):
+            if not is_selected:
+                continue
+
             product_id = item.get("商品ID", "")
             if not product_id:
                 continue
@@ -1032,3 +1093,45 @@ def reset_product_form(is_open):
     else:
         # Modal 關閉時重置所有欄位
         return "", "", "", "", "", "", "", "", "", "", "", "active"
+
+# 處理全選/全不選按鈕
+@app.callback(
+    Output({"type": "delete-item-checkbox", "index": ALL}, "value"),
+    [Input("select-all-delete-items", "n_clicks"),
+     Input("deselect-all-delete-items", "n_clicks")],
+    [State({"type": "delete-item-checkbox", "index": ALL}, "value")],
+    prevent_initial_call=True
+)
+def handle_select_all_delete_items(select_all_clicks, deselect_all_clicks, current_values):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return dash.no_update
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if trigger_id == "select-all-delete-items" and select_all_clicks:
+        return [True] * len(current_values)
+    elif trigger_id == "deselect-all-delete-items" and deselect_all_clicks:
+        return [False] * len(current_values)
+
+    return dash.no_update
+
+# 更新選中品項數量顯示
+@app.callback(
+    Output("selected-items-count", "children"),
+    Input({"type": "delete-item-checkbox", "index": ALL}, "value"),
+    prevent_initial_call=True
+)
+def update_selected_items_count(checkbox_values):
+    if not checkbox_values:
+        return "未選擇任何品項"
+
+    selected_count = sum(1 for value in checkbox_values if value)
+    total_count = len(checkbox_values)
+
+    if selected_count == 0:
+        return "未選擇任何品項"
+    elif selected_count == total_count:
+        return f"已選擇全部 {total_count} 個品項"
+    else:
+        return f"已選擇 {selected_count}/{total_count} 個品項"
