@@ -63,7 +63,8 @@ class DatabaseConfig:
                     user=config['user'],
                     password=config['password'],
                     connect_timeout=10,
-                    application_name='988_web_app'
+                    application_name='988_web_app',
+                    client_encoding='utf8'
                 )
                 logger.info(f"成功建立{env}環境連線池")
             except Exception as e:

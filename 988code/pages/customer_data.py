@@ -1,4 +1,5 @@
-from .common import *
+﻿from .common import *
+from .new_orders import CITY_DISTRICT_MAP
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from callbacks.export_callback import add_download_component
 from dash import ALL, callback_context
@@ -52,6 +53,8 @@ def process_customer_dataframe(customer_data, selected_customer_id=None, selecte
         "customer_name": "客戶名稱",
         "phone_number": "電話",
         "address": "客戶地址",
+        "city": "直轄市、縣市",
+        "district": "鄉鎮市區",
         "delivery_schedule": "每週配送日",
         "transaction_date": "最新交易日期",
         "notes": "備註"
@@ -102,6 +105,8 @@ def update_customer_record_locally(customer_data, button_index, updated_fields, 
                 'customer_id': updated_fields.get('customer_id', record.get('customer_id')),
                 'phone_number': updated_fields.get('phone_number', record.get('phone_number')),
                 'address': updated_fields.get('address', record.get('address')),
+                'city': updated_fields.get('city', record.get('city')),
+                'district': updated_fields.get('district', record.get('district')),
                 'delivery_schedule': updated_fields.get('delivery_schedule', record.get('delivery_schedule')),
                 'notes': updated_fields.get('notes', record.get('notes'))
             })
@@ -129,30 +134,37 @@ def convert_delivery_schedule_to_chinese(schedule_str):
     except:
         return schedule_str
 
-def convert_delivery_schedule_to_numbers(chinese_str):
-    if not chinese_str:
+def convert_delivery_schedule_to_numbers(schedule_values):
+    if not schedule_values:
         return ""
     
     chinese_to_number = {
         "一": "1", "二": "2", "三": "3", "四": "4",
         "五": "5", "六": "6", "日": "7"
     }
-    
+    day_order = ["1", "2", "3", "4", "5", "6", "7"]
+
     try:
-        # 處理列表格式 (來自 checklist)
-        if isinstance(chinese_str, list):
-            chinese_days = chinese_str
+        if isinstance(schedule_values, list):
+            raw_items = [str(day).strip() for day in schedule_values if str(day).strip()]
         else:
-            # 處理字符串格式
-            chinese_days = [day.strip() for day in chinese_str.split(',') if day.strip()]
-        
-        # 按照順序排列數字
-        day_order = ["1", "2", "3", "4", "5", "6", "7"]
-        numbers = [chinese_to_number.get(day, day) for day in chinese_days]
-        # 按照星期順序排列
-        sorted_numbers = [num for num in day_order if num in numbers]
-        return ','.join(sorted_numbers)
-    except:
+            raw_items = [str(day).strip() for day in str(schedule_values).split(',') if str(day).strip()]
+
+        mapped_items = [chinese_to_number.get(item, item) for item in raw_items]
+
+        seen = set()
+        ordered_items = []
+        for day in day_order:
+            if day in mapped_items and day not in seen:
+                ordered_items.append(day)
+                seen.add(day)
+        for item in mapped_items:
+            if item not in seen:
+                ordered_items.append(item)
+                seen.add(item)
+
+        return ','.join(ordered_items)
+    except Exception:
         return ""
 
 # offcanvas
@@ -249,72 +261,90 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             dbc.ModalBody([
                 dbc.Form([
                     dbc.Row([
-                        # 左欄
                         dbc.Col([
                             html.Div([
                                 dbc.Label([
-                                    "客戶名稱", 
-                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
-                                ], html_for="input-customer-name", className="form-label", style={"fontSize": "14px"}),
-                                dbc.Input(id="input-customer-name", type="text", style={"width": "100%"})
-                            ], className="mb-3"),
-                            html.Div([
-                                dbc.Label([
-                                    "客戶ID", 
+                                    "客戶ID",
                                     html.Span(" *", style={"color": "red", "fontWeight": "bold"})
                                 ], html_for="input-customer-id", className="form-label", style={"fontSize": "14px"}),
-                                dbc.Input(id="input-customer-id", type="text", style={"width": "100%"})
+                                dbc.Input(id="input-customer-id", type="text", placeholder="請輸入客戶ID", style={"width": "100%"})
                             ], className="mb-3"),
                             html.Div([
                                 dbc.Label([
-                                    "電話", 
+                                    "客戶名稱",
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-name", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-name", type="text", placeholder="請輸入客戶名稱", style={"width": "100%"})
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label([
+                                    "電話號碼",
                                     html.Span(" *", style={"color": "red", "fontWeight": "bold"})
                                 ], html_for="input-customer-phone", className="form-label", style={"fontSize": "14px"}),
-                                dbc.Input(id="input-customer-phone", type="text", style={"width": "100%"})
+                                dbc.Input(id="input-customer-phone", type="text", placeholder="請輸入電話號碼", style={"width": "100%"})
+                            ], className="mb-3"),
+                            html.Div([
+                                dbc.Label([
+                                    "客戶地址",
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-address", className="form-label", style={"fontSize": "14px"}),
+                                dbc.Input(id="input-customer-address", type="text", placeholder="請輸入客戶地址", style={"width": "100%"})
                             ], className="mb-3")
                         ], width=6),
-                        
-                        # 右欄
                         dbc.Col([
                             html.Div([
                                 dbc.Label([
-                                    "客戶地址", 
+                                    "直轄市、縣市",
                                     html.Span(" *", style={"color": "red", "fontWeight": "bold"})
-                                ], html_for="input-customer-address", className="form-label", style={"fontSize": "14px"}),
-                                dbc.Input(id="input-customer-address", type="text", style={"width": "100%"})
-                            ], className="mb-3"),
-                            html.Div([
-                                dbc.Label([
-                                    "每週配送日", 
-                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
-                                ], className="form-label", style={"fontSize": "14px"}),
-                                dcc.Checklist(
-                                    id="input-delivery-schedule",
-                                    options=[
-                                        {"label": "一", "value": "一"},
-                                        {"label": "二", "value": "二"},
-                                        {"label": "三", "value": "三"},
-                                        {"label": "四", "value": "四"},
-                                        {"label": "五", "value": "五"},
-                                        {"label": "六", "value": "六"},
-                                        {"label": "日", "value": "日"}
-                                    ],
-                                    value=[],
-                                    inline=True,
-                                    style={"display": "flex", "gap": "15px", "flexWrap": "wrap"}
+                                ], html_for="input-customer-city", className="form-label", style={"fontSize": "14px"}),
+                                dcc.Dropdown(
+                                    id="input-customer-city",
+                                    options=[{"label": city, "value": city} for city in CITY_DISTRICT_MAP.keys()],
+                                    placeholder="請選擇直轄市縣市"
                                 )
                             ], className="mb-3"),
                             html.Div([
-                                dbc.Label("備註", html_for="input-notes", className="form-label", style={"fontSize": "14px"}),
-                                dbc.Textarea(id="input-notes", rows=3, style={"width": "100%"})
+                                dbc.Label([
+                                    "鄉鎮市區",
+                                    html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                                ], html_for="input-customer-district", className="form-label", style={"fontSize": "14px"}),
+                                dcc.Dropdown(
+                                    id="input-customer-district",
+                                    options=[],
+                                    placeholder="請先選擇直轄市縣市"
+                                )
                             ], className="mb-3")
                         ], width=6)
                     ]),
+                    dbc.Row([
+                        dbc.Label("備註", width=2, html_for="input-notes", className="form-label", style={"fontSize": "14px"}),
+                        dbc.Col(dbc.Textarea(id="input-notes", rows=3, placeholder="請輸入備註", style={"width": "100%"}), width=10)
+                    ], className="mb-3"),
+                    dbc.Row([
+                        dbc.Label([
+                            "每週配送日 ",
+                            html.Span("*", style={"color": "red", "fontWeight": "bold"})
+                        ], width=2, className="form-label", style={"fontSize": "14px"}),
+                        dbc.Col(dcc.Checklist(
+                            id="input-delivery-schedule",
+                            options=[
+                                {"label": "一", "value": "1"},
+                                {"label": "二", "value": "2"},
+                                {"label": "三", "value": "3"},
+                                {"label": "四", "value": "4"},
+                                {"label": "五", "value": "5"},
+                                {"label": "六", "value": "6"},
+                                {"label": "日", "value": "7"}
+                            ],
+                            value=[],
+                            inline=True,
+                            style={"display": "flex", "gap": "15px", "flexWrap": "wrap"}
+                        ), width=10)
+                    ], className="mb-3"),
                     html.Div([
                         html.Span("* 必填欄位", style={"color": "red", "fontSize": "12px", "fontWeight": "bold"})
                     ], className="mt-2")
-                ])
-            ], id="customer_data_modal_body"),
+                ])            ], id="customer_data_modal_body"),
             dbc.ModalFooter([
                 dbc.Button("刪除", id="input-customer-delete", color="danger", className="me-auto"),  # 新增刪除按鈕，置左
                 dbc.Button("取消", id="input-customer-cancel", color="secondary", className="me-2"),
@@ -448,6 +478,8 @@ def prepare_customer_export_dataframe(records, missing_filter_enabled):
         "customer_name": "客戶名稱",
         "phone_number": "電話",
         "address": "客戶地址",
+        "city": "直轄市、縣市",
+        "district": "鄉鎮市區",
         "delivery_schedule": "每週配送日",
         "transaction_date": "最新交易日期",
         "notes": "備註"
@@ -698,53 +730,95 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
 
 @app.callback(
     Output('customer_data_modal', 'is_open'),
-    Output('input-customer-name', 'value'),
     Output('input-customer-id', 'value'),
+    Output('input-customer-name', 'value'),
     Output('input-customer-phone', 'value'),
     Output('input-customer-address', 'value'),
+    Output('input-customer-city', 'value'),
+    Output('input-customer-district', 'options'),
+    Output('input-customer-district', 'value'),
     Output('input-delivery-schedule', 'value'),
     Output('input-notes', 'value'),
     Input({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
     [State("customer-data", "data"),
      State("customer_data-customer-id", "value"),
      State("customer_data-customer-name", "value"),
-     State("missing-data-filter", "data")],  # 新增這個 State
+     State("missing-data-filter", "data")],
     prevent_initial_call=True
 )
-def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, selected_customer_name, missing_filter):  # 新增 missing_filter 參數
+def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, selected_customer_name, missing_filter):
     if not any(n_clicks):
-        return False, "", "", "", "", [], ""
-    
+        return False, "", "", "", "", None, [], None, [], ""
+
     ctx = callback_context
     if not ctx.triggered:
-        return False, "", "", "", "", [], ""
-    
+        return False, "", "", "", "", None, [], None, [], ""
+
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     button_index = eval(button_id)['index']
-    
-    # 使用新的輔助函數處理 DataFrame
+
     df = process_customer_dataframe(customer_data, selected_customer_id, selected_customer_name, missing_filter)
-    
+
     if button_index < len(df):
         row_data = df.iloc[button_index]
-        
-        # 處理每週配送日的資料格式
-        # 注意：這裡的 row_data 來自顯示表格，已經是中文格式
-        delivery_schedule = row_data['每週配送日']
-        if isinstance(delivery_schedule, str) and delivery_schedule and delivery_schedule.strip():
-            delivery_schedule_list = [day.strip() for day in delivery_schedule.split(',') if day.strip()]
-        else:
-            delivery_schedule_list = []
-        
-        return (True, 
-                row_data['客戶名稱'], 
-                row_data['客戶ID'], 
-                row_data['電話'], 
-                row_data['客戶地址'], 
-                delivery_schedule_list,
-                row_data['備註'])
-    else:
-        return False, "", "", "", "", [], ""
+
+        customer_id_value = row_data.get('客戶ID')
+        customer_name_value = row_data.get('客戶名稱')
+        phone_value = row_data.get('電話')
+        address_value = row_data.get('客戶地址')
+        city_value = row_data.get('直轄市、縣市')
+        district_value = row_data.get('鄉鎮市區')
+        notes_value = row_data.get('備註')
+
+        if pd.isna(customer_id_value):
+            customer_id_value = ""
+        if pd.isna(customer_name_value):
+            customer_name_value = ""
+        if pd.isna(phone_value):
+            phone_value = ""
+        if pd.isna(address_value):
+            address_value = ""
+        if pd.isna(notes_value):
+            notes_value = ""
+        if pd.isna(city_value):
+            city_value = None
+        if pd.isna(district_value):
+            district_value = None
+
+        district_options = [{"label": district, "value": district} for district in CITY_DISTRICT_MAP.get(city_value, [])]
+
+        delivery_schedule = row_data.get('每週配送日')
+        if pd.isna(delivery_schedule):
+            delivery_schedule = []
+        normalized_schedule = convert_delivery_schedule_to_numbers(delivery_schedule)
+        schedule_list = [item for item in normalized_schedule.split(',') if item] if normalized_schedule else []
+
+        return (
+            True,
+            customer_id_value,
+            customer_name_value,
+            phone_value,
+            address_value,
+            city_value,
+            district_options,
+            district_value,
+            schedule_list,
+            notes_value,
+        )
+
+    return False, "", "", "", "", None, [], None, [], ""
+
+@app.callback(
+    Output('input-customer-district', 'options', allow_duplicate=True),
+    Output('input-customer-district', 'value', allow_duplicate=True),
+    Input('input-customer-city', 'value'),
+    prevent_initial_call=True
+)
+def sync_district_options(selected_city):
+    if selected_city and selected_city in CITY_DISTRICT_MAP:
+        options = [{"label": district, "value": district} for district in CITY_DISTRICT_MAP[selected_city]]
+        return options, None
+    return [], None
 
 @app.callback(
     Output('customer_data_modal', 'is_open', allow_duplicate=True),
@@ -760,6 +834,8 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State('input-customer-id', 'value'),
     State('input-customer-phone', 'value'),
     State('input-customer-address', 'value'),
+    State('input-customer-city', 'value'),
+    State('input-customer-district', 'value'),
     State('input-delivery-schedule', 'value'),
     State('input-notes', 'value'),
     State({'type': 'customer_data_button', 'index': ALL}, 'n_clicks'),
@@ -771,15 +847,17 @@ def handle_edit_button_click(n_clicks, customer_data, selected_customer_id, sele
     State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, missing_filter, user_role):
+def save_customer_data(save_clicks, customer_name, customer_id, phone_number, address, city, district, delivery_schedule, notes, button_clicks, customer_data, current_page, selected_customer_id, selected_customer_name, missing_filter, user_role):
     if not save_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     required_fields = [
         ("客戶名稱", customer_name),
         ("客戶ID", customer_id),
-        ("電話", phone_number),
+        ("電話號碼", phone_number),
         ("客戶地址", address),
+        ("直轄市、縣市", city),
+        ("鄉鎮市區", district),
         ("每週配送日", delivery_schedule),
     ]
     missing_fields = get_missing_required_fields(required_fields)
@@ -809,12 +887,78 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
     
     # 處理多選框的值，將中文轉換為數字再存入資料庫
     delivery_schedule_str = convert_delivery_schedule_to_numbers(delivery_schedule)
-    
+
+    # 實際組合完整地址 (與new_orders.py邏輯一致)
+    # 智能處理地址，避免重複疊加，並正確處理郵遞區號
+    def smart_address_combine(original_address, city, district):
+        """智能組合地址，避免重複和錯誤替換，處理郵遞區號"""
+        import re
+
+        clean_address = original_address or ""
+
+        # 如果沒有提供新的縣市或區域資訊，直接返回原地址
+        if not city and not district:
+            return clean_address
+
+        # 檢查是否有郵遞區號（3位數字開頭）
+        postal_code = ""
+        remaining_address = clean_address
+
+        postal_match = re.match(r'^(\d{3})', clean_address)
+        if postal_match:
+            postal_code = postal_match.group(1)
+            remaining_address = clean_address[3:]
+
+        # 嘗試移除地址中的任何縣市區域資訊
+        # 使用更聰明的方式：檢查所有可能的縣市區域組合
+
+        # 獲取所有縣市列表
+        all_cities = list(CITY_DISTRICT_MAP.keys())
+
+        # 先嘗試移除任何可能的「縣市+區域」組合
+        for check_city in all_cities:
+            if remaining_address.startswith(check_city):
+                after_city = remaining_address[len(check_city):]
+                # 檢查剩餘部分是否以某個區域開頭
+                possible_districts = CITY_DISTRICT_MAP.get(check_city, [])
+                for check_district in possible_districts:
+                    if after_city.startswith(check_district):
+                        # 找到縣市+區域組合，移除它們
+                        remaining_address = after_city[len(check_district):]
+                        break
+                # 如果找到縣市但沒找到對應區域，只移除縣市
+                else:
+                    remaining_address = after_city
+                break
+
+        # 重新組合完整地址
+        full_address = ""
+
+        # 加上郵遞區號（如果有的話）
+        if postal_code:
+            full_address += postal_code
+
+        # 加上縣市和區域
+        if city:
+            full_address += city
+        if district:
+            full_address += district
+
+        # 加上剩餘的地址部分
+        if remaining_address:
+            full_address += remaining_address
+
+        return full_address
+
+    full_address = smart_address_combine(address, city, district)
+
     update_data = {
         "customer_name": customer_name,
         "customer_id": customer_id,
         "phone_number": phone_number,
-        "address": address,
+        "address": full_address,
+        "city": city,
+        "district": district,
         "delivery_schedule": delivery_schedule_str,
         "notes": notes
     }
@@ -825,7 +969,9 @@ def save_customer_data(save_clicks, customer_name, customer_id, phone_number, ad
             'customer_name': customer_name,
             'customer_id': customer_id,
             'phone_number': phone_number,
-            'address': address,
+            'address': full_address,
+            'city': city,
+            'district': district,
             'delivery_schedule': delivery_schedule_str,
             'notes': notes
         }
@@ -1148,3 +1294,4 @@ def handle_delete_confirmation(confirm_clicks, cancel_clicks, customer_id, custo
             return False, dash.no_update, False, "", True, f"刪除時發生錯誤：{e}", dash.no_update
     
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+

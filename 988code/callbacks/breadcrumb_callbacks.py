@@ -24,7 +24,7 @@ def update_breadcrumb(pathname):
         ]
     elif pathname == "/product_recommendation":
         return [
-            {"label": "產品推薦與分析", "href": "/product_recommendation", "active": True}
+            {"label": "產品與客戶推薦", "href": "/product_recommendation", "active": True}
         ]
     elif pathname == "/restock_reminder":
         return [

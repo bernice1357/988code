@@ -187,21 +187,21 @@ def make_card_item(order):
                 html.Div([
                     html.Span(order.get('product_id', ''), style={"color": "black", "fontWeight": "bold", "fontSize": "0.9rem"}) if order.get('product_id') else None,
                     html.Span(" ", style={"fontSize": "0.9rem"}) if order.get('product_id') else None,
-                    html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap", "color": "#000000"})
-                ], style={"whiteSpace": "pre-wrap", "color": "#000000"}),
+                    html.Span(order['purchase_record'], style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap", "color": "black"})  # 修改這裡：新增 color: black
+                ], style={"whiteSpace": "pre-wrap", "color": "black"}),  # 修改這裡：新增 color: black
                 # 新增數量、單價、金額資訊
                 html.Div([
                     html.Div([
-                        html.Span("數量: ", style={"color": "#000000", "fontSize": "0.8rem"}),
-                        html.Span(f"{order.get('quantity', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
+                        html.Span("數量: ", style={"color": "black", "fontSize": "0.8rem"}),  # 修改這裡：改為 color: black
+                        html.Span(f"{order.get('quantity', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "black"})  # 修改這裡：改為 color: black
                     ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('quantity') is not None else None,
                     html.Div([
-                        html.Span("單價: ", style={"color": "#000000", "fontSize": "0.8rem"}),
-                        html.Span(f"NT$ {order.get('unit_price', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
+                        html.Span("單價: ", style={"color": "black", "fontSize": "0.8rem"}),  # 修改這裡：改為 color: black
+                        html.Span(f"NT$ {order.get('unit_price', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "black"})  # 修改這裡：改為 color: black
                     ], style={"marginRight": "15px", "display": "inline-block"}) if order.get('unit_price') is not None else None,
                     html.Div([
-                        html.Span("總金額: ", style={"color": "#000000", "fontSize": "0.8rem"}),
-                        html.Span(f"NT$ {order.get('amount', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "#000000"})
+                        html.Span("總金額: ", style={"color": "black", "fontSize": "0.8rem"}),  # 修改這裡：改為 color: black
+                        html.Span(f"NT$ {order.get('amount', 'N/A')}", style={"fontSize": "0.8rem", "fontWeight": "bold", "color": "black"})  # 修改這裡：改為 color: black
                     ], style={"display": "inline-block"}) if order.get('amount') is not None else None
                 ], style={"marginTop": "8px"}) if any(order.get(field) is not None for field in ['quantity', 'unit_price', 'amount']) else None
             ], className="mb-3"),

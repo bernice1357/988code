@@ -17,7 +17,7 @@ sidebar = html.Div(
                 dbc.NavLink("新進訂單", href="/new_orders", active="exact"),
                 dbc.NavLink("客戶資料管理", href="/customer_data", active="exact"),
                 dbc.NavLink("銷售分析", href="/sales_analysis", active="exact"),
-                dbc.NavLink("產品推薦與分析", href="/product_recommendation", active="exact"),
+                dbc.NavLink("產品與客戶推薦", href="/product_recommendation", active="exact"),
                 dbc.DropdownMenu(
                     label="提醒管理",
                     nav=True,

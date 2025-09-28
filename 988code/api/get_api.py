@@ -104,7 +104,7 @@ def get_customer_data(
         """
 
         data_query = f"""
-        SELECT c.customer_id, c.customer_name, c.phone_number, c.address, c.delivery_schedule,
+        SELECT c.customer_id, c.customer_name, c.phone_number, c.address, c.city, c.district, c.delivery_schedule,
                 ot.transaction_date, c.notes
         FROM customer c
         LEFT JOIN (
@@ -252,18 +252,31 @@ def get_categories():
     print("[API] get_categories 被呼叫")
     try:
         query = """
-        SELECT DISTINCT category 
-        FROM product_master 
-        WHERE category IS NOT NULL 
+        SELECT DISTINCT category
+        FROM product_master
+        WHERE category IS NOT NULL
         AND category IN (
-            SELECT DISTINCT category 
-            FROM product_master 
+            SELECT DISTINCT category
+            FROM product_master
             WHERE is_active = 'active'
-        ) 
+        )
         ORDER BY category
         """
         df = get_data_from_db(query)
-        return df.to_dict(orient="records")
+        # 修復編碼問題
+        result = []
+        for _, row in df.iterrows():
+            category_name = row["category"]
+            # 嘗試修復編碼問題
+            if isinstance(category_name, str):
+                try:
+                    # 如果是亂碼，嘗試重新編碼
+                    category_name = category_name.encode('latin1').decode('utf-8')
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    # 如果編碼轉換失敗，保持原值
+                    pass
+            result.append({"category": category_name})
+        return result
     except Exception as e:
         print(f"[API ERROR] get_categories: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
@@ -867,8 +880,19 @@ def get_counties():
     try:
         query = "SELECT DISTINCT city FROM customer WHERE city IS NOT NULL AND city != '' ORDER BY city"
         df = get_data_from_db(query)
-        # 將欄位名稱從 city 改為 county 以符合前端期望
-        result = [{"county": row["city"]} for _, row in df.iterrows()]
+        # 將欄位名稱從 city 改為 county 以符合前端期望，並修復編碼問題
+        result = []
+        for _, row in df.iterrows():
+            city_name = row["city"]
+            # 嘗試修復編碼問題
+            if isinstance(city_name, str):
+                try:
+                    # 如果是亂碼，嘗試重新編碼
+                    city_name = city_name.encode('latin1').decode('utf-8')
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    # 如果編碼轉換失敗，保持原值
+                    pass
+            result.append({"county": city_name})
         return result
     except Exception as e:
         print(f"[API ERROR] get_counties: {e}")
