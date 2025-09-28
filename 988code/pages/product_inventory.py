@@ -71,6 +71,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
         ], id="modal-header"),
         dbc.ModalBody(id="inventory-modal-body"),
         dbc.ModalFooter([
+            dbc.Button("刪除品項", id="delete-group-button", n_clicks=0, color="danger", className="me-2", style={"display": "none"}),
             dbc.Button("編輯品項", id="manage-group-button", n_clicks=0, color="primary", className="me-2"),
             html.Div([
                 dbc.Button("儲存", id="save-changes-button", n_clicks=0, color="success", className="me-2", style={"display": "none"}),
@@ -78,6 +79,81 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ], className="ms-auto d-flex")
         ], id="modal-footer"),
     ], id="group-items-modal", is_open=False, size="xl", centered=True, className="", style={"--bs-modal-bg": "white"}),
+    # 刪除確認 Modal
+    dbc.Modal(
+        id="delete-confirm-modal",
+        is_open=False,
+        backdrop="static",
+        keyboard=False,
+        centered=True,
+        className="custom-delete-modal",
+        style={"z-index": "1060"},
+        children=[
+            dbc.ModalHeader(
+                dbc.ModalTitle("確定刪除品項", id="delete-confirm-modal-title"),
+                style={
+                    "background-color": "#f8f9fa",
+                    "border-bottom": "2px solid #dc3545",
+                    "font-weight": "bold",
+                    "color": "#dc3545"
+                }
+            ),
+            dbc.ModalBody(
+                [
+                    html.P(
+                        "您確定要刪除以下品項嗎？此操作無法復原。",
+                        style={
+                            "color": "red",
+                            "fontWeight": "bold",
+                            "margin-bottom": "15px",
+                            "text-align": "center"
+                        }
+                    ),
+                    html.Div(
+                        id="delete-items-list",
+                        style={
+                            "background-color": "#fff3cd",
+                            "border": "1px solid #ffeaa7",
+                            "border-radius": "5px",
+                            "padding": "10px",
+                            "margin-top": "10px",
+                            "font-weight": "bold",
+                            "color": "black"
+                        }
+                    )
+                ],
+                style={
+                    "padding": "20px",
+                    "background-color": "#ffffff"
+                }
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "取消",
+                        id="delete-cancel-button",
+                        n_clicks=0,
+                        color="secondary",
+                        className="me-2",
+                        style={"min-width": "80px"}
+                    ),
+                    dbc.Button(
+                        "確認刪除",
+                        id="delete-confirm-button",
+                        n_clicks=0,
+                        color="danger",
+                        style={"min-width": "80px"}
+                    )
+                ],
+                style={
+                    "background-color": "#f8f9fa",
+                    "border-top": "1px solid #dee2e6",
+                    "justify-content": "center",
+                    "gap": "10px"
+                }
+            )
+        ]
+    ),
     # 創建新產品 Modal
     dbc.Modal([
         dbc.ModalHeader([
@@ -349,14 +425,15 @@ def handle_modal_open(button_clicks, close_clicks, is_open, inventory_data, sele
      Output("manage-group-button", "style", allow_duplicate=True),
      Output("save-changes-button", "style", allow_duplicate=True),
      Output("edit-mode-indicator", "style", allow_duplicate=True),
+     Output("delete-group-button", "style", allow_duplicate=True),
      Output("modal-table-data", "data", allow_duplicate=True)],
     Input("group-items-modal", "is_open"),
     prevent_initial_call=True
 )
 def reset_management_mode(is_open):
     if not is_open:
-        return False, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, []
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return False, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, {"display": "none"}, []
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 # 當 modal 打開時載入群組品項資料並儲存到 store
 @app.callback(
@@ -521,7 +598,8 @@ def load_group_items(is_open, management_mode, modal_title, stored_data):
     [Output("management-mode", "data"),
      Output("manage-group-button", "style"),
      Output("save-changes-button", "style"),
-     Output("edit-mode-indicator", "style")],
+     Output("edit-mode-indicator", "style"),
+     Output("delete-group-button", "style")],
     Input("manage-group-button", "n_clicks"),
     State("management-mode", "data"),
     prevent_initial_call=True
@@ -530,17 +608,19 @@ def toggle_management_mode(n_clicks, current_mode):
     if n_clicks:
         new_mode = not current_mode
         if new_mode:
-            # 切換到管理模式 - 隱藏編輯品項按鈕
+            # 切換到管理模式 - 隱藏編輯品項按鈕，顯示儲存和刪除按鈕
             edit_button_style = {"display": "none"}
             save_button_style = {"display": "inline-block"}
+            delete_button_style = {"display": "inline-block"}
             edit_indicator_style = {"display": "inline", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}
         else:
             # 切換回查看模式
             edit_button_style = {"display": "inline-block"}
             save_button_style = {"display": "none"}
+            delete_button_style = {"display": "none"}
             edit_indicator_style = {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}
-        return new_mode, edit_button_style, save_button_style, edit_indicator_style
-    return current_mode, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}
+        return new_mode, edit_button_style, save_button_style, edit_indicator_style, delete_button_style
+    return current_mode, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, {"display": "none"}
 
 # 處理儲存變更 - 修正版本，確保資料重新載入
 @app.callback(
@@ -670,6 +750,144 @@ def toggle_new_subcategory_input(dropdown_values):
             values.append("")
     
     return styles, values
+
+# 處理刪除按鈕點擊 - 開啟確認 Modal
+@app.callback(
+    [Output("delete-confirm-modal", "is_open"),
+     Output("delete-items-list", "children")],
+    [Input("delete-group-button", "n_clicks"),
+     Input("delete-cancel-button", "n_clicks")],
+    [State("delete-confirm-modal", "is_open"),
+     State("modal-table-data", "data"),
+     State("inventory-modal-title", "children")],
+    prevent_initial_call=True
+)
+def handle_delete_button(delete_clicks, cancel_clicks, is_open, stored_data, modal_title):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return dash.no_update, dash.no_update
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    trigger_value = ctx.triggered[0]["value"]
+
+    if trigger_id == "delete-cancel-button" and cancel_clicks:
+        return False, dash.no_update
+
+    if trigger_id == "delete-group-button" and delete_clicks and trigger_value > 0:
+        if not stored_data or not modal_title or "商品群組：" not in modal_title:
+            return dash.no_update, dash.no_update
+
+        subcategory = modal_title.replace("商品群組：", "")
+
+        # 建立要刪除的品項列表
+        items_list = []
+        items_list.append(html.H6(f"商品群組：{subcategory}", style={"color": "#dc3545", "marginBottom": "10px"}))
+
+        for item in stored_data:
+            product_id = item.get("商品ID", "")
+            product_name = item.get("商品名稱", "")
+            if product_id:
+                items_list.append(
+                    html.Div([
+                        html.Strong(f"• {product_id}"),
+                        html.Span(f" - {product_name}", style={"marginLeft": "10px"})
+                    ], style={"marginBottom": "5px"})
+                )
+
+        items_list.append(html.Hr(style={"margin": "10px 0"}))
+        items_list.append(html.P(f"共計 {len(stored_data)} 個品項將被刪除", style={"fontWeight": "bold", "color": "#dc3545"}))
+
+        return True, items_list
+
+    return dash.no_update, dash.no_update
+
+# 執行刪除確認
+@app.callback(
+    [Output("delete-confirm-modal", "is_open", allow_duplicate=True),
+     Output("group-items-modal", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "children", allow_duplicate=True),
+     Output("product_inventory-error-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-error-toast", "children", allow_duplicate=True),
+     Output("inventory-data", "data", allow_duplicate=True)],
+    Input("delete-confirm-button", "n_clicks"),
+    [State("modal-table-data", "data"),
+     State("inventory-modal-title", "children"),
+     State("user-role-store", "data")],
+    prevent_initial_call=True
+)
+def execute_delete(n_clicks, stored_data, modal_title, user_role):
+    if not n_clicks or n_clicks == 0:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+    if not stored_data or not modal_title or "商品群組：" not in modal_title:
+        return False, dash.no_update, False, "", True, "無效的品項資料", dash.no_update
+
+    subcategory = modal_title.replace("商品群組：", "")
+
+    try:
+        success_count = 0
+        total_deletes = 0
+        failed_items = []
+
+        for item in stored_data:
+            product_id = item.get("商品ID", "")
+            if not product_id:
+                continue
+
+            total_deletes += 1
+
+            # 準備刪除請求
+            delete_payload = {
+                "product_id": product_id,
+                "user_role": user_role or "viewer"
+            }
+
+            # 呼叫刪除 API
+            response = requests.delete(
+                "http://127.0.0.1:8000/product/delete",
+                json=delete_payload
+            )
+
+            if response.status_code == 200:
+                success_count += 1
+                print(f"[DEBUG] 成功刪除品項 {product_id}")
+            elif response.status_code == 403:
+                return False, dash.no_update, False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update
+            else:
+                failed_items.append(product_id)
+                print(f"[DEBUG] 刪除品項 {product_id} 失敗: {response.text}")
+
+        # 重新載入庫存資料
+        updated_inventory_data = []
+        try:
+            reload_response = requests.get("http://127.0.0.1:8000/get_inventory_data")
+            if reload_response.status_code == 200:
+                updated_inventory_data = reload_response.json()
+                print(f"[DEBUG] 成功重新載入庫存資料，共 {len(updated_inventory_data)} 筆")
+            else:
+                print(f"[DEBUG] 重新載入庫存資料失敗: {reload_response.status_code}")
+                updated_inventory_data = []
+        except Exception as reload_error:
+            print(f"[DEBUG] 重新載入庫存資料時發生錯誤: {reload_error}")
+            updated_inventory_data = []
+
+        # 準備結果訊息
+        if failed_items:
+            if success_count > 0:
+                error_msg = f"部分刪除成功：{success_count}/{total_deletes} 項。失敗項目：{', '.join(failed_items)}"
+                return False, False, False, "", True, error_msg, updated_inventory_data
+            else:
+                error_msg = f"刪除失敗，失敗項目：{', '.join(failed_items)}"
+                return False, dash.no_update, False, "", True, error_msg, dash.no_update
+        else:
+            success_msg = f"成功刪除 {success_count} 個品項"
+            return False, False, True, success_msg, False, "", updated_inventory_data
+
+    except Exception as e:
+        error_msg = f"刪除品項時發生錯誤: {str(e)}"
+        print(f"[DEBUG] 錯誤: {error_msg}")
+        return False, dash.no_update, False, "", True, error_msg, dash.no_update
 
 # 更新搜尋條件的商品群組選項
 @app.callback(

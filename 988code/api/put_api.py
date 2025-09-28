@@ -1566,3 +1566,40 @@ def delete_customer(customer_id: str, request: CustomerDeleteRequest):
     except Exception as e:
         print(f"[ERROR] 客戶刪除失敗: {e}")
         raise HTTPException(status_code=500, detail="客戶刪除失敗")
+
+# 產品刪除請求模型
+class ProductDeleteRequest(BaseModel):
+    product_id: str
+    user_role: str
+
+# 產品刪除 API
+@router.delete("/product/delete")
+def delete_product(request: ProductDeleteRequest):
+    check_editor_permission(request.user_role)
+
+    try:
+        product_id = request.product_id
+
+        # 檢查產品是否存在於 product_master
+        check_sql = "SELECT COUNT(*) FROM product_master WHERE product_id = %s"
+        result = query_data_from_db(check_sql, (product_id,))
+        if not result or result[0][0] == 0:
+            raise HTTPException(status_code=404, detail="產品不存在")
+
+        # 從 inventory 表中刪除
+        delete_inventory_sql = "DELETE FROM inventory WHERE product_id = %s"
+        update_data_to_db(delete_inventory_sql, (product_id,))
+
+        # 從 product_master 表中刪除
+        delete_product_sql = "DELETE FROM product_master WHERE product_id = %s"
+        update_data_to_db(delete_product_sql, (product_id,))
+
+        return {
+            "message": "產品刪除成功",
+            "product_id": product_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] 產品刪除失敗: {e}")
+        raise HTTPException(status_code=500, detail="產品刪除失敗")
