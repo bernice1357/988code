@@ -44,9 +44,9 @@ tab_content = html.Div([
         ], style={"display": "flex", "alignItems": "center"}),
         html.Div([
             dbc.ButtonGroup([
-                dbc.Button("全部客戶", outline=True, id="btn-all-customers", color="primary"),
-                dbc.Button("未處理客戶", outline=True, id="btn-unprocessed-customers", color="primary"),
-                dbc.Button("已處理客戶", outline=True, id="btn-processed-customers", color="primary")
+                dbc.Button("全部客戶", id="btn-all-customers"),
+                dbc.Button("未處理客戶", id="btn-unprocessed-customers"),
+                dbc.Button("已處理客戶", id="btn-processed-customers")
             ])
         ], style={"display": "flex", "justifyContent": "flex-end"})
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
@@ -455,3 +455,44 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
         
     except Exception as e:
         return False, "", True, f"處理失敗：{e}", False, "", dash.no_update, False
+
+# 管理按鈕樣式的 callback
+@app.callback(
+    [Output("btn-all-customers", "style"),
+     Output("btn-unprocessed-customers", "style"),
+     Output("btn-processed-customers", "style")],
+    [Input("btn-all-customers", "n_clicks"),
+     Input("btn-unprocessed-customers", "n_clicks"),
+     Input("btn-processed-customers", "n_clicks")],
+    prevent_initial_call=False
+)
+def update_button_styles(btn_all, btn_unprocessed, btn_processed):
+    ctx = callback_context
+    active_button = None
+
+    if ctx.triggered:
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        active_button = button_id
+    else:
+        # 預設狀態為全部客戶
+        active_button = "btn-all-customers"
+
+    # 定義按鈕樣式
+    default_style = {
+        "backgroundColor": "transparent",
+        "color": "#000000",
+        "border": "2px solid #000000"
+    }
+
+    active_style = {
+        "backgroundColor": "#000000",
+        "color": "#ffffff",
+        "border": "2px solid #000000"
+    }
+
+    # 根據活動按鈕返回對應樣式
+    all_style = active_style if active_button == "btn-all-customers" else default_style
+    unprocessed_style = active_style if active_button == "btn-unprocessed-customers" else default_style
+    processed_style = active_style if active_button == "btn-processed-customers" else default_style
+
+    return all_style, unprocessed_style, processed_style

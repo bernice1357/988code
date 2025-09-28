@@ -233,9 +233,9 @@ tab_content = html.Div([
     # 右側：篩選按鈕
     html.Div([
         dbc.ButtonGroup([
-            dbc.Button("全部商品", outline=True, id="btn-all-products", color="primary"),
-            dbc.Button("未處理商品", outline=True, id="btn-unprocessed-products", color="primary"),
-            dbc.Button("已處理商品", outline=True, id="btn-processed-products", color="primary")
+            dbc.Button("全部商品", id="btn-all-products"),
+            dbc.Button("未處理商品", id="btn-unprocessed-products"),
+            dbc.Button("已處理商品", id="btn-processed-products")
         ])
     ], style={"display": "flex", "justifyContent": "flex-end"})
 ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
@@ -854,3 +854,44 @@ def update_product_name_options(sales_data):
 
     options.extend(product_options)
     return options
+
+# 管理按鈕樣式的 callback
+@app.callback(
+    [Output("btn-all-products", "style"),
+     Output("btn-unprocessed-products", "style"),
+     Output("btn-processed-products", "style")],
+    [Input("btn-all-products", "n_clicks"),
+     Input("btn-unprocessed-products", "n_clicks"),
+     Input("btn-processed-products", "n_clicks")],
+    prevent_initial_call=False
+)
+def update_product_button_styles(btn_all, btn_unprocessed, btn_processed):
+    ctx = callback_context
+    active_button = None
+
+    if ctx.triggered:
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        active_button = button_id
+    else:
+        # 預設狀態為全部商品
+        active_button = "btn-all-products"
+
+    # 定義按鈕樣式
+    default_style = {
+        "backgroundColor": "transparent",
+        "color": "#000000",
+        "border": "2px solid #000000"
+    }
+
+    active_style = {
+        "backgroundColor": "#000000",
+        "color": "#ffffff",
+        "border": "2px solid #000000"
+    }
+
+    # 根據活動按鈕返回對應樣式
+    all_style = active_style if active_button == "btn-all-products" else default_style
+    unprocessed_style = active_style if active_button == "btn-unprocessed-products" else default_style
+    processed_style = active_style if active_button == "btn-processed-products" else default_style
+
+    return all_style, unprocessed_style, processed_style
