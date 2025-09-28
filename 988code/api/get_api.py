@@ -903,22 +903,12 @@ def get_counties():
 def get_regions(county: str = Query(..., description="縣市名稱")):
     print(f"[API] get_regions 被呼叫，縣市: {county}")
     try:
-        # 使用參數化查詢避免 SQL 注入
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
-            with conn.cursor() as cursor:
-                query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL AND district != '' ORDER BY district"
-                cursor.execute(query, (county,))
-                rows = cursor.fetchall()
-                # 將結果轉換為所需格式
-                result = [{"region": row[0]} for row in rows]
-                return result
+        # 使用統一的資料庫連線系統
+        query = "SELECT DISTINCT district FROM customer WHERE city = %s AND district IS NOT NULL AND district != '' ORDER BY district"
+        rows = execute_query(query, (county,), fetch='all')
+        # 將結果轉換為所需格式
+        result = [{"region": row[0]} for row in rows]
+        return result
     except Exception as e:
         print(f"[API ERROR] get_regions: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
@@ -1112,19 +1102,10 @@ def check_customer_exists(customer_id: str):
     print(f"[API] check_customer_exists 被呼叫，客戶ID: {customer_id}")
     try:
         query = "SELECT COUNT(*) as count FROM customer WHERE customer_id = %s"
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, (customer_id,))
-                result = cursor.fetchone()
-                exists = result[0] > 0 if result else False
-                return {"exists": exists}
+        # 使用統一的資料庫連線系統
+        result = execute_query(query, (customer_id,), fetch='one')
+        exists = result[0] > 0 if result else False
+        return {"exists": exists}
     except Exception as e:
         print(f"[API ERROR] check_customer_exists: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")

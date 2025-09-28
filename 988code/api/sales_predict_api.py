@@ -26,19 +26,20 @@ class SalesDataRequest(BaseModel):
 def get_data_from_db(sql_prompt: str) -> pd.DataFrame:
     """執行SQL查詢並返回DataFrame"""
     try:
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5433'
-        ) as conn:
+        # 使用統一的資料庫連線系統
+        rows = execute_query(sql_prompt, (), fetch='all')
+
+        # 如果沒有結果，返回空 DataFrame
+        if not rows:
+            return pd.DataFrame()
+
+        # 需要獲取列名，使用新的連線方式
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_prompt)
-                rows = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
+
+        df = pd.DataFrame(rows, columns=columns)
         return df
     except Exception as e:
         print(f"[DB ERROR] {e}")
