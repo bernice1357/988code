@@ -36,7 +36,7 @@ sidebar = html.Div(
                     in_navbar=True,
                     children=[
                         dbc.DropdownMenuItem("商品庫存管理", href="/product_inventory"),
-                        dbc.DropdownMenuItem("滯銷品與未活躍客戶", href="/inactive_customers"),
+                        dbc.DropdownMenuItem("商品銷量異動與不活躍客戶", href="/inactive_customers"),
                         dbc.DropdownMenuItem("庫存預測", href="/inventory_forecasting"),
                     ],
                     style={"margin-top": "1rem"},  # 設定寬度

@@ -1,4 +1,4 @@
-from .common import *
+﻿from .common import *
 from dash import ALL, callback_context
 import global_vars
 
@@ -163,7 +163,7 @@ tab_content = html.Div([
                 dbc.CardHeader("摘要分析"),
                 dbc.CardBody([
                     html.Div(id="sales-stats-container", children=[
-                        html.H5("滯銷品品數: 0"),
+                        html.H5("銷量異動商品: 0"),
                         html.H5("已處理: 0"),
                         html.H5("未處理: 0")
                     ])
@@ -172,7 +172,7 @@ tab_content = html.Div([
         ], width=6),
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader("設定滯銷品變化比例"),
+                dbc.CardHeader("設定變化比例"),
                 dbc.CardBody([
                     html.Div([
                         dbc.InputGroup([
@@ -198,7 +198,6 @@ tab_content = html.Div([
                     {"label": "全部商品", "value": "all"},
                     {"label": "銷量上升", "value": "increase"},
                     {"label": "銷量下降", "value": "decrease"},
-                    {"label": "銷量無變化", "value": "no_change"}
                 ],
                 value="all",
                 style={"width": "auto", "marginRight": "20px"}
@@ -236,26 +235,29 @@ tab_content = html.Div([
     ], style={"display": "flex", "justifyContent": "flex-end"})
 ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
-    dcc.Loading(
-        id="loading-sales-table",
-        type="dot",
-        children=html.Div(
-            [
-                html.Div(id="sales-table-container", style={"flex": "1 1 auto"}),
-                html.Div(
-                    id="sales-confirm-button-container",
-                    style={"display": "flex", "justifyContent": "flex-end", "alignItems": "center", "marginTop": "12px", "width": "100%"}
+    html.Div(
+        [
+            dcc.Loading(
+                id="loading-sales-table",
+                type="dot",
+                children=html.Div(
+                    id="sales-table-container",
+                    style={"flex": "1 1 auto"}
                 ),
-            ],
-            style={"display": "flex", "flexDirection": "column", "width": "100%"}
-        ),
-        style={
-            "display": "flex",
-            "alignItems": "center",
-            "justifyContent": "center",
-            "position": "fixed", 
-            "top": "50%",          
-        }
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "justifyContent": "center",
+                    "position": "fixed", 
+                    "top": "50%",          
+                }
+            ),
+            html.Div(
+                id="sales-confirm-button-container",
+                style={"display": "flex", "justifyContent": "flex-end", "alignItems": "center", "marginTop": "12px", "width": "100%"}
+            ),
+        ],
+        style={"display": "flex", "flexDirection": "column", "width": "100%"}
     ),
     
     # 商品詳情 Modal
@@ -457,9 +459,9 @@ def create_custom_sales_table(df, show_checkbox=False, show_button=False, button
                 elif row[col] == '未處理':
                     cell_bg_color = '#f8d7da'  # 淺紅色背景
                 else:
-                    cell_bg_color = 'white'
+                    cell_bg_color = '#ffffff'
             else:
-                cell_bg_color = 'white'  # 其他欄位保持白色背景
+                cell_bg_color = '#ffffff'  # 其他欄位保持白色背景
                 
             row_cells.append(html.Td(
                 row[col], 
@@ -479,19 +481,20 @@ def create_custom_sales_table(df, show_checkbox=False, show_button=False, button
                 ), style={'textAlign': 'center', 'padding': '8px'}
             ))
         
-        rows.append(html.Tr(row_cells))
+        rows.append(html.Tr(row_cells, style={'backgroundColor': '#ffffff'}))
     
     # 建立完整表格
     table = html.Table([
         html.Thead([html.Tr(headers)]),
-        html.Tbody(rows)
-    ], style={'width': '100%', 'borderCollapse': 'collapse'})
+        html.Tbody(rows, style={'backgroundColor': '#ffffff'})
+    ], style={'width': '100%', 'borderCollapse': 'collapse', 'backgroundColor': '#ffffff'})
     
     return html.Div([table], style={
         'overflowY': 'auto',
         'maxHeight': table_height,
         'border': '1px solid #ccc',
-        'borderRadius': '8px'
+        'borderRadius': '8px',
+        'backgroundColor': '#ffffff'
     })
 
 # 表格顯示的 callback
