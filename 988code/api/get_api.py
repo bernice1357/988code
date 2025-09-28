@@ -499,37 +499,28 @@ def get_rag_titles():
 def get_rag_content(title: str):
     try:
         query = "SELECT title, text_content, file_content, file_name FROM rag WHERE title = %s"
-        
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, (title,))
-                result = cursor.fetchone()
-                if result:
-                    
-                    file_names_list = []
-                    if result[3] and len(result[3]) > 0:
-                        file_names_list = result[3]
-                    
-                    return {
-                        "title": result[0],
-                        "text_content": result[1][0] if result[1] and len(result[1]) > 0 else "",
-                        "has_file": result[2] is not None and len(result[2]) > 0,
-                        "file_names": file_names_list
-                    }
-                else:
-                    return {
-                        "title": title,
-                        "text_content": "",
-                        "has_file": False,
-                        "file_names": []
-                    }
+
+        # 使用統一的資料庫連線系統
+        result = execute_query(query, (title,), fetch='one')
+        if result:
+
+            file_names_list = []
+            if result[3] and len(result[3]) > 0:
+                file_names_list = result[3]
+
+            return {
+                "title": result[0],
+                "text_content": result[1][0] if result[1] and len(result[1]) > 0 else "",
+                "has_file": result[2] is not None and len(result[2]) > 0,
+                "file_names": file_names_list
+            }
+        else:
+            return {
+                "title": title,
+                "text_content": "",
+                "has_file": False,
+                "file_names": []
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
     
@@ -562,20 +553,16 @@ def get_monthly_sales_predictions(period: str = Query(None, description="預測�
             WHERE prediction_month = %s  -- 改為使用 prediction_month 欄位
             ORDER BY subcategory, product_id
             """
-            # 使用參數化查詢
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-            with psycopg2.connect(
-                dbname='988',
-                user='postgres',
-                password='988988',
-                host='localhost',
-                port='5432'
-            ) as conn:
+            # 使用統一的資料庫連線系統
+            rows = execute_query(query, (period_date,), fetch='all')
+
+            # 獲取欄位名稱
+            with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, (period_date,))
-                    rows = cursor.fetchall()
                     columns = [desc[0] for desc in cursor.description]
-                    df = pd.DataFrame(rows, columns=columns)
+
+            df = pd.DataFrame(rows, columns=columns)
         else:
             # 沒有指定期間時，使用現有的查詢
             query = """
@@ -626,20 +613,16 @@ def get_delivery_schedule_by_date(delivery_date: str):
         WHERE DATE(ds.delivery_date) = %s
         ORDER BY ds.id
         """
-        # 使用參數化查詢
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
+        # 使用統一的資料庫連線系統
+        rows = execute_query(query, (delivery_date,), fetch='all')
+
+        # 獲取欄位名稱
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(query, (delivery_date,))
-                rows = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
+
+        df = pd.DataFrame(rows, columns=columns)
         
         return df.to_dict(orient="records")
     except Exception as e:
@@ -679,19 +662,16 @@ def get_delivery_schedule_by_category(category: str):
             WHERE pm.category = %s
             ORDER BY ds.delivery_date DESC, ds.id
             """
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-            with psycopg2.connect(
-                dbname='988',
-                user='postgres',
-                password='988988',
-                host='localhost',
-                port='5432'
-            ) as conn:
+        # 使用統一的資料庫連線系統
+            rows = execute_query(query, (category,), fetch='all')
+
+            # 獲取欄位名稱
+            with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, (category,))
-                    rows = cursor.fetchall()
                     columns = [desc[0] for desc in cursor.description]
-                    df = pd.DataFrame(rows, columns=columns)
+
+            df = pd.DataFrame(rows, columns=columns)
         
         return df.to_dict(orient="records")
     except Exception as e:
@@ -742,19 +722,16 @@ def get_delivery_schedule_filtered(delivery_date: str = None, category: str = No
         
         base_query += " ORDER BY ds.delivery_date DESC, ds.id"
         
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
+        # 使用統一的資料庫連線系統
+        rows = execute_query(base_query, tuple(params), fetch='all')
+
+        # 獲取欄位名稱
+        with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(base_query, tuple(params))
-                rows = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
+
+        df = pd.DataFrame(rows, columns=columns)
         
         print(f"[API] 查詢成功，返回 {len(df)} 筆資料")
         return df.to_dict(orient="records")
@@ -766,112 +743,6 @@ def get_delivery_schedule_filtered(delivery_date: str = None, category: str = No
         raise HTTPException(status_code=500, detail=f"資料庫查詢失敗: {str(e)}")
 
 
-# 同時修復其他相關的 delivery_schedule API 函數
-
-# 獲取每日配送預測資料 - 適配現有表結構
-@router.get("/get_delivery_schedule")
-def get_delivery_schedule():
-    print("[API] get_delivery_schedule 被呼叫")
-    try:
-        query = """
-        SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-               ds.created_at, ds.updated_at, ds.scheduled_at,
-               ds.customer_id,
-               ds.customer_name,
-               ds.product_name
-        FROM delivery_schedule ds
-        ORDER BY ds.delivery_date DESC, ds.id
-        """
-        df = get_data_from_db(query)
-        return df.to_dict(orient="records")
-    except Exception as e:
-        print(f"[API ERROR] get_delivery_schedule: {e}")
-        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-
-# 根據日期篩選配送預測 - 適配現有表結構
-@router.get("/get_delivery_schedule_by_date/{delivery_date}")
-def get_delivery_schedule_by_date(delivery_date: str):
-    print(f"[API] get_delivery_schedule_by_date 被呼叫，日期：{delivery_date}")
-    try:
-        query = """
-        SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-               ds.created_at, ds.updated_at, ds.scheduled_at,
-               ds.customer_id,
-               ds.customer_name,
-               ds.product_name
-        FROM delivery_schedule ds
-        WHERE DATE(ds.delivery_date) = %s
-        ORDER BY ds.id
-        """
-        # 使用參數化查詢
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-        with psycopg2.connect(
-            dbname='988',
-            user='postgres',
-            password='988988',
-            host='localhost',
-            port='5432'
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, (delivery_date,))
-                rows = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-                df = pd.DataFrame(rows, columns=columns)
-        
-        return df.to_dict(orient="records")
-    except Exception as e:
-        print(f"[API ERROR] get_delivery_schedule_by_date: {e}")
-        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
-
-# 根據類別篩選配送預測 - 適配現有表結構
-@router.get("/get_delivery_schedule_by_category/{category}")
-def get_delivery_schedule_by_category(category: str):
-    print(f"[API] get_delivery_schedule_by_category 被呼叫，類別：{category}")
-    try:
-        if category == "全部類別":
-            query = """
-            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-                   ds.created_at, ds.updated_at, ds.scheduled_at,
-                   ds.customer_id,
-                   ds.customer_name,
-                   ds.product_name,
-                   COALESCE(pm.category, '未知類別') as category
-            FROM delivery_schedule ds
-            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
-            ORDER BY ds.delivery_date DESC, ds.id
-            """
-            df = get_data_from_db(query)
-        else:
-            query = """
-            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-                   ds.created_at, ds.updated_at, ds.scheduled_at,
-                   ds.customer_id,
-                   ds.customer_name,
-                   ds.product_name,
-                   pm.category
-            FROM delivery_schedule ds
-            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
-            WHERE pm.category = %s
-            ORDER BY ds.delivery_date DESC, ds.id
-            """
-        # 注意: 此處仍使用舊的資料庫連線方式，需要根據具體邏輯手動替換
-            with psycopg2.connect(
-                dbname='988',
-                user='postgres',
-                password='988988',
-                host='localhost',
-                port='5432'
-            ) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, (category,))
-                    rows = cursor.fetchall()
-                    columns = [desc[0] for desc in cursor.description]
-                    df = pd.DataFrame(rows, columns=columns)
-        
-        return df.to_dict(orient="records")
-    except Exception as e:
-        print(f"[API ERROR] get_delivery_schedule_by_category: {e}")
-        raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 得到縣市列表
 @router.get("/get_county")
