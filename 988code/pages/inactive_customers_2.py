@@ -387,7 +387,7 @@ def filter_sales_data(sales_data, save_clicks, filter_type, product_name_filter,
 def update_sales_stats(filtered_data):
     if not filtered_data:
         return [
-            html.H5("滯銷品品數: 0"),
+            html.H5("銷量異動商品: 0"),
             html.H5("已處理: 0"),
             html.H5("未處理: 0")
         ]
@@ -398,7 +398,7 @@ def update_sales_stats(filtered_data):
     unprocessed_products = len(df[df['狀態'] == '未處理'])
     
     return [
-        html.H5(f"滯銷品品數: {total_products}"),
+        html.H5(f"銷量異動商品: {total_products}"),
         html.H5(f"已處理: {processed_products}"),
         html.H5(f"未處理: {unprocessed_products}")
     ]
