@@ -254,6 +254,7 @@ def get_sales_change_data_by_threshold(threshold: float):
         LEFT JOIN (
             SELECT product_id, MAX(name_zh) AS name_zh
             FROM product_master
+            WHERE is_active = 'active'
             GROUP BY product_id
         ) pm ON sct.product_id = pm.product_id
         LEFT JOIN customer c1 ON sct.recommended_customer_id_rank1 = c1.customer_id

@@ -225,10 +225,6 @@ tab_content = html.Div([
         ], style={"display": "flex", "alignItems": "center"})
     ], style={"display": "flex", "alignItems": "center"}),
     
-    # 中間：確認按鈕
-    html.Div([
-        html.Div(id="sales-confirm-button-container", style={"display": "flex", "alignItems": "center"})
-    ], style={"display": "flex", "alignItems": "center"}),
     
     # 右側：篩選按鈕
     html.Div([
@@ -243,7 +239,16 @@ tab_content = html.Div([
     dcc.Loading(
         id="loading-sales-table",
         type="dot",
-        children=html.Div(id="sales-table-container"),
+        children=html.Div(
+            [
+                html.Div(id="sales-table-container", style={"flex": "1 1 auto"}),
+                html.Div(
+                    id="sales-confirm-button-container",
+                    style={"display": "flex", "justifyContent": "flex-end", "alignItems": "center", "marginTop": "12px", "width": "100%"}
+                ),
+            ],
+            style={"display": "flex", "flexDirection": "column", "width": "100%"}
+        ),
         style={
             "display": "flex",
             "alignItems": "center",

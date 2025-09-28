@@ -170,7 +170,7 @@ class SalesChangeManager:
             WHERE rank IN (1, 2, 3)
             GROUP BY product_id
         ) pcr ON pm.product_id = pcr.product_id
-        WHERE pm.is_active = 1
+        WHERE pm.is_active = 'active'
         ON CONFLICT (product_id) DO NOTHING
         """
         
