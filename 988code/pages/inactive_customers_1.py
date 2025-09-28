@@ -1,4 +1,4 @@
-from .common import *
+﻿from .common import *
 from dash import ALL, callback_context
 import global_vars
 
@@ -39,31 +39,22 @@ tab_content = html.Div([
     ], className="h-100"),
     
     html.Div([
-        html.Div(style={"flex": "1"}),
+        html.Div([
+            html.Div(id="confirm-button-container", style={"display": "flex", "alignItems": "center"})
+        ], style={"display": "flex", "alignItems": "center"}),
         html.Div([
             dbc.ButtonGroup([
-                dbc.Button("�����Ȥ�", id="btn-all-customers"),
-                dbc.Button("���B�z�Ȥ�", id="btn-unprocessed-customers"),
-                dbc.Button("�w�B�z�Ȥ�", id="btn-processed-customers")
+                dbc.Button("全部客戶", id="btn-all-customers"),
+                dbc.Button("未處理客戶", id="btn-unprocessed-customers"),
+                dbc.Button("已處理客戶", id="btn-processed-customers")
             ])
         ], style={"display": "flex", "justifyContent": "flex-end"})
-    ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
-    
     ], style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "20px", "marginTop": "30px"}),
     
     dcc.Loading(
         id="loading-inactive-customer-table",
         type="dot",
-        children=html.Div(
-            [
-                html.Div(id="inactive-customer-table-container", style={"flex": "1 1 auto"}),
-                html.Div(
-                    id="confirm-button-container",
-                    style={"display": "flex", "justifyContent": "flex-end", "alignItems": "center", "marginTop": "12px", "width": "100%"}
-                ),
-            ],
-            style={"display": "flex", "flexDirection": "column", "width": "100%"}
-        ),
+        children=html.Div(id="inactive-customer-table-container"),
         style={
             "display": "flex",
             "alignItems": "center",
