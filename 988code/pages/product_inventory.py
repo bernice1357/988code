@@ -198,7 +198,7 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                         dbc.Label("子類別", width=4),
                         dbc.Col([
                             dbc.Input(id="inventory-new-product-subcategory", type="text", placeholder="請輸入子類別"),
-                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片、禮盒", target="inventory-new-product-subcategory", placement="top")
+                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片", target="inventory-new-product-subcategory", placement="top")
                         ], width=8)
                     ], className="mb-3"),
                     # 規格
