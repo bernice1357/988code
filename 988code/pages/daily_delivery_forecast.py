@@ -11,6 +11,28 @@ from dash.dependencies import Input, Output, State
 # 空的初始資料框架
 daily_forecast_df = pd.DataFrame([])
 
+FILTER_BUTTON_BASE_STYLE = {
+    "border": "1px solid #000",
+    "backgroundColor": "transparent",
+    "color": "#000",
+    "borderRadius": "0",
+    "padding": "6px 18px",
+    "fontWeight": "bold",
+    "boxShadow": "none"
+}
+
+
+def get_filter_button_style(selected=False):
+    """Return consistent styles for delivery filter buttons."""
+    style = FILTER_BUTTON_BASE_STYLE.copy()
+    if selected:
+        style.update({
+            "backgroundColor": "#000",
+            "color": "#fff"
+        })
+    return style
+
+
 def create_calendar_widget(selected_date=None):
     """創建日曆組件"""
     if selected_date is None:
@@ -345,12 +367,12 @@ tab_content = html.Div([
                 
                 html.Div([
                     dbc.ButtonGroup([
-                        dbc.Button("全部", color="light", size="sm", id="daily-filter-all", 
-                                style={"border": "2px solid #007bff"}),  # 改為 light
-                        dbc.Button("已確認配送", color="light", size="sm", id="daily-filter-confirmed", 
-                                style={"border": "2px solid #28a745"}),
+                        dbc.Button("全部", color="light", size="sm", id="daily-filter-all",
+                                   style=get_filter_button_style(selected=True)),
+                        dbc.Button("已確認配送", color="light", size="sm", id="daily-filter-confirmed",
+                                   style=get_filter_button_style()),
                         dbc.Button("預計配送", color="light", size="sm", id="daily-filter-pending",
-                                style={"border": "2px solid #ffc107"})
+                                   style=get_filter_button_style())
                     ])
                 ])
             ], style={
@@ -378,43 +400,42 @@ tab_content = html.Div([
 # 定義回調函數註冊器
 def register_daily_delivery_callbacks(app):
     """註冊每日配送預測頁面的回調函數"""
+
+
     @app.callback(
-    [Output("daily-filter-all", "color"),
-     Output("daily-filter-confirmed", "color"), 
-     Output("daily-filter-confirmed", "style"),
-     Output("daily-filter-pending", "color"),
-     Output("daily-filter-pending", "style")],
-    [Input("daily-filter-all", "n_clicks"),
-     Input("daily-filter-confirmed", "n_clicks"),
-     Input("daily-filter-pending", "n_clicks"),
-     Input("daily-selected-date", "data")],  # 新增這行
-    prevent_initial_call=False
+        [Output("daily-filter-all", "style"),
+         Output("daily-filter-confirmed", "style"),
+         Output("daily-filter-pending", "style")],
+        [Input("daily-filter-all", "n_clicks"),
+         Input("daily-filter-confirmed", "n_clicks"),
+         Input("daily-filter-pending", "n_clicks"),
+         Input("daily-selected-date", "data")],
+        prevent_initial_call=False
     )
     def update_button_styles(all_clicks, confirmed_clicks, pending_clicks, selected_date):
         ctx = callback_context
-        
-        # 預設樣式 - 外框顏色與填滿顏色一致
-        default_style_all = {"border": "2px solid #007bff"}      # 藍色
-        default_style_confirmed = {"border": "2px solid #28a745"} # 綠色  
-        default_style_pending = {"border": "2px solid #ffc107"}   # 黃色
-        
+
+        active_button = "daily-filter-all"
         if ctx.triggered:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-            
-            # 如果是日期變化，重置為預設狀態
-            if button_id == "daily-selected-date":
-                return "primary", "light", default_style_confirmed, "light", default_style_pending
-            elif button_id == "daily-filter-all":
-                return "primary", "light", default_style_confirmed, "light", default_style_pending
-            elif button_id == "daily-filter-confirmed":
-                return "light", "success", default_style_confirmed, "light", default_style_pending
-            elif button_id == "daily-filter-pending":
-                return "light", "light", default_style_confirmed, "light", default_style_pending
-        
-        # 預設狀態：「全部」按鈕被選中
-        return "light", "light", default_style_confirmed, "light", default_style_pending
-    
-    # 日曆日期點擊事件
+            if button_id in {"daily-filter-confirmed", "daily-filter-pending", "daily-filter-all"}:
+                active_button = button_id
+            elif button_id == "daily-selected-date":
+                active_button = "daily-filter-all"
+
+        styles = {
+            "daily-filter-all": get_filter_button_style(),
+            "daily-filter-confirmed": get_filter_button_style(),
+            "daily-filter-pending": get_filter_button_style()
+        }
+        styles[active_button] = get_filter_button_style(selected=True)
+
+        return (
+            styles["daily-filter-all"],
+            styles["daily-filter-confirmed"],
+            styles["daily-filter-pending"]
+        )
+
     @app.callback(
         [Output("daily-selected-date", "data"),
          Output("daily-calendar-container", "children")],
