@@ -6,6 +6,7 @@ import pandas as pd
 import urllib.parse
 from dash import ALL
 
+
 # TODO 新增狀態radio搜尋條件
 
 # offcanvas
@@ -37,6 +38,13 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     add_download_component("product_inventory"),  # 加入下載元件
     html.Div([
         html.Div([
+            # 新增：創建新產品按鈕
+            dbc.Button("創建新產品", 
+                    id="create-new-product-btn", 
+                    n_clicks=0, 
+                    color="success", 
+                    outline=True,
+                    className="me-2"),  # 右邊距
             inventory_components["trigger_button"]
         ], className="d-flex align-items-center"),
         html.Div([
@@ -70,7 +78,121 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             ], className="ms-auto d-flex")
         ], id="modal-footer"),
     ], id="group-items-modal", is_open=False, size="xl", centered=True, className="", style={"--bs-modal-bg": "white"}),
-    
+    # 創建新產品 Modal
+    dbc.Modal([
+        dbc.ModalHeader([
+            dbc.ModalTitle("創建新產品", id="inventory-new-product-modal-title")
+        ]),
+        dbc.ModalBody([
+            dbc.Row([
+                # 左側欄位
+                dbc.Col([
+                    # 產品ID
+                    dbc.Row([
+                        dbc.Label("產品ID", width=4),
+                        dbc.Col(dbc.Input(id="inventory-new-product-id", type="text", placeholder="請輸入產品編號"), width=8)
+                    ], className="mb-3"),
+                    # 倉庫ID
+                    dbc.Row([
+                        dbc.Label("倉庫ID", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-warehouse-id", type="text", placeholder="請輸入倉庫id"),
+                            dbc.Tooltip("例如：本倉、物料倉", target="inventory-new-product-warehouse-id", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 產品中文名稱
+                    dbc.Row([
+                        dbc.Label("產品名稱", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-name-zh", type="text", placeholder="請輸入產品名稱"),
+                            dbc.Tooltip("請輸入完整的產品名稱", target="inventory-new-product-name-zh", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 類別
+                    dbc.Row([
+                        dbc.Label("類別", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-category", type="text", placeholder="請輸入類別"),
+                            dbc.Tooltip("例如：消耗品、其他類、白帶魚", target="inventory-new-product-category", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 子類別
+                    dbc.Row([
+                        dbc.Label("子類別", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-subcategory", type="text", placeholder="請輸入子類別"),
+                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片、禮盒", target="inventory-new-product-subcategory", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 規格
+                    dbc.Row([
+                        dbc.Label("規格", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-specification", type="text", placeholder="請輸入產品規格"),
+                            dbc.Tooltip("例如：12K、150/200", target="inventory-new-product-specification", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6),
+                
+                # 右側欄位
+                dbc.Col([
+                    # 包裝原料
+                    dbc.Row([
+                        dbc.Label("包裝原料", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-package-raw", type="text", placeholder="請輸入包裝原料"),
+                            dbc.Tooltip("例如：10K/箱、500g/包", target="inventory-new-product-package-raw", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 處理方式
+                    dbc.Row([
+                        dbc.Label("處理方式", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-process-type", type="text", placeholder="請輸入處理方式"),
+                            dbc.Tooltip("例如：單尾、無骨", target="inventory-new-product-process-type", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 單位
+                    dbc.Row([
+                        dbc.Label("單位", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-unit", type="text", placeholder="請輸入單位"),
+                            dbc.Tooltip("例如：公斤、套、包、尾", target="inventory-new-product-unit", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 供應商ID
+                    dbc.Row([
+                        dbc.Label("供應商ID", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-supplier-id", type="text", placeholder="請輸入供應商id"),
+                            dbc.Tooltip("例如：集和、寶田", target="inventory-new-product-supplier-id", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 狀態
+                    dbc.Row([
+                        dbc.Label("狀態", width=4),
+                        dbc.Col([
+                            html.Div([
+                                dcc.Dropdown(
+                                    id="inventory-new-product-is-active",
+                                    options=[
+                                        {"label": "啟用 (Active)", "value": "active"},
+                                        {"label": "停用 (Inactive)", "value": "inactive"}
+                                    ],
+                                    placeholder="請選擇狀態",
+                                    value="active"  # 默認啟用
+                                )
+                            ], title="選擇產品是否啟用：啟用表示可正常使用，停用表示暫時不可使用")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6)
+            ])
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("取消", id="inventory-cancel-product-btn", color="secondary", className="me-2"),
+            dbc.Button("創建產品", id="inventory-save-new-product-btn", color="primary"),
+        ])
+    ], id="inventory-new-product-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
     success_toast("product_inventory", message=""),
     error_toast("product_inventory", message=""),
     warning_toast("product_inventory", message=""),
@@ -562,3 +684,121 @@ def update_subcategory_options(selected_category):
     except Exception as e:
         print(f"發生錯誤: {e}")
         return []
+    
+# 開啟創建新產品 Modal
+@app.callback(
+    Output("inventory-new-product-modal", "is_open"),
+    [Input("create-new-product-btn", "n_clicks"),
+     Input("inventory-cancel-product-btn", "n_clicks")],
+    [State("inventory-new-product-modal", "is_open")],
+    prevent_initial_call=True
+)
+def toggle_new_product_modal(create_clicks, cancel_clicks, is_open):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return is_open
+    
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    
+    if button_id == "create-new-product-btn" and create_clicks:
+        return True
+    elif button_id == "inventory-cancel-product-btn" and cancel_clicks:
+        return False
+    
+    return is_open
+
+# 創建新產品
+@app.callback(
+    [Output("inventory-new-product-modal", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-success-toast", "children", allow_duplicate=True),
+     Output("product_inventory-error-toast", "is_open", allow_duplicate=True),
+     Output("product_inventory-error-toast", "children", allow_duplicate=True),
+     Output("inventory-data", "data", allow_duplicate=True)],  # 重新載入庫存資料
+    Input("inventory-save-new-product-btn", "n_clicks"),
+    [State("inventory-new-product-id", "value"),
+     State("inventory-new-product-warehouse-id", "value"),
+     State("inventory-new-product-name-zh", "value"),
+     State("inventory-new-product-category", "value"),
+     State("inventory-new-product-subcategory", "value"),
+     State("inventory-new-product-specification", "value"),
+     State("inventory-new-product-package-raw", "value"),
+     State("inventory-new-product-process-type", "value"),
+     State("inventory-new-product-unit", "value"),
+     State("inventory-new-product-supplier-id", "value"),
+     State("inventory-new-product-is-active", "value"),
+     State("user-role-store", "data")],
+    prevent_initial_call=True
+)
+def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, subcategory, 
+                      specification, package_raw, process_type, unit, supplier_id, is_active, user_role):
+    if not n_clicks:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
+    # 驗證必填欄位
+    if not all([product_id, warehouse_id, name_zh, category, subcategory]):
+        return (dash.no_update, False, "", True, "請填寫所有必填欄位（產品ID、倉庫ID、產品名稱、類別、子類別）", 
+                dash.no_update)
+    
+    try:
+        # 準備產品資料
+        product_data = {
+            "product_id": product_id.strip(),
+            "warehouse_id": warehouse_id.strip(),
+            "name_zh": name_zh.strip(),
+            "category": category.strip(),
+            "subcategory": subcategory.strip(),
+            "specification": specification.strip() if specification else "",
+            "package_raw": package_raw.strip() if package_raw else "",
+            "process_type": process_type.strip() if process_type else "",
+            "unit": unit.strip() if unit else "",
+            "supplier_id": supplier_id.strip() if supplier_id else "",
+            "is_active": is_active if is_active else "active",
+            "user_role": user_role or "viewer"
+        }
+        
+        # 呼叫 API 創建產品
+        response = requests.post("http://127.0.0.1:8000/product/create", json=product_data)
+        
+        if response.status_code == 200:
+            # 重新載入庫存資料
+            try:
+                inventory_response = requests.get("http://127.0.0.1:8000/get_inventory_data")
+                if inventory_response.status_code == 200:
+                    updated_inventory_data = inventory_response.json()
+                else:
+                    updated_inventory_data = dash.no_update
+            except:
+                updated_inventory_data = dash.no_update
+            
+            return (False, True, f"產品 {product_id} 創建成功！", False, "", updated_inventory_data)
+        else:
+            error_detail = response.json().get("detail", "創建失敗")
+            return (dash.no_update, False, "", True, f"創建產品失敗：{error_detail}", dash.no_update)
+            
+    except Exception as e:
+        return (dash.no_update, False, "", True, f"創建產品時發生錯誤：{str(e)}", dash.no_update)
+
+# 重置 Modal 表單欄位
+@app.callback(
+    [Output("inventory-new-product-id", "value"),
+     Output("inventory-new-product-warehouse-id", "value"),
+     Output("inventory-new-product-name-zh", "value"),
+     Output("inventory-new-product-category", "value"),
+     Output("inventory-new-product-subcategory", "value"),
+     Output("inventory-new-product-specification", "value"),
+     Output("inventory-new-product-package-raw", "value"),
+     Output("inventory-new-product-process-type", "value"),
+     Output("inventory-new-product-unit", "value"),
+     Output("inventory-new-product-supplier-id", "value"),
+     Output("inventory-new-product-is-active", "value")],
+    Input("inventory-new-product-modal", "is_open"),
+    prevent_initial_call=True
+)
+def reset_product_form(is_open):
+    if is_open:
+        # Modal 開啟時不重置
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    else:
+        # Modal 關閉時重置所有欄位
+        return "", "", "", "", "", "", "", "", "", "", "active"
