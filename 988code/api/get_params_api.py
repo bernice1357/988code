@@ -84,7 +84,7 @@ def get_customer_transactions(customer_id: str):
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
 # 商品庫存 - 取得商品群組 modal 的資料
-@router.get("/get_subcategory_items/{subcategory}")
+@router.get("/get_subcategory_items/{subcategory:path}")
 def get_subcategory_items(subcategory: str):
     try:
         query = """
