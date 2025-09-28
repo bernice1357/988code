@@ -30,8 +30,7 @@ def get_optimized_column_widths():
         '預計補貨日期': 120,
         '商品ID': 120,
         '商品名稱': 180,
-        '預估數量': 100,
-        '預估數量含單位': 120,
+        '預估數量': 120,
         '信心度': 80
     }
 
@@ -137,7 +136,7 @@ def create_restock_table(df, customer_index_start=0):
     df_reset = df.reset_index(drop=True)
     
     # 選擇要顯示的欄位（加入客戶名稱和電話，使用含單位的預估數量）
-    display_columns = ['客戶ID', '客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位', '信心度']
+    display_columns = ['客戶ID', '客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     df_display = df_reset[display_columns].copy()
     
     # 使用優化的固定寬度
@@ -201,7 +200,7 @@ def create_restock_table(df, customer_index_start=0):
         row_cells.append(customer_id_cell)
         
         # 其他欄位（優化迴圈）
-        other_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位']
+        other_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量']
         for col in other_columns:
             cell = html.Td(
                 str(row.get(col, '')),
@@ -274,7 +273,7 @@ def create_restock_table(df, customer_index_start=0):
     ]
     
     # 其他標頭（按新的順序）
-    other_header_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位', '信心度']
+    other_header_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     
     for header_text in other_header_columns:
         col_width = column_widths[header_text]
@@ -491,8 +490,8 @@ def reload_table_data():
             'unit': '單位'
         })
 
-        # 組合預估數量和單位
-        df['預估數量含單位'] = df.apply(lambda row:
+        # 將預估數量和單位組合，直接覆蓋預估數量欄位
+        df['預估數量'] = df.apply(lambda row:
             f"{row['預估數量']}{row['單位']}" if pd.notna(row['單位']) and row['單位'] != ''
             else str(row['預估數量']), axis=1
         )
@@ -517,7 +516,6 @@ def reload_table_data():
                 '商品名稱': row.get('商品名稱', ''),
                 '預計補貨日期': row.get('預計補貨日期', ''),
                 '預估數量': row.get('預估數量', ''),
-                '預估數量含單位': row.get('預估數量含單位', ''),
                 '信心度': row.get('信心度', ''),
                 '單位': row.get('單位', '')
             }
@@ -571,8 +569,8 @@ def load_data_and_handle_errors(page_loaded):
                 'unit': '單位'
             })
 
-            # 組合預估數量和單位
-            df['預估數量含單位'] = df.apply(lambda row:
+            # 將預估數量和單位組合，直接覆蓋預估數量欄位
+            df['預估數量'] = df.apply(lambda row:
                 f"{row['預估數量']}{row['單位']}" if pd.notna(row['單位']) and row['單位'] != ''
                 else str(row['預估數量']), axis=1
             )
@@ -590,7 +588,6 @@ def load_data_and_handle_errors(page_loaded):
                     '商品名稱': row.get('商品名稱', ''),
                     '預計補貨日期': row.get('預計補貨日期', ''),
                     '預估數量': row.get('預估數量', ''),
-                    '預估數量含單位': row.get('預估數量含單位', ''),
                     '信心度': row.get('信心度', ''),
                     '單位': row.get('單位', '')
                 }
