@@ -467,7 +467,8 @@ def reload_table_data():
         if response.status_code != 200:
             return None, [], True, "無法獲取資料"
         
-        data = response.json()
+        response_data = response.json()
+        data = response_data.get('data', [])
         df = pd.DataFrame(data)
         
         if df.empty:
@@ -499,11 +500,14 @@ def reload_table_data():
         records_for_modal = []
         for _, row in all_records.iterrows():
             record_for_modal = {
+                '預測ID': row.get('預測ID', ''),
                 '客戶ID': row.get('客戶ID', ''),
                 '客戶名稱': row.get('客戶名稱', ''),
                 '商品ID': row.get('商品ID', ''),
                 '商品名稱': row.get('商品名稱', ''),
-                '預計補貨日期': row.get('預計補貨日期', '')
+                '預計補貨日期': row.get('預計補貨日期', ''),
+                '預估數量': row.get('預估數量', ''),
+                '信心度': row.get('信心度', '')
             }
             records_for_modal.append(record_for_modal)
         
@@ -560,11 +564,14 @@ def load_data_and_handle_errors(page_loaded):
             # 簡化 modal 記錄準備
             records_for_modal = [
                 {
+                    '預測ID': row.get('預測ID', ''),
                     '客戶ID': row.get('客戶ID', ''),
                     '客戶名稱': row.get('客戶名稱', ''),
                     '商品ID': row.get('商品ID', ''),
                     '商品名稱': row.get('商品名稱', ''),
-                    '預計補貨日期': row.get('預計補貨日期', '')
+                    '預計補貨日期': row.get('預計補貨日期', ''),
+                    '預估數量': row.get('預估數量', ''),
+                    '信心度': row.get('信心度', '')
                 }
                 for _, row in all_records.iterrows()
             ]
@@ -1055,12 +1062,17 @@ def handle_final_confirm(confirm_clicks, radio_values, selected_items_from_store
                     prediction_id = item['預測ID']
                     
                     
-                    # 確保 prediction_id 是整數
+                    # 確保 prediction_id 是有效的整數
+                    if not prediction_id or prediction_id == '':
+                        print(f"[ERROR] prediction_id 為空值，跳過此項目")
+                        failed_count += 1
+                        continue
+
                     if isinstance(prediction_id, str):
                         try:
                             prediction_id = int(prediction_id)
                         except ValueError:
-                            print(f"[ERROR] 無法轉換 prediction_id 為整數: {prediction_id}")
+                            print(f"[ERROR] 無法轉換 prediction_id 為整數: '{prediction_id}'")
                             failed_count += 1
                             continue
                     
