@@ -7,6 +7,12 @@ from components.toast import warning_toast
 from callbacks.export_callback import create_export_callback, add_download_component
 import global_vars
 
+def render_empty_state():
+    return html.Div(
+        "目前沒有新品回購",
+        style={"color": "#6c757d", "textAlign": "center", "marginTop": "40px"}
+    )
+
 # TODO update_repurchase_note再測試
 
 layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
@@ -172,6 +178,9 @@ def initialize_page(_):
         
         if response.status_code == 200:
             data = response.json()
+            if not data:
+                empty_message = render_empty_state()
+                return empty_message, [], html.Div(), {"display": "none"}, False, "", []
             df = pd.DataFrame(data)
             df.columns = ["id", "提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]
             
@@ -234,6 +243,9 @@ def load_repurchase_data(n_clicks, days_input):
         
         if response.status_code == 200:
             data = response.json()
+            if not data:
+                empty_message = render_empty_state()
+                return empty_message, [], html.Div(), {"display": "none"}, False, "", []
             df = pd.DataFrame(data)
             df.columns = ["id", "提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]
             
@@ -398,6 +410,9 @@ def update_reminded_status(n_clicks, checkbox_values, stored_data, days_input, u
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
         if response.status_code == 200:
             data = response.json()
+            if not data:
+                empty_message = render_empty_state()
+                return empty_message, [], True, "訂單狀態更新為已確認", False, "", False, "", []
             df = pd.DataFrame(data)
             df.columns = ["id", "提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]
             
@@ -534,6 +549,9 @@ def save_note_edit(save_clicks, textarea_value, stored_data, edit_index, days_in
         response = requests.get(f"http://127.0.0.1:8000/get_repurchase_reminders/{days_input}")
         if response.status_code == 200:
             data = response.json()
+            if not data:
+                empty_message = render_empty_state()
+                return empty_message, [], False, True, "備註已更新", False, "", False, "", []
             df = pd.DataFrame(data)
             df.columns = ["id", "提醒狀態", "客戶ID", "客戶名稱", "新品購買品項", "上次購買日期", "過期天數", "備註"]
             
