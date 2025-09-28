@@ -50,7 +50,8 @@ class SalesDataUploader:
         self.table_config = {
             'order_transactions': 'order_transactions',
             'product_master': 'product_master',
-            'customer': 'customer'  # 新增客戶表配置
+            'customer': 'customer',  # 新增客戶表配置
+            'inventory': 'inventory'  # 新增庫存表配置
         }
         
     def connect_database(self):
@@ -1005,14 +1006,15 @@ async def create_product(product_data: dict):
             current_time = datetime.datetime.now()
             
             with uploader.connection.cursor() as cursor:
-                query = f"""
+                # 1. 創建產品資料
+                product_query = f"""
                 INSERT INTO {uploader.table_config['product_master']}
-                (product_id, warehouse_id, name_zh, category, subcategory, 
-                 specification, package_raw, process_type, unit, supplier_id, 
+                (product_id, warehouse_id, name_zh, category, subcategory,
+                 specification, package_raw, process_type, unit, supplier_id,
                  is_active, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(query, (
+                cursor.execute(product_query, (
                     product_data['product_id'],
                     product_data['warehouse_id'],
                     product_data['name_zh'],
@@ -1027,14 +1029,36 @@ async def create_product(product_data: dict):
                     current_time,  # created_at
                     current_time   # updated_at
                 ))
+
+                # 2. 同時創建庫存資料
+                inventory_query = f"""
+                INSERT INTO {uploader.table_config['inventory']}
+                (product_id, warehouse_id, stock_quantity, total_quantity, unit, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                stock_quantity = product_data.get('stock_quantity', 0)
+                total_quantity = product_data.get('total_quantity', stock_quantity)
+
+                cursor.execute(inventory_query, (
+                    product_data['product_id'],
+                    product_data['warehouse_id'],
+                    stock_quantity,
+                    total_quantity,
+                    product_data.get('unit', ''),
+                    current_time
+                ))
+
                 uploader.connection.commit()
                 
                 return JSONResponse(
                     status_code=200,
                     content={
                         "success": True,
-                        "message": f"產品 {product_data['product_id']} 創建成功",
+                        "message": f"產品 {product_data['product_id']} 及庫存資料創建成功",
                         "product_id": product_data['product_id'],
+                        "warehouse_id": product_data['warehouse_id'],
+                        "stock_quantity": stock_quantity,
+                        "total_quantity": total_quantity,
                         "created_at": current_time.isoformat(),
                         "updated_at": current_time.isoformat()
                     }

@@ -152,6 +152,14 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
                             dbc.Tooltip("例如：單尾、無骨", target="inventory-new-product-process-type", placement="top")
                         ], width=8)
                     ], className="mb-3"),
+                    # 庫存量
+                    dbc.Row([
+                        dbc.Label("庫存量", width=4),
+                        dbc.Col([
+                            dbc.Input(id="inventory-new-product-stock-quantity", type="number", placeholder="請輸入庫存量", min=0),
+                            dbc.Tooltip("請輸入初始庫存數量", target="inventory-new-product-stock-quantity", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
                     # 單位
                     dbc.Row([
                         dbc.Label("單位", width=4),
@@ -724,14 +732,15 @@ def toggle_new_product_modal(create_clicks, cancel_clicks, is_open):
      State("inventory-new-product-specification", "value"),
      State("inventory-new-product-package-raw", "value"),
      State("inventory-new-product-process-type", "value"),
+     State("inventory-new-product-stock-quantity", "value"),
      State("inventory-new-product-unit", "value"),
      State("inventory-new-product-supplier-id", "value"),
      State("inventory-new-product-is-active", "value"),
      State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, subcategory, 
-                      specification, package_raw, process_type, unit, supplier_id, is_active, user_role):
+def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, subcategory,
+                      specification, package_raw, process_type, stock_quantity, unit, supplier_id, is_active, user_role):
     if not n_clicks:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
@@ -754,6 +763,8 @@ def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, su
             "unit": unit.strip() if unit else "",
             "supplier_id": supplier_id.strip() if supplier_id else "",
             "is_active": is_active if is_active else "active",
+            "stock_quantity": stock_quantity if stock_quantity is not None else 0,
+            "total_quantity": stock_quantity if stock_quantity is not None else 0,
             "user_role": user_role or "viewer"
         }
         
@@ -789,6 +800,7 @@ def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, su
      Output("inventory-new-product-specification", "value"),
      Output("inventory-new-product-package-raw", "value"),
      Output("inventory-new-product-process-type", "value"),
+     Output("inventory-new-product-stock-quantity", "value"),
      Output("inventory-new-product-unit", "value"),
      Output("inventory-new-product-supplier-id", "value"),
      Output("inventory-new-product-is-active", "value")],
@@ -798,7 +810,7 @@ def create_new_product(n_clicks, product_id, warehouse_id, name_zh, category, su
 def reset_product_form(is_open):
     if is_open:
         # Modal 開啟時不重置
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     else:
         # Modal 關閉時重置所有欄位
-        return "", "", "", "", "", "", "", "", "", "", "active"
+        return "", "", "", "", "", "", "", "", "", "", "", "active"
