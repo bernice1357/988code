@@ -180,9 +180,9 @@ def get_customer_latest_transactions(limit: int = 50, offset: int = 0):
         # CREATE INDEX IF NOT EXISTS idx_product_master_id ON product_master(product_id);
         
         query = """
-        SELECT pp.prediction_id, pp.customer_id, c.customer_name, c.phone_number, 
-               pp.product_id, COALESCE(pm.name_zh, pp.product_name) as product_name, 
-               pp.prediction_date, pp.estimated_quantity, pp.confidence_level
+        SELECT pp.prediction_id, pp.customer_id, c.customer_name, c.phone_number,
+               pp.product_id, COALESCE(pm.name_zh, pp.product_name) as product_name,
+               pp.prediction_date, pp.estimated_quantity, pp.confidence_level, pm.unit
         FROM prophet_predictions pp
         LEFT JOIN customer c ON pp.customer_id = c.customer_id
         LEFT JOIN product_master pm ON pp.product_id = pm.product_id

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"http://127.0.0.1:8000/get_restock_data?limit=1\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

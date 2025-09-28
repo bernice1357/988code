@@ -31,6 +31,7 @@ def get_optimized_column_widths():
         '商品ID': 120,
         '商品名稱': 180,
         '預估數量': 100,
+        '預估數量含單位': 120,
         '信心度': 80
     }
 
@@ -135,8 +136,8 @@ def create_restock_table(df, customer_index_start=0):
     # 重設索引以確保 custom_table 正常運作
     df_reset = df.reset_index(drop=True)
     
-    # 選擇要顯示的欄位（加入客戶名稱和電話）
-    display_columns = ['客戶ID', '客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
+    # 選擇要顯示的欄位（加入客戶名稱和電話，使用含單位的預估數量）
+    display_columns = ['客戶ID', '客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位', '信心度']
     df_display = df_reset[display_columns].copy()
     
     # 使用優化的固定寬度
@@ -200,7 +201,7 @@ def create_restock_table(df, customer_index_start=0):
         row_cells.append(customer_id_cell)
         
         # 其他欄位（優化迴圈）
-        other_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量']
+        other_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位']
         for col in other_columns:
             cell = html.Td(
                 str(row.get(col, '')),
@@ -273,7 +274,7 @@ def create_restock_table(df, customer_index_start=0):
     ]
     
     # 其他標頭（按新的順序）
-    other_header_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
+    other_header_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量含單位', '信心度']
     
     for header_text in other_header_columns:
         col_width = column_widths[header_text]
@@ -486,8 +487,15 @@ def reload_table_data():
             'product_name': '商品名稱',
             'prediction_date': '預計補貨日期',
             'estimated_quantity': '預估數量',
-            'confidence_level': '信心度'
+            'confidence_level': '信心度',
+            'unit': '單位'
         })
+
+        # 組合預估數量和單位
+        df['預估數量含單位'] = df.apply(lambda row:
+            f"{row['預估數量']}{row['單位']}" if pd.notna(row['單位']) and row['單位'] != ''
+            else str(row['預估數量']), axis=1
+        )
         
         # 按預計補貨日期和客戶名稱排序
         df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
@@ -509,7 +517,9 @@ def reload_table_data():
                 '商品名稱': row.get('商品名稱', ''),
                 '預計補貨日期': row.get('預計補貨日期', ''),
                 '預估數量': row.get('預估數量', ''),
-                '信心度': row.get('信心度', '')
+                '預估數量含單位': row.get('預估數量含單位', ''),
+                '信心度': row.get('信心度', ''),
+                '單位': row.get('單位', '')
             }
             records_for_modal.append(record_for_modal)
         
@@ -546,7 +556,7 @@ def load_data_and_handle_errors(page_loaded):
                 return html.Div("暫無資料", style={'textAlign': 'center', 'padding': '50px'}), [], False, ""
             
             df = pd.DataFrame(data)
-            
+
             # 重新命名欄位
             df = df.rename(columns={
                 'prediction_id': '預測ID',
@@ -557,9 +567,16 @@ def load_data_and_handle_errors(page_loaded):
                 'product_name': '商品名稱',
                 'prediction_date': '預計補貨日期',
                 'estimated_quantity': '預估數量',
-                'confidence_level': '信心度'
+                'confidence_level': '信心度',
+                'unit': '單位'
             })
-            
+
+            # 組合預估數量和單位
+            df['預估數量含單位'] = df.apply(lambda row:
+                f"{row['預估數量']}{row['單位']}" if pd.notna(row['單位']) and row['單位'] != ''
+                else str(row['預估數量']), axis=1
+            )
+
             # 創建優化的表格
             table, all_records = create_restock_table(df, 0)
             
@@ -573,7 +590,9 @@ def load_data_and_handle_errors(page_loaded):
                     '商品名稱': row.get('商品名稱', ''),
                     '預計補貨日期': row.get('預計補貨日期', ''),
                     '預估數量': row.get('預估數量', ''),
-                    '信心度': row.get('信心度', '')
+                    '預估數量含單位': row.get('預估數量含單位', ''),
+                    '信心度': row.get('信心度', ''),
+                    '單位': row.get('單位', '')
                 }
                 for _, row in all_records.iterrows()
             ]
