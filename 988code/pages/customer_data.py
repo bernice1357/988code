@@ -385,8 +385,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             html.Div(
                 id="delete-customer-info",
                 style={
-                    "background-color": "#fff3cd",
-                    "border": "1px solid #ffeaa7",
+                    "background-color": "#f1f3f5",
+                    "border": "1px solid #ced4da",
                     "border-radius": "5px",
                     "padding": "10px",
                     "margin-top": "10px",

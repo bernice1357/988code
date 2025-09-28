@@ -1,4 +1,4 @@
-import dash_bootstrap_components as dbc
+﻿import dash_bootstrap_components as dbc
 from dash import dcc, html
 from components.toast import success_toast, error_toast, warning_toast
 
@@ -165,13 +165,13 @@ layout = html.Div([
                     }
                 ),
                 html.H3("正在匯入資料...", style={
-                    "color": "white",
+                    "color": "balck",
                     "textAlign": "center",
                     "marginBottom": "1rem",
                     "fontWeight": "600"
                 }),
                 html.P("請稍候，系統正在處理您的檔案", style={
-                    "color": "#ccc",
+                    "color": "balck",
                     "textAlign": "center",
                     "fontSize": "1.1rem",
                     "marginBottom": "1.5rem"
@@ -203,13 +203,13 @@ layout = html.Div([
                     # 處理狀態文字
                     html.Div([
                         html.Span(id="progress-status", children="正在解析檔案...", style={
-                            "color": "#ccc",
+                            "color": "balck",
                             "fontSize": "0.9rem",
                             "marginBottom": "0.5rem",
                             "display": "block"
                         }),
                         html.Span(id="progress-count", children="", style={
-                            "color": "#007bff",
+                            "color": "balck",
                             "fontSize": "1rem",
                             "fontWeight": "500"
                         })
@@ -222,12 +222,12 @@ layout = html.Div([
                 }),
                 html.Div([
                     html.I(className="fas fa-exclamation-triangle", style={
-                        "color": "#ffc107",
+                        "color": "balck",
                         "fontSize": "1.2rem",
                         "marginRight": "0.5rem"
                     }),
                     html.Span("請勿離開此畫面，以免資料遺失", style={
-                        "color": "#ffc107",
+                        "color": "balck",
                         "fontSize": "1rem",
                         "fontWeight": "500"
                     })
@@ -235,8 +235,8 @@ layout = html.Div([
                     "display": "flex",
                     "alignItems": "center",
                     "justifyContent": "center",
-                    "backgroundColor": "rgba(255, 193, 7, 0.1)",
-                    "border": "1px solid rgba(255, 193, 7, 0.3)",
+                    "backgroundColor": "rgba(200, 200, 200, 0.7)",
+                    "border": "1px solid rgba(255, 255, 255, 1)",
                     "borderRadius": "6px",
                     "padding": "0.8rem 1.5rem",
                     "marginTop": "1rem"
@@ -246,9 +246,10 @@ layout = html.Div([
                 "flexDirection": "column",
                 "alignItems": "center",
                 "justifyContent": "center",
-                "backgroundColor": "rgba(0, 0, 0, 0.8)",
+                "backgroundColor": "#ffffff",
                 "padding": "3rem",
-                "borderRadius": "12px",
+                "borderRadius": "0",
+                "border": "1px solid #000000",
                 "minWidth": "300px"
             })
         ], style={
@@ -262,7 +263,7 @@ layout = html.Div([
             "alignItems": "center",
             "justifyContent": "center",
             "zIndex": "9999",
-            "backdropFilter": "blur(5px)"
+            "backdropFilter": "blur(0)"
         })
     ], id="fullscreen-overlay", style={"display": "none"}),
     
@@ -492,3 +493,4 @@ layout = html.Div([
 
 # 導入回調函數
 from callbacks import import_data_callbacks
+
