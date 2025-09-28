@@ -25,9 +25,11 @@ def get_optimized_column_widths():
     """獲取優化的固定欄位寬度，避免重複計算"""
     return {
         '客戶ID': 100,
+        '客戶名稱': 150,
+        '電話號碼': 120,
         '預計補貨日期': 120,
         '商品ID': 120,
-        '商品名稱': 200,
+        '商品名稱': 180,
         '預估數量': 100,
         '信心度': 80
     }
@@ -133,8 +135,8 @@ def create_restock_table(df, customer_index_start=0):
     # 重設索引以確保 custom_table 正常運作
     df_reset = df.reset_index(drop=True)
     
-    # 選擇要顯示的欄位（移除客戶名稱，加入商品名稱）
-    display_columns = ['客戶ID', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
+    # 選擇要顯示的欄位（加入客戶名稱和電話）
+    display_columns = ['客戶ID', '客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     df_display = df_reset[display_columns].copy()
     
     # 使用優化的固定寬度
@@ -198,7 +200,7 @@ def create_restock_table(df, customer_index_start=0):
         row_cells.append(customer_id_cell)
         
         # 其他欄位（優化迴圈）
-        other_columns = ['預計補貨日期', '商品ID', '商品名稱', '預估數量']
+        other_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量']
         for col in other_columns:
             cell = html.Td(
                 str(row.get(col, '')),
@@ -271,7 +273,7 @@ def create_restock_table(df, customer_index_start=0):
     ]
     
     # 其他標頭（按新的順序）
-    other_header_columns = ['預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
+    other_header_columns = ['客戶名稱', '電話號碼', '預計補貨日期', '商品ID', '商品名稱', '預估數量', '信心度']
     
     for header_text in other_header_columns:
         col_width = column_widths[header_text]
