@@ -1289,6 +1289,34 @@ def create_temp_order(order_data: TempOrderCreate):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
+        normalized_is_new_product = bool(order_data.is_new_product)
+        if isinstance(order_data.is_new_product, str):
+            normalized_is_new_product = order_data.is_new_product.lower() == 'true'
+
+        if order_data.status == "1":
+            if not order_data.product_id:
+                raise HTTPException(status_code=400, detail="缺少 product_id，無法確認是否為新品項")
+
+            check_existing_sql = """
+                SELECT 1
+                FROM order_transactions
+                WHERE customer_id = %s AND product_id = %s AND status = 1
+                LIMIT 1
+            """
+            existing_purchase = execute_query(
+                check_existing_sql,
+                (order_data.customer_id, order_data.product_id),
+                fetch='one'
+            )
+
+            if existing_purchase:
+                normalized_is_new_product = False
+            else:
+                normalized_is_new_product = True
+
+        order_data.is_new_product = normalized_is_new_product
+
+
         temp_params = (
             order_data.customer_id,
             order_data.customer_name,
