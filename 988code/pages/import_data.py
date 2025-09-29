@@ -14,6 +14,11 @@ layout = html.Div([
     error_toast("create_product_import", message=""),
     warning_toast("create_product_import", message=""),
 
+    # 新增客戶創建相關的 Toast
+    success_toast("create_customer_import", message=""),
+    error_toast("create_customer_import", message=""),
+    warning_toast("create_customer_import", message=""),
+
     # 進度更新觸發器（隱藏）
     dcc.Interval(
         id='progress-interval',
@@ -30,8 +35,90 @@ layout = html.Div([
 
     # 新增：存儲缺失產品資料
     dcc.Store(id='missing-products-store', data=[]),
+    # 新增：存儲缺失客戶資料
+    dcc.Store(id='missing-customers-store', data=[]),
 
-    
+    # 新增客戶創建 Modal
+    dbc.Modal([
+        dbc.ModalHeader([
+            dbc.ModalTitle("創建新客戶", id="new-customer-modal-title")
+        ]),
+        dbc.ModalBody([
+            dbc.Row([
+                # 左側欄位
+                dbc.Col([
+                    # 客戶ID
+                    dbc.Row([
+                        dbc.Label("客戶ID", width=4),
+                        dbc.Col(dbc.Input(id="new-customer-id", type="text", disabled=True), width=8)
+                    ], className="mb-3"),
+                    # 客戶名稱
+                    dbc.Row([
+                        dbc.Label("客戶名稱", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱"),
+                            dbc.Tooltip("請輸入完整的客戶名稱", target="new-customer-name", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 電話號碼
+                    dbc.Row([
+                        dbc.Label("電話號碼", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼"),
+                            dbc.Tooltip("請輸入客戶聯絡電話", target="new-customer-phone", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6),
+
+                # 右側欄位
+                dbc.Col([
+                    # 地址
+                    dbc.Row([
+                        dbc.Label("地址", width=4),
+                        dbc.Col([
+                            dbc.Input(id="new-customer-address", type="text", placeholder="請輸入地址"),
+                            dbc.Tooltip("請輸入客戶地址", target="new-customer-address", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 配送時間
+                    dbc.Row([
+                        dbc.Label("配送時間", width=4),
+                        dbc.Col([
+                            dcc.Dropdown(
+                                id="new-customer-delivery-schedule",
+                                options=[
+                                    {"label": "週一", "value": "週一"},
+                                    {"label": "週二", "value": "週二"},
+                                    {"label": "週三", "value": "週三"},
+                                    {"label": "週四", "value": "週四"},
+                                    {"label": "週五", "value": "週五"},
+                                    {"label": "週六", "value": "週六"},
+                                    {"label": "週日", "value": "週日"}
+                                ],
+                                placeholder="請選擇配送時間",
+                                multi=True
+                            )
+                        ], width=8)
+                    ], className="mb-3"),
+                    # 備註
+                    dbc.Row([
+                        dbc.Label("備註", width=4),
+                        dbc.Col([
+                            dbc.Textarea(id="new-customer-notes", placeholder="客戶備註資訊", rows=3),
+                            dbc.Tooltip("請輸入客戶相關備註", target="new-customer-notes", placement="top")
+                        ], width=8)
+                    ], className="mb-3"),
+                ], width=6)
+            ])
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
+            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
+            dbc.Button("批量跳過全部", id="skip-all-customers-btn", color="warning", className="me-2", style={"display": "none"}),
+            dbc.Button("完成並匯入", id="finish-and-import-btn", color="success", style={"display": "none"})
+        ])
+    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl"),
+
     # 新增產品創建 Modal
     dbc.Modal([
         dbc.ModalHeader([
