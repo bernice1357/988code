@@ -176,7 +176,7 @@ tab_content = html.Div([
                 dbc.CardBody([
                     html.Div([
                         dbc.InputGroup([
-                            dbc.InputGroupText("銷量變化比例 >="),
+                            dbc.InputGroupText("銷量變化比例 >"),
                             dbc.Input(type="number", placeholder="輸入比例", id="sales-threshold-input", min=1, value=50),
                             dbc.InputGroupText("%")
                         ], style={"flex": "1", "marginRight": "10px"}),

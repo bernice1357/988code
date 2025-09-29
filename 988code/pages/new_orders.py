@@ -183,7 +183,7 @@ def make_card_item(order):
             html.Div(style={"borderTop": "1px solid #dee2e6", "margin": "15px 0"}),
             # 購買紀錄區塊
             html.Div([
-                html.Small("購買品項", className="text-info mb-1 d-block"),
+                html.Small("上次購買品項", className="text-info mb-1 d-block"),
                 html.Div([
                     html.Span(order.get('product_id', ''), style={"color": "black", "fontWeight": "bold", "fontSize": "0.9rem"}) if order.get('product_id') else None,
                     html.Span(" ", style={"fontSize": "0.9rem"}) if order.get('product_id') else None,
