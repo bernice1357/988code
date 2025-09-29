@@ -223,6 +223,11 @@ class KeywordGenerator:
 ❌ **同類但不同規格的產品**：例如，分析「無刺虱目魚肚」時，禁止生成「虱目魚排」、「虱目魚頭」或「帶刺虱目魚肚」。
 ❌ **同類但不同形態的產品**：例如，分析「鱈魚片」時，禁止生成「鱈魚排」、「鱈魚塊」；分析「虱目魚肚」時，禁止生成「虱目魚排」、「虱目魚片」。
 ❌ **同類但不同部位的產品**：例如，分析「魚肚」時，禁止生成「魚排」、「魚頭」、「魚尾」。
+❌ **任何部分詞彙或不完整詞彙**：嚴格禁止生成任何會與其他產品重疊的部分詞彙或不完整詞彙。例如：
+   - 分析「虱目魚排」時，禁止生成「虱目魚」、「虱目」、「魚排」等部分詞彙
+   - 分析「香酥鱈魚塊」時，禁止生成「鱈魚」、「魚塊」等部分詞彙
+   - 分析「去刺虱目魚肚」時，禁止生成「虱目魚」、「虱目」、「魚肚」等部分詞彙
+   - **原則**：生成的每個關鍵詞都必須包含足夠的特定性，能明確指向該產品而不會與其他產品混淆。
 ❌ **不同類別產品**：菇類產品不能生成魚類、蔬菜名稱。
 ❌ **規格包裝**：「3K」、「包」、「-B」等包裝標記。
 ❌ **完整句子**：「我要買」、「有沒有」等。
@@ -233,8 +238,7 @@ class KeywordGenerator:
   "alternative_names": ["替代名稱 - 同產品不同叫法"],
   "simplified_chinese": ["簡體中文變體 - 客戶可能的搜尋方式"],
   "common_typos": ["常見錯字 - 輸入錯誤"],
-  "partial_searches": ["部分搜尋 - 客戶可能只打部分字"],
-  "category_searches": ["分類搜尋 - 描述性詞彙"]
+  "category_searches": ["分類搜尋 - 描述性詞彙，但不能是通用的產品類別名稱"]
 }}
 
 記住：這是為了匹配客戶的真實搜尋行為，包括各種可能的輸入方式！
@@ -395,17 +399,15 @@ class KeywordGenerator:
             # 支援兩種格式的欄位名稱（新舊版本兼容）
             categories_mapping = {
                 'primary_search_terms': 'core_product_names',
-                'alternative_names': 'product_aliases', 
+                'alternative_names': 'product_aliases',
                 'simplified_chinese': 'simplified_names',
                 'common_typos': 'typo_variants',
-                'partial_searches': 'regional_names',
                 'category_searches': 'descriptive_terms',
                 # 保留舊欄位名稱的支援
                 'core_product_names': 'core_product_names',
                 'product_aliases': 'product_aliases',
                 'simplified_names': 'simplified_names',
                 'typo_variants': 'typo_variants',
-                'regional_names': 'regional_names',
                 'descriptive_terms': 'descriptive_terms'
             }
             
