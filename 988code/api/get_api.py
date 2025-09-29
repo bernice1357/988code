@@ -52,7 +52,7 @@ def get_new_orders():
 @router.get("/get_new_item_orders")
 def get_new_item_orders():
     try:
-        df = get_data_from_db('SELECT customer_id, customer_name, purchase_record, created_at FROM temp_customer_records WHERE is_new_product = true')
+        df = get_data_from_db("SELECT customer_id, customer_name, purchase_record, created_at FROM temp_customer_records WHERE is_new_product = true AND status = '1'")
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_new_orders: {e}")
@@ -61,7 +61,7 @@ def get_new_item_orders():
 @router.get("/get_new_item_customers")
 def get_new_item_customers():
     try:
-        df = get_data_from_db('SELECT customer_id FROM temp_customer_records WHERE is_new_product = true')
+        df = get_data_from_db("SELECT customer_id FROM temp_customer_records WHERE is_new_product = true AND status = '1'")
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_new_orders: {e}")
@@ -319,7 +319,7 @@ def get_product_names():
 def get_new_products():
     print("[API] get_new_products 被呼叫")
     try:
-        df = get_data_from_db('SELECT * FROM temp_customer_records WHERE is_new_product = true')
+        df = get_data_from_db("SELECT * FROM temp_customer_records WHERE is_new_product = true AND status = '1'")
         return df.to_dict(orient="records")
     except Exception as e:
         print(f"[API ERROR] get_new_products: {e}")
