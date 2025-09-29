@@ -1356,22 +1356,107 @@ def update_district_options(selected_city):
 )
 def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, delivery_schedule, notes, missing_customers, missing_products):
     if not n_clicks or not customer_id:
-        return no_update, no_update, False, "", False, ""
-    
+        return no_update, no_update, no_update, False, "", False, ""
+
     # 驗證必填欄位
-    if not customer_name or not customer_name.strip():
-        return no_update, no_update, False, "", True, "客戶名稱為必填欄位"
+    required_fields = [
+        ("客戶名稱", customer_name),
+        ("客戶ID", customer_id),
+        ("電話號碼", phone),
+        ("客戶地址", address),
+        ("直轄市、縣市", city),
+        ("鄉鎮市區", district),
+        ("每週配送日", delivery_schedule),
+    ]
+
+    missing_fields = []
+    for label, value in required_fields:
+        if value is None:
+            missing_fields.append(label)
+        elif isinstance(value, str):
+            if not value.strip():
+                missing_fields.append(label)
+        elif isinstance(value, (list, tuple, set)):
+            if not value:
+                missing_fields.append(label)
+
+    if missing_fields:
+        warning_message = f"請填寫以下欄位：{'、'.join(missing_fields)}"
+        return no_update, no_update, no_update, False, "", True, warning_message
     
     # 準備客戶資料
     delivery_schedule_str = convert_delivery_schedule_to_numbers(delivery_schedule)
-    
+
+    # 智能組合完整地址 (與customer_data.py邏輯一致)
+    def smart_address_combine(original_address, city, district):
+        """智能組合地址，避免重複和錯誤替換，處理郵遞區號"""
+        import re
+
+        clean_address = original_address or ""
+
+        # 如果沒有提供新的縣市或區域資訊，直接返回原地址
+        if not city and not district:
+            return clean_address
+
+        # 檢查是否有郵遞區號（3位數字開頭）
+        postal_code = ""
+        remaining_address = clean_address
+
+        postal_match = re.match(r'^(\d{3})', clean_address)
+        if postal_match:
+            postal_code = postal_match.group(1)
+            remaining_address = clean_address[3:]
+
+        # 嘗試移除地址中的任何縣市區域資訊
+        # 使用更聰明的方式：檢查所有可能的縣市區域組合
+
+        # 獲取所有縣市列表
+        all_cities = list(CITY_DISTRICT_MAP.keys())
+
+        # 先嘗試移除任何可能的「縣市+區域」組合
+        for check_city in all_cities:
+            if remaining_address.startswith(check_city):
+                after_city = remaining_address[len(check_city):]
+                # 檢查剩餘部分是否以某個區域開頭
+                possible_districts = CITY_DISTRICT_MAP.get(check_city, [])
+                for check_district in possible_districts:
+                    if after_city.startswith(check_district):
+                        # 找到縣市+區域組合，移除它們
+                        remaining_address = after_city[len(check_district):]
+                        break
+                # 如果找到縣市但沒找到對應區域，只移除縣市
+                else:
+                    remaining_address = after_city
+                break
+
+        # 重新組合完整地址
+        full_address = ""
+
+        # 加上郵遞區號（如果有的話）
+        if postal_code:
+            full_address += postal_code
+
+        # 加上縣市和區域
+        if city:
+            full_address += city
+        if district:
+            full_address += district
+
+        # 加上剩餘的地址部分
+        if remaining_address:
+            full_address += remaining_address
+
+        return full_address
+
+    full_address = smart_address_combine(address, city, district)
+
     customer_data = {
         "customer_id": customer_id.strip(),
         "customer_name": customer_name.strip(),
         "phone_number": phone.strip() if phone else "",
-        "address": address.strip() if address else "",
-        "city": city.strip() if city else "",  
-        "district": district.strip() if district else "",  
+        "address": full_address,
+        "city": city.strip() if city else "",
+        "district": district.strip() if district else "",
         "delivery_schedule": delivery_schedule_str,
         "notes": notes.strip() if notes else "",
         "is_enabled": 1  # 新增預設值
@@ -1404,21 +1489,21 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         return [], False, False, True, success_msg, False, ""
             else:
                 error_msg = result.get('message', '創建客戶失敗')
-                return no_update, no_update, False, "", True, error_msg
+                return no_update, no_update, no_update, False, "", True, error_msg
         else:
             try:
                 error_detail = response.json().get('detail', '未知錯誤')
             except:
                 error_detail = response.text if response.content else '服務器無回應'
             error_msg = f"創建客戶失敗 (狀態碼 {response.status_code}) - {error_detail}"
-            return no_update, no_update, False, "", True, error_msg
+            return no_update, no_update, no_update, False, "", True, error_msg
         
     except requests.exceptions.RequestException as e:
         error_msg = f"網路錯誤 - {str(e)}"
-        return no_update, no_update, False, "", True, error_msg
+        return no_update, no_update, no_update, False, "", True, error_msg
     except Exception as e:
         error_msg = f"處理錯誤 - {str(e)}"
-        return no_update, no_update, False, "", True, error_msg
+        return no_update, no_update, no_update, False, "", True, error_msg
 
 # 跳過當前客戶
 @app.callback(
