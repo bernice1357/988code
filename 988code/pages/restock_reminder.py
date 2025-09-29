@@ -21,6 +21,17 @@ def get_confidence_color(confidence_level):
         return colors.get(confidence_level.upper(), '#000000')  # 預設黑色
     return '#000000'
 
+def get_confidence_text(confidence_level):
+    """將英文信心度轉換為中文"""
+    confidence_mapping = {
+        'HIGH': '高',
+        'MEDIUM': '中',
+        'LOW': '低'
+    }
+    if confidence_level:
+        return confidence_mapping.get(confidence_level.upper(), confidence_level)
+    return confidence_level
+
 def get_optimized_column_widths():
     """獲取優化的固定欄位寬度，避免重複計算"""
     return {
@@ -211,8 +222,9 @@ def create_restock_table(df, customer_index_start=0):
         # 信心度欄位 (帶顏色)
         confidence_level = row.get('信心度', '')
         confidence_color = get_confidence_color(confidence_level)
+        confidence_text = get_confidence_text(confidence_level)
         confidence_cell = html.Td(
-            str(confidence_level),
+            confidence_text,
             style={
                 **base_cell_style,
                 'width': f'{column_widths["信心度"]}px',

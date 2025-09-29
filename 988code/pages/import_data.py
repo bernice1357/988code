@@ -1,6 +1,7 @@
 ﻿import dash_bootstrap_components as dbc
 from dash import dcc, html
 from components.toast import success_toast, error_toast, warning_toast
+from .new_orders import CITY_DISTRICT_MAP
 
 layout = html.Div([
     # Toast 通知
@@ -13,6 +14,11 @@ layout = html.Div([
     success_toast("create_product_import", message=""),
     error_toast("create_product_import", message=""),
     warning_toast("create_product_import", message=""),
+
+    # 新增客戶創建相關的 Toast
+    success_toast("create_customer_import", message=""),
+    error_toast("create_customer_import", message=""),
+    warning_toast("create_customer_import", message=""),
 
     # 進度更新觸發器（隱藏）
     dcc.Interval(
@@ -30,8 +36,110 @@ layout = html.Div([
 
     # 新增：存儲缺失產品資料
     dcc.Store(id='missing-products-store', data=[]),
+    # 新增：存儲缺失客戶資料
+    dcc.Store(id='missing-customers-store', data=[]),
 
-    
+    # 新增客戶創建 Modal
+    dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("創建新客戶", id="new-customer-modal-title"), style={"fontWeight": "bold", "fontSize": "24px"}),
+        dbc.ModalBody([
+            dbc.Form([
+                dbc.Row([
+                    dbc.Col([
+                        html.Div([
+                            dbc.Label([
+                                "客戶ID",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-id", className="form-label", style={"fontSize": "14px"}),
+                            dbc.Input(id="new-customer-id", type="text", placeholder="請輸入客戶ID", style={"width": "100%"})
+                        ], className="mb-3"),
+                        html.Div([
+                            dbc.Label([
+                                "客戶名稱",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-name", className="form-label", style={"fontSize": "14px"}),
+                            dbc.Input(id="new-customer-name", type="text", placeholder="請輸入客戶名稱", style={"width": "100%"})
+                        ], className="mb-3"),
+                        html.Div([
+                            dbc.Label([
+                                "電話號碼",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-phone", className="form-label", style={"fontSize": "14px"}),
+                            dbc.Input(id="new-customer-phone", type="text", placeholder="請輸入電話號碼", style={"width": "100%"})
+                        ], className="mb-3"),
+                        html.Div([
+                            dbc.Label([
+                                "客戶地址",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-address", className="form-label", style={"fontSize": "14px"}),
+                            dbc.Input(id="new-customer-address", type="text", placeholder="請輸入客戶地址", style={"width": "100%"})
+                        ], className="mb-3")
+                    ], width=6),
+                    dbc.Col([
+                        html.Div([
+                            dbc.Label([
+                                "直轄市、縣市",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-city", className="form-label", style={"fontSize": "14px"}),
+                            dcc.Dropdown(
+                                id="new-customer-city",
+                                options=[{"label": city, "value": city} for city in CITY_DISTRICT_MAP.keys()],
+                                placeholder="請選擇直轄市縣市"
+                            )
+                        ], className="mb-3"),
+                        html.Div([
+                            dbc.Label([
+                                "鄉鎮市區",
+                                html.Span(" *", style={"color": "red", "fontWeight": "bold"})
+                            ], html_for="new-customer-district", className="form-label", style={"fontSize": "14px"}),
+                            dcc.Dropdown(
+                                id="new-customer-district",
+                                options=[],
+                                placeholder="請先選擇直轄市縣市"
+                            )
+                        ], className="mb-3")
+                    ], width=6)
+                ]),
+                dbc.Row([
+                    dbc.Label("備註", width=2, html_for="new-customer-notes", className="form-label", style={"fontSize": "14px"}),
+                    dbc.Col(dbc.Textarea(id="new-customer-notes", rows=3, placeholder="請輸入備註", style={"width": "100%"}), width=10)
+                ], className="mb-3"),
+                dbc.Row([
+                    dbc.Label([
+                        "每週配送日 ",
+                        html.Span("*", style={"color": "red", "fontWeight": "bold"})
+                    ], width=2, className="form-label", style={"fontSize": "14px"}),
+                    dbc.Col(dcc.Checklist(
+                        id="new-customer-delivery-schedule",
+                        options=[
+                            {"label": "一", "value": "1"},
+                            {"label": "二", "value": "2"},
+                            {"label": "三", "value": "3"},
+                            {"label": "四", "value": "4"},
+                            {"label": "五", "value": "5"},
+                            {"label": "六", "value": "6"},
+                            {"label": "日", "value": "7"}
+                        ],
+                        value=[],
+                        inline=True,
+                        style={"display": "flex", "gap": "15px", "flexWrap": "wrap"}
+                    ), width=10)
+                ], className="mb-3"),
+                html.Div([
+                    html.Span("* 必填欄位", style={"color": "red", "fontSize": "12px", "fontWeight": "bold"})
+                ], className="mt-2")
+            ])
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("跳過此客戶", id="skip-customer-btn", color="secondary", className="me-2"),
+            dbc.Button("儲存客戶", id="save-new-customer-btn", color="primary"),
+            dbc.Button("批量跳過全部", id="skip-all-customers-btn", color="warning", className="me-2", style={"display": "none"}),
+            dbc.Button("完成並匯入", id="finish-and-import-btn", color="success", style={"display": "none"})
+        ])
+    ], id="new-customer-modal", is_open=False, backdrop="static", keyboard=False, size="xl",
+    centered=True, style={"fontSize": "18px", "width": "90%", "maxWidth": "1100px"},
+    dialogClassName="customer-data-modal-dialog"),
+
     # 新增產品創建 Modal
     dbc.Modal([
         dbc.ModalHeader([
