@@ -1,4 +1,4 @@
-from .common import *
+﻿from .common import *
 from components.table import custom_table
 import requests
 from datetime import datetime, date
@@ -43,7 +43,8 @@ def create_calendar_widget(selected_date=None):
     month = selected_date.month
     
     # 創建日曆格子
-    cal = calendar.monthcalendar(year, month)
+    calendar_obj = calendar.Calendar(firstweekday=calendar.SUNDAY)
+    cal = calendar_obj.monthdayscalendar(year, month)
     
     # 月份導航 - 修改為可點擊的月份
     # 產生多年份的月份選項（當前年份前後3年）
