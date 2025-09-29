@@ -224,7 +224,11 @@ def make_card_item(order):
                     dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
                     dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
                 ]) if order.get("status") == "0" else html.Div(),
-                html.Small(f"{timestamp_label}: {timestamp_display}", className="text-muted", style={"fontSize": "0.7rem"})
+                html.Div([
+                    html.Small(f"{timestamp_label}: {timestamp_display}", className="text-muted", style={"fontSize": "0.7rem"}),
+                    # 顯示確認者資訊（僅在已確認狀態時顯示）
+                    html.Small(f"確認者: {order.get('confirmed_by', '')}", className="text-muted", style={"fontSize": "0.7rem", "display": "block", "marginTop": "2px"}) if status == "1" and order.get('confirmed_by') else None
+                ])
             ], className="d-flex justify-content-between align-items-center mt-2")
         ])
     ], style={"backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative", "marginTop": "15px"}, className="mb-3")
@@ -893,11 +897,17 @@ def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id
      State("amount", "value"),
      State("modal-header", "children"),
      State("current-order-id-store", "data"),
-     State("user-role-store", "data")],
+     State("user-role-store", "data"),
+     State("login_status", "data")],
     prevent_initial_call=True
 )
-def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, current_order_id, user_role):
+def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, current_order_id, user_role, login_status):
     if n_clicks:
+        # 取得確認者名稱
+        confirmed_by_user = "user"  # 預設值
+        if login_status and isinstance(login_status, dict):
+            # 從 login_status 中取得 full_name
+            confirmed_by_user = login_status.get("full_name") or "user"
         required_fields = [
             ("客戶 ID", customer_id),
             ("客戶名稱", customer_name),
@@ -982,7 +992,7 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
                 "amount": amount,
                 "updated_at": current_time,
                 "status": "1",
-                "confirmed_by": "user",
+                "confirmed_by": confirmed_by_user,
                 "confirmed_at": current_time,
                 "user_role": user_role
             }
@@ -1075,11 +1085,17 @@ def set_customer_data(order_data):
      State("new-customer-notes", "value"),
      State("new-customer-delivery-schedule", "value"),
      State("pending-order-store", "data"),
-     State("user-role-store", "data")],
+     State("user-role-store", "data"),
+     State("login_status", "data")],
     prevent_initial_call=True
 )
-def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, notes, delivery_schedule, pending_order, user_role):
+def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city, district, notes, delivery_schedule, pending_order, user_role, login_status):
     if n_clicks and pending_order:
+        # 取得確認者名稱
+        confirmed_by_user = "user"  # 預設值
+        if login_status and isinstance(login_status, dict):
+            # 從 login_status 中取得 full_name
+            confirmed_by_user = login_status.get("full_name") or "user"
         required_fields = [
             ("客戶ID", customer_id),
             ("客戶名稱", customer_name),
@@ -1173,7 +1189,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         "unit_price": pending_order["unit_price"],
                         "amount": pending_order["amount"],
                         "status": "1",
-                        "confirmed_by": "user",
+                        "confirmed_by": confirmed_by_user,
                         "confirmed_at": current_time,
                         "user_role": user_role or "viewer"
                     }
@@ -1211,7 +1227,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         "amount": pending_order["amount"],
                         "updated_at": current_time,
                         "status": "1",
-                        "confirmed_by": "user",
+                        "confirmed_by": confirmed_by_user,
                         "confirmed_at": current_time,
                         "user_role": user_role or "viewer"
                     }
@@ -1325,10 +1341,11 @@ def close_add_order_modal(n_clicks):
      State("quantity", "value"),
      State("unit-price", "value"),
      State("amount", "value"),
-     State("user-role-store", "data")],
+     State("user-role-store", "data"),
+     State("login_status", "data")],
     prevent_initial_call=True
 )
-def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, user_role):
+def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, user_role, login_status):
     if not n_clicks:
         return (
             dash.no_update,
@@ -1342,6 +1359,12 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
             dash.no_update,
             dash.no_update,
         )
+
+    # 取得確認者名稱
+    confirmed_by_user = "user"  # 預設值
+    if login_status and isinstance(login_status, dict):
+        # 從 login_status 中取得 full_name
+        confirmed_by_user = login_status.get("full_name") or "user"
 
     required_fields = [
         ("客戶 ID", customer_id),
@@ -1438,7 +1461,7 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
         "unit_price": unit_price,
         "amount": amount,
         "status": "1",
-        "confirmed_by": "user",
+        "confirmed_by": confirmed_by_user,
         "confirmed_at": datetime.now().isoformat(),
         "user_role": user_role or "viewer",
     }
