@@ -423,7 +423,7 @@ layout = dbc.Container([
     # 定時檢查是否有新訂單，每5秒檢查一次
     dcc.Interval(
         id='order-update-checker',
-        interval=5*1000,  # 5秒檢查一次
+        interval=500*1000,  # 5秒檢查一次
         n_intervals=0
     ),
     html.Div([
