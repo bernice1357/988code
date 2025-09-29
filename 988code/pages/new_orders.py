@@ -418,6 +418,14 @@ layout = dbc.Container([
     warning_toast("new_orders", message=""),
     dcc.Store(id='user-role-store'),
     dcc.Store(id='current-order-id-store'),
+    # 添加用於儲存上次檢查時間的 Store
+    dcc.Store(id='last-update-check-time'),
+    # 定時檢查是否有新訂單，每5秒檢查一次
+    dcc.Interval(
+        id='order-update-checker',
+        interval=5*1000,  # 5秒檢查一次
+        n_intervals=0
+    ),
     html.Div([
         # 左側：新增訂單按鈕
         html.Div([
@@ -1597,3 +1605,72 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
             search_result_orders.append(order)
     
     return create_grouped_orders_layout(search_result_orders)
+
+# 自動檢查訂單更新的回調函數
+@app.callback(
+    [Output("orders-container", "children", allow_duplicate=True),
+     Output("last-update-check-time", "data")],
+    Input("order-update-checker", "n_intervals"),
+    [State("last-update-check-time", "data"),
+     State("filter-all", "outline"),
+     State("filter-unconfirmed", "outline"),
+     State("filter-confirmed", "outline"),
+     State("filter-deleted", "outline"),
+     State("customer-search-input", "value")],
+    prevent_initial_call=True
+)
+def auto_check_for_updates(n_intervals, last_check_time, all_outline, unconfirmed_outline,
+                          confirmed_outline, deleted_outline, search_value):
+    try:
+        # 調用 API 檢查是否有更新
+        check_url = "http://127.0.0.1:8000/check_orders_update"
+        if last_check_time:
+            check_url += f"?last_check_time={last_check_time}"
+
+        response = requests.get(check_url)
+        current_time = datetime.now().isoformat()
+
+        if response.status_code == 200:
+            update_data = response.json()
+            has_update = update_data.get("has_update", False)
+
+            # 如果有更新，重新載入資料
+            if has_update:
+                print(f"[AUTO UPDATE] 檢測到訂單更新，重新載入資料 - 更新類型: {update_data.get('update_type')}")
+
+                # 重新載入訂單資料
+                orders = get_orders()
+
+                # 根據當前篩選狀態過濾訂單
+                if not all_outline:  # 全部按鈕被選中
+                    filtered_orders = orders
+                elif not unconfirmed_outline:  # 未確認按鈕被選中
+                    filtered_orders = [order for order in orders if order.get("status") == "0"]
+                elif not confirmed_outline:  # 已確認按鈕被選中
+                    filtered_orders = [order for order in orders if order.get("status") == "1"]
+                elif not deleted_outline:  # 已刪除按鈕被選中
+                    filtered_orders = [order for order in orders if order.get("status") == "2"]
+                else:
+                    filtered_orders = orders
+
+                # 如果有搜尋詞，進一步過濾
+                if search_value:
+                    search_value_lower = search_value.lower()
+                    search_result_orders = []
+                    for order in filtered_orders:
+                        customer_name = order.get("customer_name", "")
+                        if customer_name and search_value_lower in customer_name.lower():
+                            search_result_orders.append(order)
+                    filtered_orders = search_result_orders
+
+                return create_grouped_orders_layout(filtered_orders), current_time
+            else:
+                # 沒有更新，只更新檢查時間
+                return dash.no_update, current_time
+        else:
+            print(f"[AUTO UPDATE] API 檢查失敗，狀態碼: {response.status_code}")
+            return dash.no_update, current_time
+
+    except Exception as e:
+        print(f"[AUTO UPDATE] 自動檢查更新失敗: {e}")
+        return dash.no_update, datetime.now().isoformat()
