@@ -981,4 +981,63 @@ def check_customer_exists(customer_id: str):
     except Exception as e:
         print(f"[API ERROR] check_customer_exists: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
+
+# 檢查訂單資料是否有更新
+@router.get("/check_orders_update")
+def check_orders_update(last_check_time: Optional[str] = Query(None, description="上次檢查時間")):
+    print(f"[API] check_orders_update 被呼叫，上次檢查時間: {last_check_time}")
+    try:
+        # 檢查 order_update_status 表
+        query = """
+        SELECT last_updated, update_type, record_count
+        FROM order_update_status
+        WHERE table_name = 'temp_customer_records'
+        ORDER BY last_updated DESC
+        LIMIT 1
+        """
+        result = execute_query(query, (), fetch='one')
+
+        if not result:
+            # 如果沒有狀態記錄，創建初始記錄
+            count_query = "SELECT COUNT(*) FROM temp_customer_records"
+            count_result = execute_query(count_query, (), fetch='one')
+            record_count = count_result[0] if count_result else 0
+
+            insert_query = """
+            INSERT INTO order_update_status (table_name, record_count)
+            VALUES ('temp_customer_records', %s)
+            """
+            execute_query(insert_query, (record_count,), fetch=None)
+
+            return {
+                "has_update": True,
+                "last_updated": datetime.now().isoformat(),
+                "update_type": "INITIAL",
+                "record_count": record_count
+            }
+
+        last_updated = result[0].isoformat() if result[0] else datetime.now().isoformat()
+        update_type = result[1] or "UNKNOWN"
+        record_count = result[2] or 0
+
+        # 如果提供了上次檢查時間，比較是否有更新
+        has_update = True
+        if last_check_time:
+            try:
+                last_check_dt = datetime.fromisoformat(last_check_time.replace('Z', '+00:00'))
+                current_dt = result[0] if result[0] else datetime.now()
+                has_update = current_dt > last_check_dt.replace(tzinfo=None)
+            except:
+                has_update = True  # 如果時間解析失敗，假設有更新
+
+        return {
+            "has_update": has_update,
+            "last_updated": last_updated,
+            "update_type": update_type,
+            "record_count": record_count
+        }
+
+    except Exception as e:
+        print(f"[API ERROR] check_orders_update: {e}")
+        raise HTTPException(status_code=500, detail="檢查更新狀態失敗")
     

@@ -289,11 +289,12 @@ def handle_login(btn_clicks, username_submit, password_submit, username, passwor
                 role = user_data.get("role")
                 full_name = user_data.get("full_name")
                 
-                # 建立登入狀態字典，包含 role 和過期時間（現在時間+2小時）
+                # 建立登入狀態字典，包含 role、使用者名稱和過期時間（現在時間+2小時）
                 from datetime import datetime, timedelta
                 exp_time = datetime.now() + timedelta(hours=2)
                 login_data = {
                     "role": role,
+                    "full_name": full_name,
                     "exp": exp_time.strftime("%Y-%m-%d %H:%M:%S")  # 時間格式字串
                 }
                 
