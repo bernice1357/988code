@@ -826,8 +826,10 @@ def add_client(n_clicks, new_name, current_list, user_role):
 # 儲存已上傳檔案的變數（模擬全局狀態）
 uploaded_files_store = []
 
-MAX_UPLOAD_SIZE_MB = get_env_int('MAX_UPLOAD_SIZE_MB', 50)
+MAX_UPLOAD_SIZE_MB = get_env_int('MAX_UPLOAD_SIZE_MB', 50)  # 單一檔案最大限制
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+MAX_TOTAL_SIZE_MB = 32  # 所有已上傳檔案總容量限制（OpenAI API 限制）
+MAX_TOTAL_SIZE_BYTES = MAX_TOTAL_SIZE_MB * 1024 * 1024
 
 
 def normalize_upload_timestamp(raw_timestamp):
@@ -888,10 +890,39 @@ def is_allowed_file(filename):
     """檢查檔案格式是否被允許"""
     if not filename or '.' not in filename:
         return False
-    
+
     extension = filename.lower().split('.')[-1]
     allowed_extensions = ['pdf']
     return extension in allowed_extensions
+
+def calculate_total_file_size(current_title):
+    """計算資料庫中已存在的檔案總大小（bytes）"""
+    try:
+        # 直接查詢資料庫計算檔案大小（避免透過 API 傳輸大量資料）
+        from database_config import execute_query
+
+        # 查詢 file_content 欄位
+        query = "SELECT file_content FROM rag WHERE title = %s"
+        result = execute_query(query, (current_title,), fetch='one')
+
+        if result and result[0]:
+            file_contents = result[0]  # file_content 是陣列
+            total_size = 0
+
+            for hex_data in file_contents:
+                if hex_data:
+                    # hex 字串長度 / 2 = 實際檔案大小
+                    total_size += len(hex_data) // 2
+
+            return total_size
+
+        return 0
+
+    except Exception as e:
+        print(f"[ERROR] 計算檔案總大小失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
 
 # 處理檔案上傳
 @app.callback(
@@ -924,9 +955,10 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
 
     error_message = ""
     show_error = False
-    
+
     # 獲取現有資料庫檔案
     existing_db_files = []
+    existing_total_size = 0
     if current_title:
         try:
             import requests
@@ -934,11 +966,15 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
             if response.status_code == 200:
                 content_data = response.json()
                 existing_db_files = content_data.get('file_names', [])
+                # 計算現有檔案總大小
+                existing_total_size = calculate_total_file_size(current_title)
         except Exception as e:
             print(f"[ERROR] 載入現有檔案失敗: {e}")
-    
+
     if list_of_contents is not None:
         invalid_files = []
+        new_files_size = 0  # 計算本次上傳的檔案總大小
+
         for i, (contents, filename, date) in enumerate(zip(list_of_contents, list_of_names, list_of_dates)):
             if not is_allowed_file(filename):
                 invalid_files.append(filename)
@@ -964,6 +1000,23 @@ def update_output(list_of_contents, list_of_names, list_of_dates, current_title)
                 size_error = f"檔案 {filename} 超過 {MAX_UPLOAD_SIZE_MB}MB 限制，請壓縮或拆分後再上傳"
                 error_message = size_error if not error_message else f"{error_message}；{size_error}"
                 continue
+
+            # 檢查總容量限制
+            new_files_size += len(decoded_content)
+            total_size_after_upload = existing_total_size + new_files_size
+
+            if total_size_after_upload > MAX_TOTAL_SIZE_BYTES:
+                show_error = True
+                remaining_space = MAX_TOTAL_SIZE_BYTES - existing_total_size
+                total_error = (
+                    f"上傳失敗！所有檔案總容量不能超過 {MAX_TOTAL_SIZE_MB}MB。\n"
+                    f"目前已使用: {existing_total_size / 1024 / 1024:.2f}MB，"
+                    f"剩餘空間: {remaining_space / 1024 / 1024:.2f}MB，"
+                    f"本次上傳: {new_files_size / 1024 / 1024:.2f}MB"
+                )
+                error_message = total_error if not error_message else f"{error_message}；{total_error}"
+                # 總容量超限，直接中斷
+                break
 
             # 檢查是否為 Excel 檔案
             extension = filename.lower().split('.')[-1] if '.' in filename else ''
@@ -1461,11 +1514,21 @@ def display_client_data(n_clicks_list, id_list, current_list):
                                                         "margin": "0.5rem 0 0 0"
                                                     }),
                                                     html.P(
-                                                        f"大小限制：≤ {MAX_UPLOAD_SIZE_MB} MB",
+                                                        f"單檔限制：≤ {MAX_UPLOAD_SIZE_MB} MB",
                                                         style={
                                                             "fontSize": "0.8rem",
                                                             "color": "#999",
                                                             "margin": "0.2rem 0 0 0"
+                                                        }
+                                                    ),
+                                                    html.P(
+                                                        f"總容量限制：≤ {MAX_TOTAL_SIZE_MB} MB",
+                                                        id="total-size-display",
+                                                        style={
+                                                            "fontSize": "0.8rem",
+                                                            "color": "#dc3545",
+                                                            "margin": "0.2rem 0 0 0",
+                                                            "fontWeight": "bold"
                                                         }
                                                     ),
                                                 ], style={
@@ -2002,3 +2065,33 @@ def delete_existing_file(n_clicks_list, title, text_content, user_role):
     except Exception as e:
         print(f"[ERROR] 刪除檔案失敗: {e}")
         raise PreventUpdate
+
+# 更新總容量顯示
+@app.callback(
+    Output("total-size-display", "children"),
+    Input("title-input", "value"),
+    prevent_initial_call=False
+)
+def update_total_size_display(current_title):
+    """動態更新總容量顯示"""
+    try:
+        # 如果沒有標題，返回預設顯示
+        if not current_title:
+            print(f"[INFO] update_total_size_display - 沒有標題，返回預設顯示")
+            return f"總容量限制：≤ {MAX_TOTAL_SIZE_MB} MB"
+
+        print(f"[INFO] update_total_size_display - 計算標題 '{current_title}' 的檔案大小")
+        existing_total_size = calculate_total_file_size(current_title)
+        used_mb = existing_total_size / 1024 / 1024
+        remaining_mb = MAX_TOTAL_SIZE_MB - used_mb
+
+        if remaining_mb < 0:
+            remaining_mb = 0
+
+        print(f"[INFO] update_total_size_display - 已使用: {used_mb:.2f}MB, 剩餘: {remaining_mb:.2f}MB")
+        return f"總容量限制：≤ {MAX_TOTAL_SIZE_MB} MB（已使用: {used_mb:.2f}MB / 剩餘: {remaining_mb:.2f}MB）"
+    except Exception as e:
+        print(f"[ERROR] 更新總容量顯示失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"總容量限制：≤ {MAX_TOTAL_SIZE_MB} MB"
