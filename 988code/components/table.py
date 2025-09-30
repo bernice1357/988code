@@ -246,7 +246,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     "position": "sticky",
                     "top": "0",
                     "left": "0px",
-                    "zIndex": 10,
+                    "zIndex": 100,
                     'backgroundColor': '#bcd1df',
                     'fontWeight': 'bold',
                     'fontSize': '16px',
@@ -339,7 +339,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             'padding': '0',
             'position': 'sticky',
             'top': '0',
-            'zIndex': 10
+            'zIndex': 100
         }),
         html.Tbody(rows, style={
             # 新增：確保表格內容無間隙
