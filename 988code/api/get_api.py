@@ -1060,10 +1060,20 @@ def check_orders_update(last_check_time: Optional[str] = Query(None, description
         has_update = True
         if last_check_time:
             try:
+                # 解析上次檢查時間（可能包含時區資訊）
                 last_check_dt = datetime.fromisoformat(last_check_time.replace('Z', '+00:00'))
-                current_dt = result[0] if result[0] else datetime.now()
-                has_update = current_dt > last_check_dt.replace(tzinfo=None)
-            except:
+                # 移除時區資訊，統一使用 naive datetime 比較
+                if last_check_dt.tzinfo:
+                    last_check_dt = last_check_dt.replace(tzinfo=None)
+
+                # 資料庫的時間（UTC）
+                current_dt = result[0] if result[0] else datetime.utcnow()
+
+                print(f"[API] 時間比較 - last_check: {last_check_dt}, db_updated: {current_dt}")
+                has_update = current_dt > last_check_dt
+                print(f"[API] has_update = {has_update}")
+            except Exception as e:
+                print(f"[API] 時間比較失敗: {e}")
                 has_update = True  # 如果時間解析失敗，假設有更新
 
         return {

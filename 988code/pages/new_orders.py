@@ -390,27 +390,27 @@ def group_orders_by_customer(orders):
     return grouped
 
 def make_customer_group(customer_key, orders, group_index, user_role=None):
-    """創建客戶群組Accordion"""
+    """創建客戶群組（永久展開的 Card 設計）"""
     order_count = len(orders)
 
-    # 創建包含 badge 的標題
-    title_content = html.Div([
-        html.Span(customer_key, style={"marginRight": "10px"}),
-        dbc.Badge(str(order_count), color="primary", pill=True)
-    ], className="d-flex align-items-center")
-
-    return dbc.AccordionItem([
-        dbc.Row([
-            dbc.Col(make_card_item(order, user_role), width=12, lg=6, xl=4)
-            for order in orders
-        ], className="g-3")
-    ],
-    title=title_content,
-    item_id=f"customer-group-{group_index}"
-    )
+    # 創建帶有標題的 Card
+    return dbc.Card([
+        dbc.CardHeader([
+            html.Div([
+                html.Span(customer_key, style={"marginRight": "10px", "fontWeight": "bold", "fontSize": "1.1rem"}),
+                dbc.Badge(str(order_count), color="primary", pill=True)
+            ], className="d-flex align-items-center")
+        ], style={"backgroundColor": "#f8f9fa"}),
+        dbc.CardBody([
+            dbc.Row([
+                dbc.Col(make_card_item(order, user_role), width=12, lg=6, xl=4)
+                for order in orders
+            ], className="g-3")
+        ])
+    ], className="mb-3", style={"border": "1px solid #dee2e6"})
 
 def create_grouped_orders_layout(orders, user_role=None):
-    """創建分組後的訂單layout"""
+    """創建分組後的訂單layout（永久展開設計）"""
     if not orders:
         return html.Div("暫無訂單", className="text-center text-muted", style={"padding": "50px"})
 
@@ -420,15 +420,11 @@ def create_grouped_orders_layout(orders, user_role=None):
     for group_index, (customer_key, customer_orders) in enumerate(grouped_orders.items()):
         customer_groups.append(make_customer_group(customer_key, customer_orders, group_index, user_role))
 
-    return dbc.Accordion(customer_groups, flush=True, always_open=False)
+    # 使用簡單的 div 包裝，不用 Accordion
+    return html.Div(customer_groups)
 
-# 嘗試載入訂單資料，如果失敗則使用空列表
-try:
-    orders = get_orders()
-except Exception as e:
-    print(f"初始化載入訂單資料失敗: {e}")
-    orders = []
-
+# 不在模組載入時預先載入訂單，改由 callback 動態載入
+# 這樣可以確保每次訪問頁面時都能獲取最新資料
 layout = dbc.Container([
     success_toast("new_orders", message="訂單已確認"),
     error_toast("new_orders", message=""),
@@ -439,6 +435,8 @@ layout = dbc.Container([
     dcc.Store(id='last-update-check-time'),
     # 新增：儲存當前訂單的雜湊值，用於比較是否有變化
     dcc.Store(id='orders-hash-store'),
+    # 新增：儲存 Accordion 的展開狀態
+    dcc.Store(id='accordion-state-store', data=[]),
     # 定時檢查是否有新訂單，每5秒檢查一次
     dcc.Interval(
         id='order-update-checker',
@@ -477,7 +475,7 @@ layout = dbc.Container([
     # 移除 dcc.Loading，直接使用 Div，加入 CSS transition 平滑效果
     html.Div(
         id="orders-container",
-        children=create_grouped_orders_layout(orders, user_role=None),
+        children=[],  # 初始為空，由 callback 載入
         style={
             "maxHeight": "75vh",
             "overflowY": "auto",
@@ -632,6 +630,26 @@ layout = dbc.Container([
 ], fluid=True)
 
 
+# 初始載入訂單資料
+@app.callback(
+    Output("orders-container", "children"),
+    Input("user-role-store", "data"),
+    prevent_initial_call=False  # 允許初始調用
+)
+def initial_load_orders(user_role):
+    """頁面載入時初始載入訂單資料"""
+    print(f"[INITIAL LOAD] 載入訂單資料 - user_role={user_role}")
+    try:
+        orders = get_orders()
+        print(f"[INITIAL LOAD] 載入了 {len(orders)} 筆訂單")
+        return create_grouped_orders_layout(orders, user_role)
+    except Exception as e:
+        print(f"[INITIAL LOAD] 初始載入訂單失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return html.Div("載入訂單失敗", className="text-center text-danger")
+
+
 # 篩選顯示訂單和更新按鈕狀態
 @app.callback(
     [Output("orders-container", "children", allow_duplicate=True),
@@ -784,9 +802,8 @@ def confirm_delete(n_clicks, modal_body, user_role):
                 
                 if response.status_code == 200:
                     print("訂單刪除成功")
-                    orders = get_orders()
-                    updated_orders = create_grouped_orders_layout(orders, user_role)
-                    return False, True, "訂單已刪除，請查看已刪除頁面", False, False, "", updated_orders
+                    # 不需要重新載入所有訂單，讓自動更新機制處理即可
+                    return False, True, "訂單已刪除，請查看已刪除頁面", False, False, "", dash.no_update
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
                 else:
@@ -928,6 +945,10 @@ def close_modal(n_clicks, customer_id, customer_name, customer_notes, product_id
 )
 def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product_id, purchase_record, quantity, unit_price, amount, modal_header, current_order_id, user_role, login_status):
     if n_clicks:
+        import time
+        start_time = time.time()
+        print(f"\n[PERF] ========== 開始確認訂單 ==========")
+
         # 取得確認者名稱
         confirmed_by_user = "user"  # 預設值
         if login_status and isinstance(login_status, dict):
@@ -947,7 +968,12 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
             warning_message = build_required_field_warning(missing_fields)
             return dash.no_update, False, dash.no_update, False, True, warning_message, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
+        print(f"[PERF] 驗證欄位完成: {time.time() - start_time:.2f}s")
+
+        t1 = time.time()
         orders = get_orders()
+        print(f"[PERF] get_orders() 耗時: {time.time() - t1:.2f}s")
+
         order_id = current_order_id
         original_order = None
 
@@ -955,22 +981,28 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
             original_order = next((o for o in orders if str(o["id"]) == str(order_id)), None)
         if order_id and original_order:
             # 如果有customer_id且存在，更新客戶備註
-            if customer_id and check_customer_exists(customer_id):
+            t2 = time.time()
+            customer_exists = check_customer_exists(customer_id) if customer_id else False
+            print(f"[PERF] check_customer_exists() 耗時: {time.time() - t2:.2f}s")
+
+            if customer_id and customer_exists:
                 try:
+                    t3 = time.time()
                     # 更新客戶備註
                     notes_update_data = {
                         "notes": customer_notes,
                         "user_role": user_role
                     }
                     notes_response = requests.put(f"http://127.0.0.1:8000/customer/{customer_id}", json=notes_update_data)
+                    print(f"[PERF] 更新客戶備註 API 耗時: {time.time() - t3:.2f}s")
                     if notes_response.status_code != 200:
                         print(f"客戶備註更新失敗，狀態碼：{notes_response.status_code}")
                 except Exception as e:
                     print(f"客戶備註更新異常：{str(e)}")
-            
+
             # 檢查客戶是否存在於customer表中
             if customer_id:
-                if not check_customer_exists(customer_id):
+                if not customer_exists:
                     # 客戶不存在，需要創建新客戶
                     pending_order_data = {
                         "order_id": order_id,
@@ -1024,12 +1056,16 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
             
             # 呼叫API更新資料
             try:
+                t4 = time.time()
                 response = requests.put(f"http://127.0.0.1:8000/temp/{order_id}", json=update_data)
+                print(f"[PERF] 更新訂單 API 耗時: {time.time() - t4:.2f}s")
+
                 if response.status_code == 200:
                     print("訂單確認成功")
-                    
+
                     # 更新 order_transactions 表
                     try:
+                        t5 = time.time()
                         transaction_data = {
                             "customer_id": customer_id,
                             "product_id": product_id,
@@ -1040,16 +1076,19 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
                             "transaction_date": original_order['created_at'],
                             "user_role": user_role
                         }
-                        
+
                         transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
+                        print(f"[PERF] 新增交易記錄 API 耗時: {time.time() - t5:.2f}s")
                         if transaction_response.status_code != 200:
                             print(f"order_transactions 更新失敗，狀態碼：{transaction_response.status_code}")
                     except Exception as e:
                         print(f"order_transactions 更新異常：{str(e)}")
-                    
-                    orders = get_orders()
-                    updated_orders = create_grouped_orders_layout(orders, user_role)
-                    return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders, False, dash.no_update, dash.no_update
+
+                    print(f"[PERF] ========== 總耗時: {time.time() - start_time:.2f}s ==========\n")
+                    # 不需要重新載入所有訂單，讓自動更新機制處理即可
+                    # orders = get_orders()
+                    # updated_orders = create_grouped_orders_layout(orders, user_role)
+                    return False, True, "訂單已確認，請查看已確認頁面", False, False, "", dash.no_update, False, dash.no_update, dash.no_update
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update, False, dash.no_update, dash.no_update
                 else:
@@ -1234,10 +1273,9 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         }
                         
                         transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
-                        
-                        orders = get_orders()
-                        updated_orders = create_grouped_orders_layout(orders, user_role)
-                        return False, True, "新客戶創建成功，訂單已新增", False, False, "", updated_orders
+
+                        # 不需要重新載入所有訂單，讓自動更新機制處理即可
+                        return False, True, "新客戶創建成功，訂單已新增", False, False, "", dash.no_update
                     else:
                         return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
                 else:
@@ -1273,10 +1311,9 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         }
                         
                         transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
-                        
-                        orders = get_orders()
-                        updated_orders = create_grouped_orders_layout(orders, user_role)
-                        return False, True, "新客戶創建成功，訂單已確認", False, False, "", updated_orders
+
+                        # 不需要重新載入所有訂單，讓自動更新機制處理即可
+                        return False, True, "新客戶創建成功，訂單已確認", False, False, "", dash.no_update
                     else:
                         return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
             else:
@@ -1638,22 +1675,31 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
      State("filter-deleted", "outline"),
      State("customer-search-input", "value"),
      State("user-role-store", "data")],
-    prevent_initial_call=True
+    prevent_initial_call='initial_duplicate'  # 允許 duplicate callback 的初始調用
 )
 def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outline, unconfirmed_outline,
                           confirmed_outline, deleted_outline, search_value, user_role):
+    print(f"\n{'='*60}")
+    print(f"[AUTO UPDATE] Callback 被觸發 - n_intervals={n_intervals}")
+    print(f"[AUTO UPDATE] last_check_time={last_check_time}")
+    print(f"[AUTO UPDATE] current_hash={current_hash}")
     try:
         # 調用 API 檢查是否有更新
         check_url = "http://127.0.0.1:8000/check_orders_update"
         if last_check_time:
             check_url += f"?last_check_time={last_check_time}"
 
+        print(f"[AUTO UPDATE] 調用 API: {check_url}")
         response = requests.get(check_url)
-        current_time = datetime.now().isoformat()
+        # 使用 UTC 時間而非本地時間
+        current_time = datetime.utcnow().isoformat()
+        print(f"[AUTO UPDATE] API 回應狀態碼: {response.status_code}")
 
         if response.status_code == 200:
             update_data = response.json()
+            print(f"[AUTO UPDATE] API 回應資料: {update_data}")
             has_update = update_data.get("has_update", False)
+            print(f"[AUTO UPDATE] has_update={has_update}")
 
             # 如果有更新，重新載入資料
             if has_update:
@@ -1661,21 +1707,31 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
 
                 # 重新載入訂單資料
                 orders = get_orders()
+                print(f"[AUTO UPDATE] 載入了 {len(orders)} 筆訂單")
 
                 # 根據當前篩選狀態過濾訂單
+                print(f"[AUTO UPDATE] 篩選器狀態 - all:{all_outline}, unconfirmed:{unconfirmed_outline}, confirmed:{confirmed_outline}, deleted:{deleted_outline}")
                 if not all_outline:  # 全部按鈕被選中
                     filtered_orders = orders
+                    print(f"[AUTO UPDATE] 選擇「全部」篩選器")
                 elif not unconfirmed_outline:  # 未確認按鈕被選中
                     filtered_orders = [order for order in orders if order.get("status") == "0"]
+                    print(f"[AUTO UPDATE] 選擇「未確認」篩選器")
                 elif not confirmed_outline:  # 已確認按鈕被選中
                     filtered_orders = [order for order in orders if order.get("status") == "1"]
+                    print(f"[AUTO UPDATE] 選擇「已確認」篩選器")
                 elif not deleted_outline:  # 已刪除按鈕被選中
                     filtered_orders = [order for order in orders if order.get("status") == "2"]
+                    print(f"[AUTO UPDATE] 選擇「已刪除」篩選器")
                 else:
                     filtered_orders = orders
+                    print(f"[AUTO UPDATE] 沒有篩選器被選中，使用全部")
+
+                print(f"[AUTO UPDATE] 篩選後剩餘 {len(filtered_orders)} 筆訂單")
 
                 # 如果有搜尋詞，進一步過濾
                 if search_value:
+                    print(f"[AUTO UPDATE] 搜尋關鍵字: {search_value}")
                     search_value_lower = search_value.lower()
                     search_result_orders = []
                     for order in filtered_orders:
@@ -1683,6 +1739,7 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
                         if customer_name and search_value_lower in customer_name.lower():
                             search_result_orders.append(order)
                     filtered_orders = search_result_orders
+                    print(f"[AUTO UPDATE] 搜尋後剩餘 {len(filtered_orders)} 筆訂單")
 
                 # 計算新資料的雜湊值（使用訂單ID和更新時間）
                 import hashlib
@@ -1696,16 +1753,19 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
                     for order in filtered_orders
                 ], sort_keys=True)
                 new_hash = hashlib.md5(data_string.encode()).hexdigest()
+                print(f"[AUTO UPDATE] 計算新 hash: {new_hash[:8]}...")
 
                 # 比較雜湊值，只有真的有變化時才更新
                 if new_hash != current_hash:
-                    print(f"[AUTO UPDATE] 資料有變化，更新頁面 (舊hash: {current_hash[:8]}... -> 新hash: {new_hash[:8]}...)")
+                    old_hash_display = current_hash[:8] if current_hash else "None"
+                    print(f"[AUTO UPDATE] 資料有變化，更新頁面 (舊hash: {old_hash_display}... -> 新hash: {new_hash[:8]}...)")
                     return create_grouped_orders_layout(filtered_orders, user_role), current_time, new_hash
                 else:
                     print(f"[AUTO UPDATE] 檢測到更新但資料無變化，不重新渲染")
                     return dash.no_update, current_time, dash.no_update
             else:
                 # 沒有更新，只更新檢查時間
+                print(f"[AUTO UPDATE] 沒有更新")
                 return dash.no_update, current_time, dash.no_update
         else:
             print(f"[AUTO UPDATE] API 檢查失敗，狀態碼: {response.status_code}")
@@ -1713,4 +1773,6 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
 
     except Exception as e:
         print(f"[AUTO UPDATE] 自動檢查更新失敗: {e}")
-        return dash.no_update, datetime.now().isoformat(), dash.no_update
+        import traceback
+        traceback.print_exc()
+        return dash.no_update, datetime.utcnow().isoformat(), dash.no_update

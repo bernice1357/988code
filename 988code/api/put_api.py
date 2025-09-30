@@ -404,8 +404,8 @@ def update_customer(customer_id: str, update_data: CustomerUpdate):
     params = tuple(update_fields.values()) + (customer_id,)
 
     try:
-        # 使用優化的資料庫更新函數
-        update_data_to_db_optimized(sql, params)
+        # 改用本地資料庫更新，避免遠端連線延遲
+        update_data_to_db(sql, params)
         
         # 返回更新後的記錄資料（可選）
         return {
