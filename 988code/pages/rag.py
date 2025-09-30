@@ -619,14 +619,12 @@ layout = dbc.Container([
         type="dot",
         children=dbc.Row([
             dbc.Col([
-                # 標題 + 新增按鈕
+                # 標題
                 dbc.Row(
                     justify="between",
                     className="mb-2",
                     children=[
-                        dbc.Col(html.H5("知識庫條目"), width="auto", className="d-flex align-items-center"),
-                        dbc.Col(dbc.Button("新增條目", id="open-modal", color="primary", size="sm"),
-                                width="auto", className="d-flex justify-content-end align-items-center")
+                        dbc.Col(html.H5("知識庫條目"), width="auto", className="d-flex align-items-center")
                     ]
                 ),
                 # 條目列表
@@ -1569,9 +1567,7 @@ def display_client_data(n_clicks_list, id_list, current_list):
             ], style={"flex": "1", "overflowY": "auto"}),
             # 儲存按鈕區域
             html.Div([
-                dbc.Button("儲存修改內容", id="save-btn", color="success", size="sm"),
-                dbc.Button(f"刪除此條目", id="delete-current-item-btn", color="danger", size="sm",
-                          style={"marginLeft": "10px"})
+                dbc.Button("儲存修改內容", id="save-btn", color="success", size="sm")
             ], style={
                 "display": "flex",
                 "justifyContent": "center",
