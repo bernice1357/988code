@@ -150,18 +150,6 @@ def get_orders():
 
     
 def make_card_item(order, user_role=None):
-    # 獲取客戶備註
-    customer_notes = ""
-    if order.get("customer_id"):
-        try:
-            notes_response = requests.get(f"http://127.0.0.1:8000/get_customer_notes/{order['customer_id']}")
-            if notes_response.status_code == 200:
-                notes_data = notes_response.json()
-                customer_notes = notes_data.get("notes", "")
-        except:
-            customer_notes = ""
-    
-def make_card_item(order):
     # 直接從 order 中讀取備註（已經在 get_orders 時附加）
     customer_notes = order.get("customer_notes", "")
 
@@ -487,7 +475,7 @@ layout = dbc.Container([
     dcc.Loading(
         id="loading-orders",
         type="dot",
-        children=html.Div(id="orders-container", children=create_grouped_orders_layout(orders), style={
+        children=html.Div(id="orders-container", children=create_grouped_orders_layout(orders, user_role=None), style={
             "maxHeight": "75vh", 
             "overflowY": "auto",
             "overflowX": "hidden"
