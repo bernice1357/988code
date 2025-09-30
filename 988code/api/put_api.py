@@ -1300,7 +1300,7 @@ def create_temp_order(order_data: TempOrderCreate):
             check_existing_sql = """
                 SELECT 1
                 FROM order_transactions
-                WHERE customer_id = %s AND product_id = %s AND status = 1
+                WHERE customer_id = %s AND product_id = %s
                 LIMIT 1
             """
             existing_purchase = execute_query(
