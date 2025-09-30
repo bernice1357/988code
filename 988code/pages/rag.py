@@ -637,7 +637,7 @@ layout = dbc.Container([
                         "backgroundColor": "transparent"
                     }
                 )
-            ], width=3),
+            ], width=3, style={"display": "none"}),
 
             dbc.Col([
                 html.Div(
@@ -653,7 +653,7 @@ layout = dbc.Container([
                         "flexDirection": "column"
                     }
                 )
-            ], width=9)
+            ], width=12)
         ]),
         style={
             "display": "flex",
@@ -717,15 +717,18 @@ def initialize_content_area(pathname):
     prevent_initial_call='initial_duplicate'  # 允許重複輸出的初始調用
 )
 def load_client_list(pathname):
-    
+
     # 檢查是否為 RAG 頁面或初始載入
     if not pathname or pathname == "/" or (pathname and 'rag' in pathname.lower()):
         items = load_initial_items()
-        
+
+        # 過濾掉要隱藏的條目
+        items = [item for item in items if item != "4月988價格表"]
+
         result = [
             dbc.ListGroupItem(
-                name, 
-                id={"type": "client-item", "index": name}, 
+                name,
+                id={"type": "client-item", "index": name},
                 n_clicks=0,
                 style={
                     "cursor": "pointer",
