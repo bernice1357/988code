@@ -13,7 +13,11 @@ import pickle
 from datetime import datetime, timedelta
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import warnings
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 try:
     from prophet import Prophet
@@ -29,17 +33,18 @@ class ProphetPredictionSystem:
         self.prophet_models = {}
         self.customer_segments = {}
         self.customer_performance = {}
-        
+
         # 設定日誌
         self.setup_logging()
-        
-        # 數據庫連接配置
+
+        # 從環境變數取得資料庫配置
+        db_env = os.getenv('DB_ENVIRONMENT', 'local')
         self.db_config = {
-            'host': "localhost",
-            'database': "988",
-            'user': "postgres", 
-            'password': "1234",
-            'port': "5432"
+            'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+            'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+            'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+            'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988'),
+            'port': os.getenv(f'{db_env.upper()}_DB_PORT', '5432')
         }
         
         print("=== Prophet客戶補貨預測系統 ===")

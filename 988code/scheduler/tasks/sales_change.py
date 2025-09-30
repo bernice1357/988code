@@ -4,6 +4,10 @@ import logging
 from datetime import datetime, timedelta
 import sys
 import os
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Add predict_product_main to path for database modules
 predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))

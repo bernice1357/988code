@@ -3,6 +3,10 @@ from typing import Dict, List, Optional
 import logging
 import sys
 import os
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Add predict_product_main to path for database modules
 predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
@@ -158,14 +162,15 @@ class InactiveCustomerManager:
 def generate_inactive_customer_report(db_config=None):
     """生成不活躍客戶檢查，返回統計資料"""
     if db_config is None:
+        db_env = os.getenv('DB_ENVIRONMENT', 'local')
         db_config = {
-            'host': 'localhost',
-            'port': 5432,
-            'database': '988',
-            'user': 'postgres',
-            'password': '1234'
+            'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+            'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432)),
+            'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+            'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+            'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988')
         }
-    
+
     manager = InactiveCustomerManager(db_config, inactive_days=1)
     
     try:
@@ -186,12 +191,13 @@ def generate_inactive_customer_report(db_config=None):
 
 def main():
     """測試用主函數"""
+    db_env = os.getenv('DB_ENVIRONMENT', 'local')
     db_config = {
-        'host': 'localhost',
-        'port': 5432,
-        'database': '988',
-        'user': 'postgres',
-        'password': '1234'
+        'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+        'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432)),
+        'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+        'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+        'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988')
     }
     
     manager = InactiveCustomerManager(db_config, inactive_days=1)

@@ -15,7 +15,12 @@ import psycopg2
 from datetime import datetime, timedelta
 from catboost import CatBoostClassifier
 import warnings
+import os
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class OptimizedRollingPredictionModel:
     """
@@ -38,18 +43,23 @@ class OptimizedRollingPredictionModel:
         self.min_cp_history = 2
         
         # 優化的預測閾值 (提高品質)
-        self.prediction_threshold = 0.7  # 從 0.3 提高到 0.7
+        self.prediction_threshold = 0.5  # 高品質預測閾值
         
         # 待處理預測列表
         self.pending_predictions = {}
-        
-        self.db_config = db_config or {
-            'host': 'localhost',
-            'database': '988',
-            'user': 'postgres',
-            'password': '1234',
-            'port': 5432
-        }
+
+        # 從環境變數取得資料庫配置
+        if db_config is None:
+            db_env = os.getenv('DB_ENVIRONMENT', 'local')
+            self.db_config = {
+                'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+                'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+                'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+                'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988'),
+                'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432))
+            }
+        else:
+            self.db_config = db_config
         
         print("=== 優化滾動預測 CatBoost 客戶補貨模型 (Scheduler) ===")
         print(f"滾動窗口: {rolling_window_days} 天")
@@ -358,19 +368,25 @@ class OptimizedRollingPredictionModel:
         
         print(f"標籤期間: {val_start.strftime('%Y-%m-%d')} ~ {val_end.strftime('%Y-%m-%d')}")
         print(f"工作日數: {len(business_dates)} 天")
-        
+
         # 創建實際購買集合
         actual_purchases = set()
         for _, row in qualified_transactions.iterrows():
             if row['transaction_date'] >= val_start and row['transaction_date'] <= val_end:
                 actual_purchases.add((row['customer_id'], row['product_id'], row['transaction_date'].date()))
-        
+
         print(f"標籤期間實際購買: {len(actual_purchases)} 筆")
-        
+
+        # 關鍵修正：特徵計算只使用標籤期間之前的數據（避免資料洩漏）
+        feature_transactions = qualified_transactions[
+            qualified_transactions['transaction_date'] < val_start
+        ]
+        print(f"特徵計算使用數據: {len(feature_transactions)} 筆 (截止 {(val_start - timedelta(days=1)).strftime('%Y-%m-%d')})")
+
         # 獲取所有客戶-產品對
         cp_pairs = qualified_transactions.groupby(['customer_id', 'product_id']).size().reset_index()
         cp_pairs = cp_pairs[['customer_id', 'product_id']]
-        
+
         print(f"總客戶-產品對: {len(cp_pairs)}")
         
         # 生成訓練樣本 (使用優化特徵)
@@ -386,10 +402,11 @@ class OptimizedRollingPredictionModel:
             product_id = cp_row['product_id']
             
             for target_date in business_dates:
+                # 使用標籤期間之前的數據計算特徵
                 features = self.extract_optimized_time_features(
-                    qualified_transactions, customer_id, product_id, target_date
+                    feature_transactions, customer_id, product_id, target_date
                 )
-                
+
                 actual_purchase = (customer_id, product_id, target_date.date()) in actual_purchases
                 features['label'] = 1 if actual_purchase else 0
                 features['target_date'] = target_date
@@ -402,40 +419,101 @@ class OptimizedRollingPredictionModel:
                     negative_samples += 1
         
         samples_df = pd.DataFrame(samples)
-        
+
         print(f"\n訓練樣本生成完成:")
         print(f"總樣本數: {len(samples_df):,}")
         print(f"正樣本: {positive_samples:,} ({positive_samples/len(samples_df)*100:.2f}%)")
         print(f"負樣本: {negative_samples:,} ({negative_samples/len(samples_df)*100:.2f}%)")
-        
+
         if positive_samples == 0:
             print("警告: 沒有正樣本，無法訓練模型")
             return False
-        
+
+        # 隨機欠採樣：平衡正負樣本
+        positive_df = samples_df[samples_df['label'] == 1]
+        negative_df = samples_df[samples_df['label'] == 0]
+
+        # 負樣本採樣比例 (3:1)
+        negative_sample_size = min(len(negative_df), positive_samples * 3)
+        negative_sampled = negative_df.sample(n=negative_sample_size, random_state=42)
+
+        # 合併平衡後的數據
+        balanced_df = pd.concat([positive_df, negative_sampled], ignore_index=True)
+        balanced_df = balanced_df.sample(frac=1, random_state=42).reset_index(drop=True)  # 打亂順序
+
+        print(f"\n樣本平衡處理:")
+        print(f"平衡後總樣本數: {len(balanced_df):,}")
+        print(f"正樣本: {positive_samples:,} ({positive_samples/len(balanced_df)*100:.2f}%)")
+        print(f"負樣本: {negative_sample_size:,} ({negative_sample_size/len(balanced_df)*100:.2f}%)")
+        print(f"新比例: 1:{negative_sample_size/positive_samples:.1f}")
+
+
         # 訓練模型
-        feature_columns = [col for col in samples_df.columns if col not in ['label', 'target_date']]
-        
-        X = samples_df[feature_columns]
-        y = samples_df['label']
+        feature_columns = [col for col in balanced_df.columns if col not in ['label', 'target_date']]
+
+        X = balanced_df[feature_columns]
+        y = balanced_df['label']
         
         print(f"\n開始訓練模型...")
         print(f"特徵數: {len(feature_columns)}")
-        
+
+        # 切分訓練集和驗證集 (80/20)
+        from sklearn.model_selection import train_test_split
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+
+        print(f"訓練集: {len(X_train)} 筆")
+        print(f"驗證集: {len(X_val)} 筆")
+
         self.model = CatBoostClassifier(
-            iterations=300,  # 增加迭代次數
-            learning_rate=0.1,
+            iterations=500,
+            learning_rate=0.05,
             depth=6,
             cat_features=self.cat_features,
             random_seed=42,
             verbose=False,
-            class_weights=[1, 10]
+            auto_class_weights='Balanced',
+            eval_metric='AUC'
         )
-        
-        self.model.fit(X, y)
+
+        self.model.fit(
+            X_train, y_train,
+            eval_set=(X_val, y_val),
+            use_best_model=True,
+            verbose=False
+        )
+
+        # 評估模型
+        from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
+
+        y_pred = self.model.predict(X_val)
+        y_pred_proba = self.model.predict_proba(X_val)[:, 1]
+
+        print(f"\n=== 模型評估指標 ===")
+        print(f"驗證集 AUC: {roc_auc_score(y_val, y_pred_proba):.4f}")
+
+        cm = confusion_matrix(y_val, y_pred)
+        tn, fp, fn, tp = cm.ravel()
+
+        print(f"\n混淆矩陣:")
+        print(f"  真負例(TN): {tn:,}  |  假正例(FP): {fp:,}")
+        print(f"  假負例(FN): {fn:,}  |  真正例(TP): {tp:,}")
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+        print(f"\n分類指標:")
+        print(f"  準確率 (Accuracy): {(tp + tn) / (tp + tn + fp + fn):.4f}")
+        print(f"  精確率 (Precision): {precision:.4f}")
+        print(f"  召回率 (Recall): {recall:.4f}")
+        print(f"  F1-Score: {f1:.4f}")
+
         self.feature_names = feature_columns
         self.is_trained = True
-        
-        print("優化滾動模型訓練完成")
+
+        print("\n優化滾動模型訓練完成")
         return True
     
     def update_pending_predictions(self, actual_purchases_df):
@@ -501,6 +579,7 @@ class OptimizedRollingPredictionModel:
         all_predictions = []
         new_pending_count = 0
         high_quality_predictions = 0
+        max_best_prob = 0
         
         for idx, cp_row in enumerate(filtered_cp_pairs):
             if idx % 100 == 0:
@@ -520,12 +599,12 @@ class OptimizedRollingPredictionModel:
                 features = self.extract_optimized_time_features(
                     qualified_transactions, customer_id, product_id, target_date
                 )
-                
+
                 feature_values = [features[col] for col in self.feature_names]
                 X_pred = pd.DataFrame([feature_values], columns=self.feature_names)
-                
+
                 prob = self.model.predict_proba(X_pred)[0, 1]
-                
+
                 if prob > best_prob:
                     best_prob = prob
                     best_pred = {
@@ -544,6 +623,9 @@ class OptimizedRollingPredictionModel:
                     }
             
             # 只保留高品質預測 (提高閾值)
+            if best_prob > max_best_prob:
+                max_best_prob = best_prob
+            
             if best_pred and best_prob >= self.prediction_threshold:
                 all_predictions.append(best_pred)
                 high_quality_predictions += 1
@@ -554,6 +636,8 @@ class OptimizedRollingPredictionModel:
                 new_pending_count += 1
         
         predictions_df = pd.DataFrame(all_predictions)
+        
+        print(f"最高手動選擇的預測機率: {max_best_prob:.3f}")
         
         print(f"\n優化滾動預測結果:")
         print(f"高品質預測數: {len(predictions_df):,} 筆 (閾值 >= {self.prediction_threshold})")

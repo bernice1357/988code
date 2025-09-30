@@ -10,8 +10,13 @@ from psycopg2.extras import RealDictCursor
 import logging
 import time
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class TriggerHealthMonitor:
     """觸發器健康檢查監控器"""
