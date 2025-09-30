@@ -316,14 +316,19 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
 # 顯示確認已處理按鈕
 @app.callback(
     Output('confirm-button-container', 'children'),
-    [Input({'type': 'status-checkbox', 'index': ALL}, 'value')]
+    [Input({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     Input('user-role-store', 'data')]
 )
-def show_confirm_button(checkbox_values):
+def show_confirm_button(checkbox_values, user_role):
+    # 如果用戶是viewer，隱藏按鈕
+    if user_role == "viewer":
+        return html.Div()
+
     selected_rows = []
     for i, values in enumerate(checkbox_values):
         if values:  # 如果checkbox被選中
             selected_rows.extend(values)
-    
+
     if selected_rows and len(selected_rows) > 0:
         return dbc.Button("確認已處理", id="inactive_customers_confirm_btn", color="success")
     else:

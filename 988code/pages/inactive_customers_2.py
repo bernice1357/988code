@@ -156,6 +156,7 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-sales", data=True),
     dcc.Store(id="sales-change-data", data=[]),
     dcc.Store(id="filtered-sales-data", data=[]),
+    dcc.Store(id='user-role-store'),
     
     dbc.Row([
         dbc.Col([
@@ -582,14 +583,19 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
 # 顯示確認已處理按鈕
 @app.callback(
     Output('sales-confirm-button-container', 'children'),
-    [Input({'type': 'status-checkbox', 'index': ALL}, 'value')]
+    [Input({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     Input('user-role-store', 'data')]
 )
-def show_sales_confirm_button(checkbox_values):
+def show_sales_confirm_button(checkbox_values, user_role):
+    # 如果用戶是viewer，隱藏按鈕
+    if user_role == "viewer":
+        return html.Div()
+
     selected_rows = []
     for i, values in enumerate(checkbox_values):
         if values:  # 如果checkbox被選中
             selected_rows.extend(values)
-    
+
     if selected_rows and len(selected_rows) > 0:
         return dbc.Button("確認已處理", id="sales_confirm_btn", color="success")
     else:
