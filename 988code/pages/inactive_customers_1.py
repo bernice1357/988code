@@ -316,14 +316,19 @@ def display_inactive_customer_table(filtered_data, btn_all, btn_unprocessed, btn
 # 顯示確認已處理按鈕
 @app.callback(
     Output('confirm-button-container', 'children'),
-    [Input({'type': 'status-checkbox', 'index': ALL}, 'value')]
+    [Input({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     Input('user-role-store', 'data')]
 )
-def show_confirm_button(checkbox_values):
+def show_confirm_button(checkbox_values, user_role):
+    # 如果用戶是viewer，隱藏按鈕
+    if user_role == "viewer":
+        return html.Div()
+
     selected_rows = []
     for i, values in enumerate(checkbox_values):
         if values:  # 如果checkbox被選中
             selected_rows.extend(values)
-    
+
     if selected_rows and len(selected_rows) > 0:
         return dbc.Button("確認已處理", id="inactive_customers_confirm_btn", color="success")
     else:
@@ -398,7 +403,10 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
      Output('inactive_customers-warning-toast', 'is_open'),
      Output('inactive_customers-warning-toast', 'children'),
      Output("page-loaded-inactive", "data", allow_duplicate=True),
-     Output('process-confirm-modal', 'is_open', allow_duplicate=True)],
+     Output('process-confirm-modal', 'is_open', allow_duplicate=True),
+     Output("btn-all-customers", "n_clicks", allow_duplicate=True),
+     Output("btn-unprocessed-customers", "n_clicks", allow_duplicate=True),
+     Output("btn-processed-customers", "n_clicks", allow_duplicate=True)],
     Input('modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-inactive-data", "data"),
@@ -410,7 +418,7 @@ def toggle_process_modal(confirm_clicks, cancel_clicks, checkbox_values, filtere
 )
 def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed, user_role):
     if not modal_confirm_clicks:
-        return False, "", False, "", False, "", dash.no_update, dash.no_update
+        return False, "", False, "", False, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     # 獲取選中的客戶
     selected_indices = []
@@ -419,7 +427,7 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
             selected_indices.extend(values)
     
     if not selected_indices or not filtered_data:
-        return False, "", True, "沒有選擇任何客戶", False, "", dash.no_update, False
+        return False, "", True, "沒有選擇任何客戶", False, "", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
     
     try:
         df = pd.DataFrame(filtered_data)
@@ -447,14 +455,15 @@ def confirm_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_
         if response.status_code == 200:
             result = response.json()
             success_count = result.get('success_count', len(customer_names))
-            return True, f"成功處理 {success_count} 位客戶", False, "", False, "", True, False
+            # 重置按鈕狀態：設置"全部"按鈕為1，其他為0
+            return True, f"成功處理 {success_count} 位客戶", False, "", False, "", True, False, 1, 0, 0
         elif response.status_code == 403:
-            return False, "", False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update, False
+            return False, "", False, "", True, "權限不足：僅限編輯者使用此功能", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
         else:
-            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", False, "", dash.no_update, False
+            return False, "", True, f"API 調用失敗，狀態碼：{response.status_code}", False, "", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
         
     except Exception as e:
-        return False, "", True, f"處理失敗：{e}", False, "", dash.no_update, False
+        return False, "", True, f"處理失敗：{e}", False, "", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
 
 # 管理按鈕樣式的 callback
 @app.callback(

@@ -653,11 +653,12 @@ def load_customer_data(page_loaded, current_page, selected_customer_id, selected
     [Input("customer-data", "data"),
      Input("customer_data-customer-id", "value"),
      Input("customer_data-customer-name", "value"),
-     Input("missing-data-filter", "data")],
+     Input("missing-data-filter", "data"),
+     Input("user-role-store", "data")],
     prevent_initial_call=True
 )
 
-def display_customer_table(customer_data, selected_customer_id, selected_customer_name, missing_filter):
+def display_customer_table(customer_data, selected_customer_id, selected_customer_name, missing_filter, user_role):
     if not customer_data:
         return html.Div("暫無資料"), [], {"display": "block"}, {"display": "block"}
     
@@ -703,9 +704,12 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
             warnings.append(" & ".join(warning_msg))
         df["警告"] = warnings
     
+    # 根據用戶角色決定是否顯示編輯按鈕
+    show_edit_button = user_role != "viewer"
+
     # 儲存當前表格資料供匯出使用
     current_table_data = df.to_dict('records')
-    
+
     # 如果是缺失資料篩選模式，在表格上方顯示警告訊息
     if missing_filter and not df.empty:
         table_component = html.Div([
@@ -713,7 +717,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
                 df,
                 button_text="編輯客戶資料",
                 button_id_type="customer_data_button",
-                show_button=True,
+                show_button=show_edit_button,
                 sticky_columns=['客戶ID']
             )
         ])
@@ -722,7 +726,7 @@ def display_customer_table(customer_data, selected_customer_id, selected_custome
             df,
             button_text="編輯客戶資料",
             button_id_type="customer_data_button",
-            show_button=True,
+            show_button=show_edit_button,
             sticky_columns=['客戶ID']
         )
     

@@ -149,7 +149,7 @@ def get_orders():
         return []
 
     
-def make_card_item(order):
+def make_card_item(order, user_role=None):
     # 直接從 order 中讀取備註（已經在 get_orders 時附加）
     customer_notes = order.get("customer_notes", "")
 
@@ -238,8 +238,8 @@ def make_card_item(order):
             # 建立時間
             html.Div([
                 html.Div([
-                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" else None,
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" else None
+                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" and user_role != "viewer" else None,
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" and user_role != "viewer" else None
                 ]) if order.get("status") == "0" else html.Div(),
                 html.Div([
                     html.Small(f"{timestamp_label}: {timestamp_display}", className="text-muted", style={"fontSize": "0.7rem"}),
@@ -389,37 +389,37 @@ def group_orders_by_customer(orders):
     
     return grouped
 
-def make_customer_group(customer_key, orders, group_index):
+def make_customer_group(customer_key, orders, group_index, user_role=None):
     """創建客戶群組Accordion"""
     order_count = len(orders)
-    
+
     # 創建包含 badge 的標題
     title_content = html.Div([
         html.Span(customer_key, style={"marginRight": "10px"}),
         dbc.Badge(str(order_count), color="primary", pill=True)
     ], className="d-flex align-items-center")
-    
+
     return dbc.AccordionItem([
         dbc.Row([
-            dbc.Col(make_card_item(order), width=12, lg=6, xl=4) 
+            dbc.Col(make_card_item(order, user_role), width=12, lg=6, xl=4)
             for order in orders
         ], className="g-3")
-    ], 
+    ],
     title=title_content,
     item_id=f"customer-group-{group_index}"
     )
 
-def create_grouped_orders_layout(orders):
+def create_grouped_orders_layout(orders, user_role=None):
     """創建分組後的訂單layout"""
     if not orders:
         return html.Div("暫無訂單", className="text-center text-muted", style={"padding": "50px"})
-    
+
     grouped_orders = group_orders_by_customer(orders)
     customer_groups = []
-    
+
     for group_index, (customer_key, customer_orders) in enumerate(grouped_orders.items()):
-        customer_groups.append(make_customer_group(customer_key, customer_orders, group_index))
-    
+        customer_groups.append(make_customer_group(customer_key, customer_orders, group_index, user_role))
+
     return dbc.Accordion(customer_groups, flush=True, always_open=False)
 
 # 嘗試載入訂單資料，如果失敗則使用空列表
@@ -477,7 +477,7 @@ layout = dbc.Container([
     # 移除 dcc.Loading，直接使用 Div，加入 CSS transition 平滑效果
     html.Div(
         id="orders-container",
-        children=create_grouped_orders_layout(orders),
+        children=create_grouped_orders_layout(orders, user_role=None),
         style={
             "maxHeight": "75vh",
             "overflowY": "auto",
@@ -644,31 +644,32 @@ layout = dbc.Container([
      Input("filter-unconfirmed", "n_clicks"),
      Input("filter-confirmed", "n_clicks"),
      Input("filter-deleted", "n_clicks")],
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def filter_orders(all_clicks, unconfirmed_clicks, confirmed_clicks, deleted_clicks):
+def filter_orders(all_clicks, unconfirmed_clicks, confirmed_clicks, deleted_clicks, user_role):
     ctx = dash.callback_context
     if not ctx.triggered:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    
+
     triggered_id = ctx.triggered[0]["prop_id"].split('.')[0]
     orders = get_orders()
-    
+
     if triggered_id == "filter-all":
         filtered_orders = orders
-        return create_grouped_orders_layout(filtered_orders), False, True, True, True, ""  # 清空搜尋框
+        return create_grouped_orders_layout(filtered_orders, user_role), False, True, True, True, ""  # 清空搜尋框
     elif triggered_id == "filter-unconfirmed":
         filtered_orders = [order for order in orders if order.get("status") == "0"]
-        return create_grouped_orders_layout(filtered_orders), True, False, True, True, ""  # 清空搜尋框
+        return create_grouped_orders_layout(filtered_orders, user_role), True, False, True, True, ""  # 清空搜尋框
     elif triggered_id == "filter-confirmed":
         filtered_orders = [order for order in orders if order.get("status") == "1"]
-        return create_grouped_orders_layout(filtered_orders), True, True, False, True, ""  # 清空搜尋框
+        return create_grouped_orders_layout(filtered_orders, user_role), True, True, False, True, ""  # 清空搜尋框
     elif triggered_id == "filter-deleted":
         filtered_orders = [order for order in orders if order.get("status") == "2"]
-        return create_grouped_orders_layout(filtered_orders), True, True, True, False, ""  # 清空搜尋框
+        return create_grouped_orders_layout(filtered_orders, user_role), True, True, True, False, ""  # 清空搜尋框
     else:
         filtered_orders = orders
-        return create_grouped_orders_layout(filtered_orders), False, True, True, True, ""  # 清空搜尋框
+        return create_grouped_orders_layout(filtered_orders, user_role), False, True, True, True, ""  # 清空搜尋框
 
 # 刪除按鈕，顯示確認刪除modal
 @app.callback(
@@ -784,7 +785,7 @@ def confirm_delete(n_clicks, modal_body, user_role):
                 if response.status_code == 200:
                     print("訂單刪除成功")
                     orders = get_orders()
-                    updated_orders = create_grouped_orders_layout(orders)
+                    updated_orders = create_grouped_orders_layout(orders, user_role)
                     return False, True, "訂單已刪除，請查看已刪除頁面", False, False, "", updated_orders
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update
@@ -1047,7 +1048,7 @@ def submit_confirm(n_clicks, customer_id, customer_name, customer_notes, product
                         print(f"order_transactions 更新異常：{str(e)}")
                     
                     orders = get_orders()
-                    updated_orders = create_grouped_orders_layout(orders)
+                    updated_orders = create_grouped_orders_layout(orders, user_role)
                     return False, True, "訂單已確認，請查看已確認頁面", False, False, "", updated_orders, False, dash.no_update, dash.no_update
                 elif response.status_code == 403:
                     return False, False, "", False, True, "權限不足：僅限編輯者使用此功能", dash.no_update, False, dash.no_update, dash.no_update
@@ -1235,7 +1236,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
                         
                         orders = get_orders()
-                        updated_orders = create_grouped_orders_layout(orders)
+                        updated_orders = create_grouped_orders_layout(orders, user_role)
                         return False, True, "新客戶創建成功，訂單已新增", False, False, "", updated_orders
                     else:
                         return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
@@ -1274,7 +1275,7 @@ def save_new_customer(n_clicks, customer_id, customer_name, phone, address, city
                         transaction_response = requests.post(f"http://127.0.0.1:8000/order_transactions", json=transaction_data)
                         
                         orders = get_orders()
-                        updated_orders = create_grouped_orders_layout(orders)
+                        updated_orders = create_grouped_orders_layout(orders, user_role)
                         return False, True, "新客戶創建成功，訂單已確認", False, False, "", updated_orders
                     else:
                         return dash.no_update, False, dash.no_update, True, False, "", dash.no_update
@@ -1511,7 +1512,7 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
                 print(f"order_transactions 更新異常：{str(e)}")
 
             orders = get_orders()
-            updated_orders = create_grouped_orders_layout(orders)
+            updated_orders = create_grouped_orders_layout(orders, user_role)
             return (
                 False,
                 True,
@@ -1573,10 +1574,11 @@ def submit_add_order(n_clicks, customer_id, customer_name, customer_notes, produ
     [State("filter-all", "outline"),
      State("filter-unconfirmed", "outline"),
      State("filter-confirmed", "outline"),
-     State("filter-deleted", "outline")],
+     State("filter-deleted", "outline"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_outline, deleted_outline):
+def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_outline, deleted_outline, user_role):
     if not search_value:
         # 如果搜尋框為空，根據當前篩選狀態顯示所有訂單
         orders = get_orders()
@@ -1592,12 +1594,12 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
             filtered_orders = [order for order in orders if order.get("status") == "2"]
         else:
             filtered_orders = orders
-        
-        return create_grouped_orders_layout(filtered_orders)
-    
+
+        return create_grouped_orders_layout(filtered_orders, user_role)
+
     # 執行搜尋
     orders = get_orders()
-    
+
     # 根據當前篩選狀態先篩選訂單
     if not all_outline:  # 全部按鈕被選中
         filtered_orders = orders
@@ -1620,7 +1622,7 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
         if customer_name and search_value_lower in customer_name.lower():
             search_result_orders.append(order)
     
-    return create_grouped_orders_layout(search_result_orders)
+    return create_grouped_orders_layout(search_result_orders, user_role)
 
 # 自動檢查訂單更新的回調函數（優化版：比較資料變化）
 @app.callback(
@@ -1634,11 +1636,12 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
      State("filter-unconfirmed", "outline"),
      State("filter-confirmed", "outline"),
      State("filter-deleted", "outline"),
-     State("customer-search-input", "value")],
+     State("customer-search-input", "value"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
 def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outline, unconfirmed_outline,
-                          confirmed_outline, deleted_outline, search_value):
+                          confirmed_outline, deleted_outline, search_value, user_role):
     try:
         # 調用 API 檢查是否有更新
         check_url = "http://127.0.0.1:8000/check_orders_update"
@@ -1697,7 +1700,7 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
                 # 比較雜湊值，只有真的有變化時才更新
                 if new_hash != current_hash:
                     print(f"[AUTO UPDATE] 資料有變化，更新頁面 (舊hash: {current_hash[:8]}... -> 新hash: {new_hash[:8]}...)")
-                    return create_grouped_orders_layout(filtered_orders), current_time, new_hash
+                    return create_grouped_orders_layout(filtered_orders, user_role), current_time, new_hash
                 else:
                     print(f"[AUTO UPDATE] 檢測到更新但資料無變化，不重新渲染")
                     return dash.no_update, current_time, dash.no_update

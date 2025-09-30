@@ -156,6 +156,7 @@ tab_content = html.Div([
     dcc.Store(id="page-loaded-sales", data=True),
     dcc.Store(id="sales-change-data", data=[]),
     dcc.Store(id="filtered-sales-data", data=[]),
+    dcc.Store(id='user-role-store'),
     
     dbc.Row([
         dbc.Col([
@@ -582,14 +583,19 @@ def display_sales_table(filtered_data, btn_all, btn_unprocessed, btn_processed):
 # 顯示確認已處理按鈕
 @app.callback(
     Output('sales-confirm-button-container', 'children'),
-    [Input({'type': 'status-checkbox', 'index': ALL}, 'value')]
+    [Input({'type': 'status-checkbox', 'index': ALL}, 'value'),
+     Input('user-role-store', 'data')]
 )
-def show_sales_confirm_button(checkbox_values):
+def show_sales_confirm_button(checkbox_values, user_role):
+    # 如果用戶是viewer，隱藏按鈕
+    if user_role == "viewer":
+        return html.Div()
+
     selected_rows = []
     for i, values in enumerate(checkbox_values):
         if values:  # 如果checkbox被選中
             selected_rows.extend(values)
-    
+
     if selected_rows and len(selected_rows) > 0:
         return dbc.Button("確認已處理", id="sales_confirm_btn", color="success")
     else:
@@ -697,7 +703,10 @@ def toggle_product_detail_modal(detail_clicks, close_clicks, filtered_data, btn_
      Output('sales_change-error-toast', 'is_open'),
      Output('sales_change-error-toast', 'children'),
      Output("page-loaded-sales", "data", allow_duplicate=True),
-     Output('sales-process-confirm-modal', 'is_open', allow_duplicate=True)],
+     Output('sales-process-confirm-modal', 'is_open', allow_duplicate=True),
+     Output("btn-all-products", "n_clicks", allow_duplicate=True),
+     Output("btn-unprocessed-products", "n_clicks", allow_duplicate=True),
+     Output("btn-processed-products", "n_clicks", allow_duplicate=True)],
     Input('sales-modal-confirm-btn', 'n_clicks'),
     [State({'type': 'status-checkbox', 'index': ALL}, 'value'),
      State("filtered-sales-data", "data"),
@@ -708,7 +717,7 @@ def toggle_product_detail_modal(detail_clicks, close_clicks, filtered_data, btn_
 )
 def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data, btn_all, btn_unprocessed, btn_processed):
     if not modal_confirm_clicks:
-        return False, "", False, "", dash.no_update, dash.no_update
+        return False, "", False, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
     # 獲取選中的商品
     selected_indices = []
@@ -717,7 +726,7 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
             selected_indices.extend(values)
     
     if not selected_indices or not filtered_data:
-        return False, "", True, "沒有選擇任何商品", dash.no_update, False
+        return False, "", True, "沒有選擇任何商品", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
     
     try:
         # 重要：需要重新應用與表格顯示相同的篩選邏輯
@@ -740,7 +749,7 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
                 product_ids.append(df.iloc[index]['product_id'])
         
         if not product_ids:
-            return False, "", True, "無法獲取選中商品的ID", dash.no_update, False
+            return False, "", True, "無法獲取選中商品的ID", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
         
         # 新增：實際呼叫 API 更新資料庫
         success_count = 0
@@ -769,12 +778,13 @@ def confirm_sales_processed(modal_confirm_clicks, checkbox_values, filtered_data
         
         if failed_products:
             error_msg = f"部分商品更新失敗: {', '.join(failed_products)}"
-            return True, f"成功處理 {success_count} 項，失敗 {len(failed_products)} 項", True, error_msg, True, False
+            return True, f"成功處理 {success_count} 項，失敗 {len(failed_products)} 項", True, error_msg, True, False, dash.no_update, dash.no_update, dash.no_update
         else:
-            return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False
+            # 重置按鈕狀態：設置"全部"按鈕為1，其他為0
+            return True, f"成功處理 {success_count} 項滯銷商品", False, "", True, False, 1, 0, 0
         
     except Exception as e:
-        return False, "", True, f"處理失敗：{e}", dash.no_update, False
+        return False, "", True, f"處理失敗：{e}", dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
 
 # 同時也需要修正顯示處理確認 Modal 的邏輯
 @app.callback(

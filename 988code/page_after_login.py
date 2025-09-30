@@ -41,9 +41,9 @@ sidebar = html.Div(
                     ],
                     style={"margin-top": "1rem"},  # 設定寬度
                 ),
-                dbc.NavLink("ERP 資料匯入", href="/import_data", active="exact"),
-                dbc.NavLink("知識庫數據管理", href="/rag", active="exact"),
-                dbc.NavLink("排程設定", href="/scheduling_settings", active="exact"),
+                dbc.NavLink("ERP 資料匯入", href="/import_data", active="exact", id="sidebar-erp-import"),
+                dbc.NavLink("知識庫數據管理", href="/rag", active="exact", id="sidebar-knowledge-mgmt"),
+                dbc.NavLink("排程設定", href="/scheduling_settings", active="exact", id="sidebar-scheduling"),
             ],
             vertical=True,
             pills=True,
@@ -85,6 +85,7 @@ toggle_button_float = html.Button(
 
 layout = html.Div([
     dcc.Store(id="sidebar-toggle", data=True),
+    dcc.Store(id='user-role-store'),
     sidebar,
     toggle_button_float,
     dcc.Location(id='url', refresh=False),
@@ -128,3 +129,19 @@ def logout(n_clicks):
     if n_clicks:
         return '/', True, "登出成功", None
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+# 控制側邊欄選項顯示 - 當用戶是viewer時隱藏特定選項
+@app.callback(
+    [Output("sidebar-erp-import", "style"),
+     Output("sidebar-knowledge-mgmt", "style"),
+     Output("sidebar-scheduling", "style")],
+    Input("user-role-store", "data"),
+    prevent_initial_call=True
+)
+def hide_sidebar_options_for_viewer(user_role):
+    if user_role == "viewer":
+        # 隱藏三個選項
+        return {"display": "none"}, {"display": "none"}, {"display": "none"}
+    else:
+        # 顯示所有選項
+        return {}, {}, {}
