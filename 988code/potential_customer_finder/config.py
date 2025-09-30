@@ -37,8 +37,25 @@ LLM_CONFIG = {
 }
 
 # --- 專案特定設定 ---
-# 聊天記錄資料夾路徑 - 使用相對路徑
-CHAT_HISTORY_DIR = Path(__file__).parent / "line_oa_chat_csv"
+# 聊天記錄資料夾路徑 - 動態獲取最新的資料夾
+def _get_latest_chat_history_dir():
+    """自動獲取最新的聊天記錄資料夾"""
+    base_dir = Path("/home/chou_fish_988/Documents/988/Line_bot/chat_history_original")
+
+    if not base_dir.exists():
+        return Path(__file__).parent / "line_oa_chat_csv"  # 回退到舊路徑
+
+    # 找出所有符合格式的資料夾（以 line_oa_chat_csv 開頭的目錄）
+    chat_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith("line_oa_chat_csv")]
+
+    if not chat_dirs:
+        return Path(__file__).parent / "line_oa_chat_csv"  # 回退到舊路徑
+
+    # 按照修改時間排序，取最新的
+    latest_dir = max(chat_dirs, key=lambda d: d.stat().st_mtime)
+    return latest_dir
+
+CHAT_HISTORY_DIR = _get_latest_chat_history_dir()
 
 # 產品關鍵詞快取資料夾
 KEYWORDS_CACHE_DIR = Path(__file__).parent / "cache"
