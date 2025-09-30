@@ -437,6 +437,8 @@ layout = dbc.Container([
     dcc.Store(id='current-order-id-store'),
     # 添加用於儲存上次檢查時間的 Store
     dcc.Store(id='last-update-check-time'),
+    # 新增：儲存當前訂單的雜湊值，用於比較是否有變化
+    dcc.Store(id='orders-hash-store'),
     # 定時檢查是否有新訂單，每5秒檢查一次
     dcc.Interval(
         id='order-update-checker',
@@ -472,19 +474,16 @@ layout = dbc.Container([
         ])
     ], className="d-flex justify-content-between align-items-center mb-4"),
 
-    dcc.Loading(
-        id="loading-orders",
-        type="dot",
-        children=html.Div(id="orders-container", children=create_grouped_orders_layout(orders), style={
-            "maxHeight": "75vh", 
-            "overflowY": "auto",
-            "overflowX": "hidden"
-        }),
+    # 移除 dcc.Loading，直接使用 Div，加入 CSS transition 平滑效果
+    html.Div(
+        id="orders-container",
+        children=create_grouped_orders_layout(orders),
         style={
-            "display": "flex",
-            "alignItems": "center",
-            "justifyContent": "center",
-            "minHeight": "60vh"
+            "maxHeight": "75vh",
+            "overflowY": "auto",
+            "overflowX": "hidden",
+            "transition": "opacity 0.3s ease-in-out",  # 平滑淡入淡出效果
+            "opacity": "1"
         }
     ),
     dbc.Modal([
@@ -1623,12 +1622,14 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
     
     return create_grouped_orders_layout(search_result_orders)
 
-# 自動檢查訂單更新的回調函數
+# 自動檢查訂單更新的回調函數（優化版：比較資料變化）
 @app.callback(
     [Output("orders-container", "children", allow_duplicate=True),
-     Output("last-update-check-time", "data")],
+     Output("last-update-check-time", "data"),
+     Output("orders-hash-store", "data")],
     Input("order-update-checker", "n_intervals"),
     [State("last-update-check-time", "data"),
+     State("orders-hash-store", "data"),
      State("filter-all", "outline"),
      State("filter-unconfirmed", "outline"),
      State("filter-confirmed", "outline"),
@@ -1636,7 +1637,7 @@ def search_customers(search_value, all_outline, unconfirmed_outline, confirmed_o
      State("customer-search-input", "value")],
     prevent_initial_call=True
 )
-def auto_check_for_updates(n_intervals, last_check_time, all_outline, unconfirmed_outline,
+def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outline, unconfirmed_outline,
                           confirmed_outline, deleted_outline, search_value):
     try:
         # 調用 API 檢查是否有更新
@@ -1653,7 +1654,7 @@ def auto_check_for_updates(n_intervals, last_check_time, all_outline, unconfirme
 
             # 如果有更新，重新載入資料
             if has_update:
-                print(f"[AUTO UPDATE] 檢測到訂單更新，重新載入資料 - 更新類型: {update_data.get('update_type')}")
+                print(f"[AUTO UPDATE] 檢測到訂單更新 - 更新類型: {update_data.get('update_type')}")
 
                 # 重新載入訂單資料
                 orders = get_orders()
@@ -1680,14 +1681,33 @@ def auto_check_for_updates(n_intervals, last_check_time, all_outline, unconfirme
                             search_result_orders.append(order)
                     filtered_orders = search_result_orders
 
-                return create_grouped_orders_layout(filtered_orders), current_time
+                # 計算新資料的雜湊值（使用訂單ID和更新時間）
+                import hashlib
+                import json
+                data_string = json.dumps([
+                    {
+                        "id": order.get("id"),
+                        "updated_at": order.get("updated_at"),
+                        "status": order.get("status")
+                    }
+                    for order in filtered_orders
+                ], sort_keys=True)
+                new_hash = hashlib.md5(data_string.encode()).hexdigest()
+
+                # 比較雜湊值，只有真的有變化時才更新
+                if new_hash != current_hash:
+                    print(f"[AUTO UPDATE] 資料有變化，更新頁面 (舊hash: {current_hash[:8]}... -> 新hash: {new_hash[:8]}...)")
+                    return create_grouped_orders_layout(filtered_orders), current_time, new_hash
+                else:
+                    print(f"[AUTO UPDATE] 檢測到更新但資料無變化，不重新渲染")
+                    return dash.no_update, current_time, dash.no_update
             else:
                 # 沒有更新，只更新檢查時間
-                return dash.no_update, current_time
+                return dash.no_update, current_time, dash.no_update
         else:
             print(f"[AUTO UPDATE] API 檢查失敗，狀態碼: {response.status_code}")
-            return dash.no_update, current_time
+            return dash.no_update, current_time, dash.no_update
 
     except Exception as e:
         print(f"[AUTO UPDATE] 自動檢查更新失敗: {e}")
-        return dash.no_update, datetime.now().isoformat()
+        return dash.no_update, datetime.now().isoformat(), dash.no_update

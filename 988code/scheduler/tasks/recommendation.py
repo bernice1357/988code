@@ -6,7 +6,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import LabelEncoder
 from scipy import stats
 import warnings
+import os
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class RecommendationSystem:
     def __init__(self, db_config):
@@ -657,16 +662,17 @@ class RecommendationSystem:
 
 def generate_recommendations(db_config=None):
     """生成推薦結果，返回DataFrame"""
-    # 使用傳入的數據庫配置或默認配置
+    # 使用傳入的數據庫配置或從環境變數讀取
     if db_config is None:
+        db_env = os.getenv('DB_ENVIRONMENT', 'local')
         db_config = {
-            'host': 'localhost',
-            'port': 5432,
-            'database': '988',
-            'user': 'postgres',
-            'password': '1234'
+            'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+            'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432)),
+            'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+            'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+            'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988')
         }
-    
+
     # 創建推薦系統實例
     recommender = RecommendationSystem(db_config)
     

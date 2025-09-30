@@ -16,7 +16,11 @@ from prophet import Prophet
 import warnings
 import os
 import logging
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class HybridCVOptimizedSystem:
     """混合CV優化兩階段預測系統"""
@@ -653,14 +657,15 @@ def main():
     """主程序"""
     print("混合CV優化預測系統 (Scheduler版)")
     print("=" * 70)
-    
-    # 數據庫配置
+
+    # 從環境變數取得資料庫配置
+    db_env = os.getenv('DB_ENVIRONMENT', 'local')
     db_config = {
-        'host': 'localhost',
-        'port': 5432,
-        'database': '988',
-        'user': 'postgres',
-        'password': '1234'
+        'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+        'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432)),
+        'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+        'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+        'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988')
     }
     
     # 創建預測器

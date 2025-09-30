@@ -9,6 +9,11 @@ import pandas as pd
 import psycopg2
 from datetime import datetime
 import logging
+import os
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class MonthlyPredictionDB:
     """月銷售預測資料庫操作類別"""

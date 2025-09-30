@@ -11,19 +11,39 @@ import psycopg2
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # 從本地 scheduler 目錄導入 CatBoost 模型
-try:
-    import sys
-    import os
-    scheduler_path = os.path.dirname(os.path.dirname(__file__))  # 上一層目錄 (scheduler)
-    if scheduler_path not in sys.path:
-        sys.path.insert(0, scheduler_path)
-    from production_catboost_model import OptimizedRollingPredictionModel
-    print(f"成功從本地導入 CatBoost 模型: {scheduler_path}")
-except ImportError as e:
-    print(f"無法從本地導入 CatBoost 模型: {e}")
-    OptimizedRollingPredictionModel = None
+import sys
+
+current_dir = os.path.dirname(__file__)
+scheduler_path = os.path.dirname(current_dir)  # 上一層目錄 (scheduler)
+
+# 確保當前 tasks 目錄與 scheduler 目錄都能被匯入
+for path in (current_dir, scheduler_path):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+OptimizedRollingPredictionModel = None
+_last_import_error = None
+
+for module_name, module_origin in (
+    ("production_catboost_model", scheduler_path),
+    ("catboost_optimized_rolling_prediction", current_dir),
+):
+    try:
+        module = __import__(module_name, fromlist=['OptimizedRollingPredictionModel'])
+        OptimizedRollingPredictionModel = getattr(module, 'OptimizedRollingPredictionModel')
+        print(f"成功從本地導入 CatBoost 模型: {module_name} (來源: {module_origin})")
+        break
+    except (ImportError, AttributeError) as e:
+        _last_import_error = e
+
+if OptimizedRollingPredictionModel is None:
+    print(f"無法從本地導入 CatBoost 模型: {_last_import_error}")
 
 class CatBoostPredictionSystem:
     """CatBoost 預測系統主類別 - 相容 Prophet 介面"""
@@ -31,14 +51,15 @@ class CatBoostPredictionSystem:
     def __init__(self):
         # 設定日誌
         self.setup_logging()
-        
-        # 資料庫連接配置
+
+        # 從環境變數取得資料庫配置
+        db_env = os.getenv('DB_ENVIRONMENT', 'local')
         self.db_config = {
-            'host': "localhost",
-            'database': "988", 
-            'user': "postgres",
-            'password': "1234",
-            'port': 5432
+            'host': os.getenv(f'{db_env.upper()}_DB_HOST', 'localhost'),
+            'database': os.getenv(f'{db_env.upper()}_DB_NAME', '988'),
+            'user': os.getenv(f'{db_env.upper()}_DB_USER', 'postgres'),
+            'password': os.getenv(f'{db_env.upper()}_DB_PASSWORD', '988988'),
+            'port': int(os.getenv(f'{db_env.upper()}_DB_PORT', 5432))
         }
         
         print("=== CatBoost 客戶補貨預測系統 ===")
@@ -71,6 +92,10 @@ class CatBoostPredictionSystem:
     def daily_train_and_predict(self, prediction_days=7):
         """每日訓練+預測主流程"""
         self.logger.info("開始 CatBoost 每日訓練+預測流程")
+
+        if OptimizedRollingPredictionModel is None:
+            self.logger.error("CatBoost 模型模組未載入，請確認 production_catboost_model 或 catboost_optimized_rolling_prediction 是否可用")
+            return False
         
         try:
             # 1. 創建 CatBoost 預測器
@@ -87,10 +112,10 @@ class CatBoostPredictionSystem:
             # 3. 執行訓練和預測
             results = predictor.run_optimized_rolling_prediction(base_date=base_date)
             
-            if not results or not results.get('predictions') or len(results['predictions']) == 0:
+            if not results or results.get('predictions') is None or len(results.get('predictions', [])) == 0:
                 self.logger.error("CatBoost 預測生成失敗")
                 return False
-            
+
             predictions_df = results['predictions']
             self.logger.info(f"CatBoost 生成預測: {len(predictions_df)} 筆")
             
@@ -129,8 +154,8 @@ class CatBoostPredictionSystem:
             # 獲取預測機率
             prob = pred['purchase_probability']
             
-            # 只處理高品質預測 (probability >= 0.7)
-            if prob >= 0.7:
+            # 只處理高品質預測 (probability >= 0.5)
+            if prob >= 0.5:
                 # 判斷信心等級
                 if prob >= 0.9:
                     confidence = 'high'
@@ -154,7 +179,7 @@ class CatBoostPredictionSystem:
                     'customer_id': pred['customer_id'],
                     'product_id': pred['product_id'],
                     'prediction_date': pred['prediction_date'],
-                    'will_purchase_anything': True,  # 只有 prob >= 0.7 的才會進入
+                    'will_purchase_anything': True,  # 只有 prob >= 0.5 的才會進入
                     'purchase_probability': round(prob, 4),
                     'estimated_quantity': int(pred['quantity']),
                     'confidence_level': confidence,
@@ -171,7 +196,18 @@ class CatBoostPredictionSystem:
         conn = self.get_db_connection()
         if not conn:
             return False
-        
+
+        # === 寫入前去重處理 ===
+        # 基於 (customer_id, product_id, prediction_date) 去重，保留機率最高的
+        unique_predictions = {}
+        for pred in predictions:
+            key = (pred['customer_id'], pred['product_id'], pred['prediction_date'])
+            if key not in unique_predictions or pred['purchase_probability'] > unique_predictions[key]['purchase_probability']:
+                unique_predictions[key] = pred
+
+        predictions = list(unique_predictions.values())
+        self.logger.info(f"去重後預測數: {len(predictions)} 筆")
+
         try:
             with conn.cursor() as cur:
                 # 預先載入每個 (customer_id, product_id) 的最後一次預測與購買時間
