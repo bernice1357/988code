@@ -183,7 +183,7 @@ layout = html.Div([
                         dbc.Label("子類別", width=4),
                         dbc.Col([
                             dbc.Input(id="new-product-subcategory", type="text", placeholder="請輸入子類別"),
-                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片、禮盒", target="new-product-subcategory", placement="top")
+                            dbc.Tooltip("例如：白帶魚切塊、白帶魚片", target="new-product-subcategory", placement="top")
                         ], width=8)
                     ], className="mb-3"),
                     # 規格
