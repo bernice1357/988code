@@ -149,7 +149,6 @@ def get_orders():
         return []
 
     
-<<<<<<< HEAD
 def make_card_item(order, user_role=None):
     # 獲取客戶備註
     customer_notes = ""
@@ -162,12 +161,10 @@ def make_card_item(order, user_role=None):
         except:
             customer_notes = ""
     
-=======
 def make_card_item(order):
     # 直接從 order 中讀取備註（已經在 get_orders 時附加）
     customer_notes = order.get("customer_notes", "")
 
->>>>>>> 773f26ea1490c3e5062f1476b3ff44a83e5f3029
     # 客戶標題已移至群組標題，這裡不再需要
     status = str(order.get("status", ""))
     base_time = order.get("created_at")
