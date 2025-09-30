@@ -402,6 +402,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="checkbox-state-store", data={}),
     # 儲存選中的項目資訊
     dcc.Store(id="selected-items-store", data=[]),
+    # 儲存用戶角色
+    dcc.Store(id="user-role-store"),
     
     # 觸發 Offcanvas 的按鈕和確認狀態按鈕
     html.Div([
@@ -876,10 +878,15 @@ def close_modal(n_clicks):
 # 控制確認狀態按鈕的顯示
 @app.callback(
     Output("confirm-status-btn", "style"),
-    Input({"type": "restock-checkbox", "customer_id": dash.ALL, "row_index": dash.ALL}, "value"),
+    [Input({"type": "restock-checkbox", "customer_id": dash.ALL, "row_index": dash.ALL}, "value"),
+     Input("user-role-store", "data")],
     prevent_initial_call=True
 )
-def toggle_confirm_button(checkbox_values):
+def toggle_confirm_button(checkbox_values, user_role):
+    # 如果用戶是viewer，直接隱藏按鈕
+    if user_role == "viewer":
+        return {"display": "none"}
+
     # 檢查是否有任何checkbox被選中
     has_selection = False
     if checkbox_values:
@@ -888,7 +895,7 @@ def toggle_confirm_button(checkbox_values):
             if checkbox_value and len(checkbox_value) > 0:
                 has_selection = True
                 break
-    
+
     if has_selection:
         return {"marginLeft": "10px", "display": "block"}
     else:
