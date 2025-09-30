@@ -982,6 +982,42 @@ def check_customer_exists(customer_id: str):
         print(f"[API ERROR] check_customer_exists: {e}")
         raise HTTPException(status_code=500, detail="資料庫查詢失敗")
 
+# 批量獲取客戶備註
+@router.post("/get_customer_notes_batch")
+def get_customer_notes_batch(request: dict):
+    customer_ids = request.get("customer_ids", [])
+    print(f"[API] get_customer_notes_batch 被呼叫，客戶數量: {len(customer_ids)}")
+
+    if not customer_ids:
+        return {}
+
+    try:
+        # 過濾掉空的 customer_id
+        valid_ids = [cid for cid in customer_ids if cid]
+
+        if not valid_ids:
+            return {}
+
+        # 使用 IN 子句批量查詢
+        placeholders = ','.join(['%s'] * len(valid_ids))
+        query = f"SELECT customer_id, notes FROM customer WHERE customer_id IN ({placeholders})"
+
+        rows = execute_query(query, tuple(valid_ids), fetch='all')
+
+        # 轉換為字典格式
+        notes_dict = {}
+        for row in rows:
+            customer_id = row[0]
+            notes = row[1] if row[1] else ""
+            notes_dict[customer_id] = notes
+
+        print(f"[API] 成功取得 {len(notes_dict)} 筆客戶備註")
+        return notes_dict
+
+    except Exception as e:
+        print(f"[API ERROR] get_customer_notes_batch: {e}")
+        raise HTTPException(status_code=500, detail="批量查詢客戶備註失敗")
+
 # 檢查訂單資料是否有更新
 @router.get("/check_orders_update")
 def check_orders_update(last_check_time: Optional[str] = Query(None, description="上次檢查時間")):
