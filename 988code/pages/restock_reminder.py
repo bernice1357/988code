@@ -164,7 +164,6 @@ def create_restock_table(df, customer_index_start=0):
         'fontSize': '14px',
         'height': '45px',
         'whiteSpace': 'nowrap',
-        'overflow': 'hidden',
         'textOverflow': 'ellipsis'
     }
     
