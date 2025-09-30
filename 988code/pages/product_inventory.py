@@ -372,26 +372,31 @@ def display_inventory_table(inventory_data, selected_category, selected_subcateg
 # 處理按鈕點擊開啟modal
 @app.callback(
     [Output("group-items-modal", "is_open"),
-     Output("inventory-modal-title", "children")],
+     Output("inventory-modal-title", "children"),
+     Output("manage-group-button", "style", allow_duplicate=True)],
     [Input({"type": "inventory_data_button", "index": ALL}, "n_clicks"),
      Input("close-modal", "n_clicks")],
     [State("group-items-modal", "is_open"),
      State("inventory-data", "data"),
      State("product_inventory-inventory_id", "value"),
-     State("product_inventory-subcategory_id", "value")],
+     State("product_inventory-subcategory_id", "value"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def handle_modal_open(button_clicks, close_clicks, is_open, inventory_data, selected_category, selected_subcategory):
+def handle_modal_open(button_clicks, close_clicks, is_open, inventory_data, selected_category, selected_subcategory, user_role):
     ctx = dash.callback_context
     if not ctx.triggered:
-        return dash.no_update, dash.no_update
-    
+        return dash.no_update, dash.no_update, dash.no_update
+
     trigger_id = ctx.triggered[0]["prop_id"]
     trigger_value = ctx.triggered[0]["value"]
-    
+
+    # 根據用戶角色決定按鈕樣式
+    edit_button_style = {"display": "none"} if user_role == "viewer" else {"display": "inline-block"}
+
     if "close-modal" in trigger_id:
-        return False, ""
-    
+        return False, "", edit_button_style
+
     if "inventory_data_button" in trigger_id and trigger_value and trigger_value > 0:
         try:
             # 從trigger_id中提取index
@@ -399,26 +404,26 @@ def handle_modal_open(button_clicks, close_clicks, is_open, inventory_data, sele
             match = re.search(r'"index":(\d+)', trigger_id)
             if match:
                 row_index = int(match.group(1))
-                
+
                 # 重新篩選資料，確保 index 對應正確
                 df = pd.DataFrame(inventory_data)
                 if selected_category:
                     df = df[df['category'] == selected_category]
                 if selected_subcategory:
                     df = df[df['subcategory'] == selected_subcategory]
-                
+
                 # 重置索引，確保連續性
                 df = df.reset_index(drop=True)
                 filtered_data = df.to_dict('records')
-                
+
                 if filtered_data and row_index < len(filtered_data):
                     subcategory = filtered_data[row_index]['subcategory']
-                    return True, f"商品群組：{subcategory}"
-                    
+                    return True, f"商品群組：{subcategory}", edit_button_style
+
         except Exception as e:
             print(f"Modal open error: {e}")
-    
-    return dash.no_update, dash.no_update
+
+    return dash.no_update, dash.no_update, dash.no_update
 
 # 重置管理模式當modal關閉時
 @app.callback(
@@ -429,11 +434,14 @@ def handle_modal_open(button_clicks, close_clicks, is_open, inventory_data, sele
      Output("delete-group-button", "style", allow_duplicate=True),
      Output("modal-table-data", "data", allow_duplicate=True)],
     Input("group-items-modal", "is_open"),
+    State("user-role-store", "data"),
     prevent_initial_call=True
 )
-def reset_management_mode(is_open):
+def reset_management_mode(is_open, user_role):
     if not is_open:
-        return False, {"display": "inline-block"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, {"display": "none"}, []
+        # 如果用戶是viewer，隱藏編輯按鈕；否則顯示
+        edit_button_style = {"display": "none"} if user_role == "viewer" else {"display": "inline-block"}
+        return False, edit_button_style, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, {"display": "none"}, []
     return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 # 當 modal 打開時載入群組品項資料並儲存到 store
@@ -602,10 +610,15 @@ def load_group_items(is_open, management_mode, modal_title, stored_data):
      Output("edit-mode-indicator", "style"),
      Output("delete-group-button", "style")],
     Input("manage-group-button", "n_clicks"),
-    State("management-mode", "data"),
+    [State("management-mode", "data"),
+     State("user-role-store", "data")],
     prevent_initial_call=True
 )
-def toggle_management_mode(n_clicks, current_mode):
+def toggle_management_mode(n_clicks, current_mode, user_role):
+    # 如果用戶是viewer，永遠隱藏編輯按鈕
+    if user_role == "viewer":
+        return current_mode, {"display": "none"}, {"display": "none"}, {"display": "none", "color": "red", "fontWeight": "bold", "marginLeft": "20px"}, {"display": "none"}
+
     if n_clicks:
         new_mode = not current_mode
         if new_mode:
@@ -1135,3 +1148,16 @@ def update_selected_items_count(checkbox_values):
         return f"已選擇全部 {total_count} 個品項"
     else:
         return f"已選擇 {selected_count}/{total_count} 個品項"
+
+# 控制創建新產品按鈕顯示 - 當用戶是viewer時隱藏
+@app.callback(
+    Output("create-new-product-btn", "style"),
+    Input("user-role-store", "data"),
+    prevent_initial_call=True
+)
+def hide_create_product_button_for_viewer(user_role):
+    if user_role == "viewer":
+        return {"display": "none"}
+    else:
+        return {}  # 顯示按鈕
+
