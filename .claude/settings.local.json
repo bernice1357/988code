@@ -3,7 +3,11 @@
     "allow": [
       "Bash(curl -s \"http://127.0.0.1:8000/get_restock_data?limit=1\")",
       "Bash(where conda)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(del test_table.py)",
+      "Bash(curl -s \"http://127.0.0.1:8000/get_restock_data\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/get_restock_data?limit=1108\")",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

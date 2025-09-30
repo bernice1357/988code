@@ -1,6 +1,18 @@
 from dash import dash_table
 from dash import html, dcc, dash_table, Input, Output, State, ctx, callback_context, exceptions
 
+# 信心度顏色映射函數 (從 restock_reminder.py 複製)
+def get_confidence_color(confidence_level):
+    """根據信心度返回對應的顏色"""
+    colors = {
+        'HIGH': '#28a745',    # 綠色
+        'MEDIUM': '#ffc107',  # 橙色
+        'LOW': '#dc3545'      # 紅色
+    }
+    if confidence_level:
+        return colors.get(confidence_level.upper(), '#000000')  # 預設黑色
+    return '#000000'
+
 def get_row_background_color(row_data):
     """根據狀態決定行的背景顏色"""
     if '狀態' in row_data:
@@ -10,7 +22,7 @@ def get_row_background_color(row_data):
             return '#f8d7da'  # 淺紅色
     return 'white'  # 默認白色
 
-def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', sticky_columns=None, table_height='78vh', sortable_columns=None, sort_state=None):
+def custom_table(df, show_checkbox=False, show_button=False, button_text="操作", button_class="btn btn-warning btn-sm", button_id_type='status-button', checkbox_id_type='status-checkbox', sticky_columns=None, table_height='78vh', sortable_columns=None, sort_state=None):
     if sticky_columns is None:
         sticky_columns = []
     if sortable_columns is None:
@@ -50,10 +62,19 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
         row_cells = []
         
         if show_checkbox:
+            # 為 restock-checkbox 特殊處理，需要 customer_id 和 row_index
+            if checkbox_id_type == 'restock-checkbox':
+                customer_id = row.get('客戶ID', f'unknown_{i}')
+                checkbox_id = {'type': 'restock-checkbox', 'customer_id': customer_id, 'row_index': i}
+                checkbox_value = f"{customer_id}-{i}"
+            else:
+                checkbox_id = {'type': checkbox_id_type, 'index': i}
+                checkbox_value = i
+
             checkbox = html.Td(
                 dcc.Checklist(
-                    id={'type': 'status-checkbox', 'index': i},
-                    options=[{'label': '', 'value': i}],
+                    id=checkbox_id,
+                    options=[{'label': '', 'value': checkbox_value}],
                     value=[],
                     style={'margin': '0px'}
                 ),
@@ -91,6 +112,22 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
             
             cell_width = max(header_width, content_width) + 22
             
+            # 決定背景顏色和文字顏色
+            if col == '狀態':
+                bg_color = get_row_background_color(row)
+                text_color = 'black'
+            elif col == '信心度':
+                bg_color = 'white'
+                # 使用原始英文值來獲取顏色，但顯示中文
+                original_value = row[col]
+                # 嘗試從中文轉回英文來獲取顏色
+                confidence_map = {'高': 'HIGH', '中': 'MEDIUM', '低': 'LOW'}
+                eng_value = confidence_map.get(original_value, original_value)
+                text_color = get_confidence_color(eng_value)
+            else:
+                bg_color = 'white'
+                text_color = 'black'
+
             cell_style = {
                 'padding': '4px 8px',
                 'textAlign': 'center',
@@ -98,7 +135,9 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                 'fontSize': '16px',
                 'height': '50px',
                 'whiteSpace': 'nowrap',
-                'backgroundColor': get_row_background_color(row) if col == '狀態' else 'white',
+                'backgroundColor': bg_color,
+                'color': text_color,
+                'fontWeight': 'bold' if col == '信心度' else 'normal',
                 'width': f'{cell_width}px',
                 'minWidth': f'{cell_width}px',
                 'maxWidth': f'{cell_width}px',
@@ -123,6 +162,10 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                         sticky_bg_color = '#ffebee'  # 淺紅色背景
                     elif row[col] == '已提醒':
                         sticky_bg_color = '#e8f5e8'  # 淺綠色背景
+                    else:
+                        sticky_bg_color = "#edf7ff"  # 預設背景色
+                elif col == '信心度':
+                    sticky_bg_color = "#edf7ff"  # 信心度用預設背景色，但文字有顏色
                 else:
                     sticky_bg_color = "#edf7ff"  # 其他sticky欄位預設背景色
 
@@ -139,6 +182,7 @@ def custom_table(df, show_checkbox=False, show_button=False, button_text="操作
                     'maxWidth': f'{sticky_widths[col]}px',
                     'overflow': 'hidden',
                     'textOverflow': 'ellipsis'
+                    # 保持原有的 color 和 fontWeight 設定
                 })
                 
 
