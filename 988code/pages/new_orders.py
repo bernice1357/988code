@@ -115,6 +115,31 @@ def get_orders():
                     # 其他狀態直接保留
                     filtered_orders.append(order)
             
+            # 批量獲取客戶備註
+            customer_ids = set()
+            for order in filtered_orders:
+                if order.get("customer_id"):
+                    customer_ids.add(order["customer_id"])
+
+            # 如果有需要查詢的客戶ID，批量查詢備註
+            notes_dict = {}
+            if customer_ids:
+                try:
+                    notes_response = requests.post(
+                        "http://127.0.0.1:8000/get_customer_notes_batch",
+                        json={"customer_ids": list(customer_ids)}
+                    )
+                    if notes_response.status_code == 200:
+                        notes_dict = notes_response.json()
+                        print(f"[get_orders] 批量取得 {len(notes_dict)} 筆客戶備註")
+                except Exception as e:
+                    print(f"[get_orders] 批量取得備註失敗: {e}")
+
+            # 將備註附加到每個訂單
+            for order in filtered_orders:
+                customer_id = order.get("customer_id")
+                order["customer_notes"] = notes_dict.get(customer_id, "")
+
             return filtered_orders
         except requests.exceptions.JSONDecodeError:
             print("回應內容不是有效的 JSON")
@@ -122,8 +147,9 @@ def get_orders():
     else:
         print(f"API 錯誤，狀態碼：{response.status_code}")
         return []
+
     
-    
+<<<<<<< HEAD
 def make_card_item(order, user_role=None):
     # 獲取客戶備註
     customer_notes = ""
@@ -136,6 +162,12 @@ def make_card_item(order, user_role=None):
         except:
             customer_notes = ""
     
+=======
+def make_card_item(order):
+    # 直接從 order 中讀取備註（已經在 get_orders 時附加）
+    customer_notes = order.get("customer_notes", "")
+
+>>>>>>> 773f26ea1490c3e5062f1476b3ff44a83e5f3029
     # 客戶標題已移至群組標題，這裡不再需要
     status = str(order.get("status", ""))
     base_time = order.get("created_at")
@@ -423,7 +455,7 @@ layout = dbc.Container([
     # 定時檢查是否有新訂單，每5秒檢查一次
     dcc.Interval(
         id='order-update-checker',
-        interval=500*1000,  # 5秒檢查一次
+        interval=5*1000,  # 5秒檢查一次
         n_intervals=0
     ),
     html.Div([
