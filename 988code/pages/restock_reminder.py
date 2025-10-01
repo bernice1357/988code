@@ -278,6 +278,14 @@ def reload_table_data():
         response_data = response.json()
         data = response_data.get('data', [])
         df = pd.DataFrame(data)
+
+        # 去除重複資料 (依據 prediction_id)
+        if not df.empty and 'prediction_id' in df.columns:
+            original_count = len(df)
+            df = df.drop_duplicates(subset=['prediction_id'], keep='first')
+            deduplicated_count = len(df)
+            if original_count != deduplicated_count:
+                print(f"[INFO] 重新載入去除重複資料：原始 {original_count} 筆，去重後 {deduplicated_count} 筆")
         
         if df.empty:
             return html.Div("無資料", className="text-center text-muted", style={"padding": "50px"}), [], False, ""
@@ -360,6 +368,14 @@ def load_data_and_handle_errors(page_loaded):
                 return html.Div("暫無資料", style={'textAlign': 'center', 'padding': '50px'}), [], False, ""
             
             df = pd.DataFrame(data)
+
+            # 去除重複資料 (依據 prediction_id)
+            if not df.empty and 'prediction_id' in df.columns:
+                original_count = len(df)
+                df = df.drop_duplicates(subset=['prediction_id'], keep='first')
+                deduplicated_count = len(df)
+                if original_count != deduplicated_count:
+                    print(f"[INFO] 初始載入去除重複資料：原始 {original_count} 筆，去重後 {deduplicated_count} 筆")
 
             # 重新命名欄位
             df = df.rename(columns={
@@ -717,6 +733,14 @@ def update_table_with_search(selected_customer_id, selected_date):
             # 處理新的分頁回應格式
             data = result.get('data', []) if isinstance(result, dict) else result
             df = pd.DataFrame(data)
+
+            # 去除重複資料 (依據 prediction_id)
+            if not df.empty and 'prediction_id' in df.columns:
+                original_count = len(df)
+                df = df.drop_duplicates(subset=['prediction_id'], keep='first')
+                deduplicated_count = len(df)
+                if original_count != deduplicated_count:
+                    print(f"[INFO] 搜尋功能去除重複資料：原始 {original_count} 筆，去重後 {deduplicated_count} 筆")
 
             # 如果有搜尋條件，過濾資料
             if selected_customer_id:
