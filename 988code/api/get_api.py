@@ -684,43 +684,36 @@ def get_delivery_schedule_by_category(category: str):
 def get_delivery_schedule_filtered(delivery_date: str = None, category: str = None):
     print(f"[API] get_delivery_schedule_filtered 被呼叫，日期：{delivery_date}，類別：{category}")
     try:
-        # 修復後的查詢，簡化 JOIN 邏輯
+        # 修復後的查詢，JOIN customer 和 product_master 表來取得名稱
         base_query = """
         SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
                ds.created_at, ds.updated_at, ds.scheduled_at,
                ds.customer_id,
-               ds.customer_name,
-               ds.product_name
+               ds.product_id,
+               COALESCE(NULLIF(ds.customer_name, ''), c.customer_name) as customer_name,
+               COALESCE(NULLIF(ds.product_name, ''), pm.name_zh) as product_name,
+               pm.category
         FROM delivery_schedule ds
+        LEFT JOIN customer c ON ds.customer_id = c.customer_id
+        LEFT JOIN (
+            SELECT DISTINCT ON (product_id) product_id, name_zh, category
+            FROM product_master
+            WHERE is_active = 'active'
+        ) pm ON ds.product_id = pm.product_id
         WHERE 1=1
         """
-        
+
         params = []
-        
+
         if delivery_date:
             base_query += " AND DATE(ds.delivery_date) = %s"
             params.append(delivery_date)
-        
-        # 如果需要根據類別篩選，需要 JOIN product_master 表
+
+        # 如果需要根據類別篩選
         if category and category != "全部類別":
-            base_query = """
-            SELECT ds.id, ds.delivery_date, ds.amount, ds.status, ds.quantity, ds.source_order_id,
-                   ds.created_at, ds.updated_at, ds.scheduled_at,
-                   ds.customer_id,
-                   ds.customer_name,
-                   ds.product_name,
-                   pm.category
-            FROM delivery_schedule ds
-            LEFT JOIN product_master pm ON ds.product_name = pm.name_zh
-            WHERE 1=1
-            """
-            
-            if delivery_date:
-                base_query += " AND DATE(ds.delivery_date) = %s"
-            
             base_query += " AND pm.category = %s"
             params.append(category)
-        
+
         base_query += " ORDER BY ds.delivery_date DESC, ds.id"
         
         # 使用統一的資料庫連線系統
