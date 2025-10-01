@@ -3,14 +3,14 @@ from components.offcanvas import create_search_offcanvas, register_offcanvas_cal
 import dash_bootstrap_components as dbc
 
 tab_content = html.Div([
-    # 產品ID下拉選單
+    # 產品名稱下拉選單
     html.Div([
-        html.Label('產品 ID', style={'margin-right': '10px', 'font-weight': 'bold', 'align-self': 'center'}),
+        html.Label('產品名稱', style={'margin-right': '10px', 'font-weight': 'bold', 'align-self': 'center'}),
         dcc.Dropdown(
             id='product-id-dropdown',
             options=[],
-            placeholder='選擇產品ID',
-            style={'width': '200px'}
+            placeholder='選擇產品名稱',
+            style={'width': '350px'}
         )
     ], style={'margin': '30px 10px 10px 10px', 'display': 'flex', 'align-items': 'center'}),
     
@@ -48,8 +48,9 @@ tab_content = html.Div([
 )
 def update_product_options(dropdown_id):
     response = requests.get("http://127.0.0.1:8000/get_recommended_product_ids")
-    product_ids = response.json()
-    options = [{'label': item['product_id'], 'value': item['product_id']} for item in product_ids]
+    product_data = response.json()
+    # label 只顯示產品名稱,value 保持為產品ID
+    options = [{'label': item['name_zh'], 'value': item['product_id']} for item in product_data]
     return options
 
 @app.callback(

@@ -2,14 +2,14 @@ from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 
 tab_content = html.Div([
-    # 客戶ID下拉選單
+    # 客戶名稱下拉選單
     html.Div([
-        html.Label('客戶 ID', style={'margin-right': '10px', 'font-weight': 'bold', 'align-self': 'center'}),
+        html.Label('客戶名稱', style={'margin-right': '10px', 'font-weight': 'bold', 'align-self': 'center'}),
         dcc.Dropdown(
             id='customer-id-dropdown',
             options=[],
-            placeholder='選擇客戶ID',
-            style={'width': '200px'}
+            placeholder='選擇客戶名稱',
+            style={'width': '300px'}
         )
     ], style={'margin': '30px 10px 10px 10px', 'display': 'flex', 'align-items': 'center'}),
     
@@ -126,8 +126,9 @@ tab_content = html.Div([
 )
 def update_customer_options(dropdown_id):
     response = requests.get("http://127.0.0.1:8000/get_customer_ids")
-    customer_ids = response.json()
-    options = [{'label': item['customer_id'], 'value': item['customer_id']} for item in customer_ids]
+    customer_data = response.json()
+    # label 只顯示客戶名稱,value 保持為客戶ID
+    options = [{'label': item['customer_name'], 'value': item['customer_id']} for item in customer_data]
     return options
 
 @app.callback(
