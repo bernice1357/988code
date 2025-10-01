@@ -238,8 +238,8 @@ def make_card_item(order, user_role=None):
             # 建立時間
             html.Div([
                 html.Div([
-                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" and user_role != "viewer" else None,
-                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" and user_role != "viewer" else None
+                    dbc.Button("確定", id={"type": "confirm-btn", "index": order['id']}, size="sm", color="dark", outline=True, className="me-2") if order.get("status") == "0" and user_role and user_role != "viewer" else None,
+                    dbc.Button("刪除", id={"type": "delete-btn", "index": order['id']}, size="sm", color="danger", outline=True) if order.get("status") == "0" and user_role and user_role != "viewer" else None
                 ]) if order.get("status") == "0" else html.Div(),
                 html.Div([
                     html.Small(f"{timestamp_label}: {timestamp_display}", className="text-muted", style={"fontSize": "0.7rem"}),
