@@ -1,11 +1,12 @@
-﻿from .common import *
+from .common import *
 from components.offcanvas import create_search_offcanvas, register_offcanvas_callback
 from components.table import custom_table
 import requests
 import re
 import plotly.graph_objects as go
-from dash import ctx
+from dash import ctx, callback_context, ALL
 import dash_bootstrap_components as dbc
+import json
 
 # TODO 差預計補貨日期欄位
 
@@ -195,6 +196,8 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
     dcc.Store(id="selected-items-store", data=[]),
     # 儲存用戶角色
     dcc.Store(id="user-role-store"),
+    # 簡單的當前頁碼儲存
+    dcc.Store(id="current-page-simple", data=1),
 
     # 觸發 Offcanvas 的按鈕和確認狀態按鈕
     html.Div([
@@ -222,7 +225,9 @@ layout = html.Div(style={"fontFamily": "sans-serif"}, children=[
             "top": "50%",          
         }
     ),
-    
+
+    html.Div(id="pagination-controls-bottom", className="mt-3 d-flex justify-content-center align-items-center"),
+
     dbc.Modal(
         id="detail-modal",
         size="xl",
@@ -341,29 +346,38 @@ def reload_table_data():
         print(f"[ERROR] 載入資料時發生錯誤: {e}")
         return None, [], True, f"載入資料失敗: {str(e)}"
 
-# 載入數據的 callback
+# 載入數據的 callback - 支援簡單分頁
 @app.callback(
     [Output("table-container", "children"),
      Output("table-data-store", "data"),
      Output("restock-reminder-error-toast", "is_open"),
      Output("restock-reminder-error-toast", "children")],
-    Input("page-loaded", "data"),
+    [Input("page-loaded", "data"),
+     Input("current-page-simple", "data")],
     prevent_initial_call=False
 )
-def load_data_and_handle_errors(page_loaded):
-    # 立即返回載入骨架，提供即時反饋
-    if page_loaded is None:
-        return create_loading_skeleton(), [], False, ""
-    
+def load_data_and_handle_errors(page_loaded, current_page):
     try:
-        # 載入所有數據 (設定足夠大的 limit)
+        # 立即返回載入骨架，提供即時反饋
+        if page_loaded is None:
+            return create_loading_skeleton(), [], False, ""
+
+        # 獲取當前頁碼
+        current_page = current_page or 1
+        try:
+            current_page = max(1, int(current_page))
+        except (TypeError, ValueError):
+            current_page = 1
+
+        # 載入分頁數據
+        offset = (current_page - 1) * 50
         response = requests.get('http://127.0.0.1:8000/get_restock_data',
-                              params={'limit': 5000},  # 設定足夠大的數字來載入所有資料
-                              timeout=60)  # 增加超時至1分鐘
+                              params={'limit': 50, 'offset': offset},
+                              timeout=60)
         if response.status_code == 200:
             result = response.json()
             data = result.get('data', [])
-            
+
             if not data:
                 return html.Div("暫無資料", style={'textAlign': 'center', 'padding': '50px'}), [], False, ""
             
@@ -399,7 +413,59 @@ def load_data_and_handle_errors(page_loaded):
 
             # 創建優化的表格
             table, all_records = create_restock_table(df, 0)
-            
+
+            # 計算分頁資訊
+            total_count = result.get('total', 0)
+            limit = result.get('limit', 50)
+            offset = result.get('offset', 0)
+
+            current_page = (offset // limit) + 1
+            total_pages = (total_count + limit - 1) // limit if total_count > 0 else 1
+
+            # 創建分頁導航按鈕 - 中間使用下拉選單
+            menu_items = [
+                dbc.DropdownMenuItem(
+                    f"第 {page} 頁",
+                    id={"type": "page-selection-item", "index": page},
+                    disabled=(page == current_page),
+                    className="pagination-dropdown-item active" if page == current_page else "pagination-dropdown-item",
+                )
+                for page in range(1, total_pages + 1)
+            ]
+
+            dropdown = dbc.DropdownMenu(
+                label=f"第 {current_page} 頁 / 共 {total_pages} 頁",
+                id="page-selection-dropdown",
+                color="light",
+                direction="up",
+                caret=False,
+                className="pagination-dropdown-menu",
+                children=menu_items,
+            )
+
+            pagination_buttons = [
+                dbc.Button("<< 最前頁", id="goto-first-page", color="primary", outline=True,
+                          disabled=(current_page <= 1)),
+                dbc.Button("< 上一頁", id="goto-prev-page", color="primary", outline=True,
+                          disabled=(current_page <= 1)),
+                dropdown,
+                dbc.Button("下一頁 >", id="goto-next-page", color="primary", outline=True,
+                          disabled=(current_page >= total_pages)),
+                dbc.Button("最末頁 >>", id="goto-last-page", color="primary", outline=True,
+                          disabled=(current_page >= total_pages)),
+                html.Span(f"共 {total_count} 筆資料",
+                         className="ms-3",
+                         style={"alignSelf": "center", "color": "#666", "fontSize": "20px"})
+            ]
+
+            # 在表格下方加入分頁控制
+            table_with_pagination = html.Div([
+                table,
+                html.Div([
+                    html.Div(pagination_buttons, style={"display": "flex", "justifyContent": "center", "alignItems": "center", "marginBottom": "10px"})
+                ], style={"padding": "15px", "backgroundColor": "#f8f9fa", "marginTop": "10px"})
+            ])
+
             # 簡化 modal 記錄準備
             records_for_modal = [
                 {
@@ -415,8 +481,8 @@ def load_data_and_handle_errors(page_loaded):
                 }
                 for _, row in all_records.iterrows()
             ]
-            
-            return table, records_for_modal, False, ""
+
+            return table_with_pagination, records_for_modal, False, ""
         else:
             error_msg = f"API 請求失敗：{response.status_code}"
             return html.Div(f"載入失敗: {error_msg}", style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
@@ -425,6 +491,9 @@ def load_data_and_handle_errors(page_loaded):
         return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'orange'}), [], True, error_msg
     except Exception as ex:
         error_msg = f"載入錯誤：{str(ex)}"
+        print(f"[ERROR] load_data_and_handle_errors exception: {ex}")
+        import traceback
+        traceback.print_exc()
         return html.Div(error_msg, style={'textAlign': 'center', 'padding': '50px', 'color': 'red'}), [], True, error_msg
 
 # 載入客戶ID選項
@@ -445,6 +514,60 @@ def load_customer_options(page_loaded):
             return []
     except Exception as ex:
         return []
+
+# 分頁按鈕和下拉選單 callback
+@app.callback(
+    Output("current-page-simple", "data"),
+    [Input("goto-first-page", "n_clicks"),
+     Input("goto-prev-page", "n_clicks"),
+     Input("goto-next-page", "n_clicks"),
+     Input("goto-last-page", "n_clicks"),
+     Input({"type": "page-selection-item", "index": ALL}, "n_clicks")],
+    [State("current-page-simple", "data"),
+     State("table-data-store", "data")],
+    prevent_initial_call=True
+)
+def handle_simple_pagination(first_clicks, prev_clicks, next_clicks, last_clicks, dropdown_clicks, current_page, table_data):
+    if not ctx.triggered:
+        return current_page or 1
+
+    # 從API獲取總頁數資訊 (簡單方法)
+    try:
+        response = requests.get('http://127.0.0.1:8000/get_restock_data', params={'limit': 1, 'offset': 0}, timeout=10)
+        if response.status_code == 200:
+            result = response.json()
+            total_count = result.get('total', 0)
+            total_pages = (total_count + 49) // 50  # 每頁50筆
+        else:
+            total_pages = 1
+    except:
+        total_pages = 1
+
+    current_page = current_page or 1
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    # 處理下拉選單項目點擊 (JSON pattern matching)
+    if button_id.startswith('{"type":"page-selection-item"'):
+        try:
+            triggered_id = json.loads(button_id)
+            target_page = triggered_id.get("index")
+            if target_page and 1 <= target_page <= total_pages:
+                return target_page
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return current_page
+
+    # 處理按鈕點擊
+    if button_id == "goto-first-page":
+        return 1
+    elif button_id == "goto-prev-page":
+        return max(1, current_page - 1)
+    elif button_id == "goto-next-page":
+        return min(total_pages, current_page + 1)
+    elif button_id == "goto-last-page":
+        return total_pages
+
+    return current_page
 
 # 抓 modal 歷史紀錄
 @app.callback(
@@ -714,93 +837,6 @@ def toggle_confirm_button(checkbox_values, user_role):
 
 register_offcanvas_callback(app, "restock_reminder")
 
-# 搜尋功能callback
-@app.callback(
-    [Output("table-container", "children", allow_duplicate=True),
-     Output("table-data-store", "data", allow_duplicate=True)],
-    [Input("restock_reminder-customer-id", "value"),
-     Input("restock_reminder-prediction-date", "value")],
-    prevent_initial_call=True
-)
-def update_table_with_search(selected_customer_id, selected_date):
-
-    # 重新獲取數據並重建表格
-    try:
-        response = requests.get('http://127.0.0.1:8000/get_restock_data',
-                              params={'limit': 5000}, timeout=60)
-        if response.status_code == 200:
-            result = response.json()
-            # 處理新的分頁回應格式
-            data = result.get('data', []) if isinstance(result, dict) else result
-            df = pd.DataFrame(data)
-
-            # 去除重複資料 (依據 prediction_id)
-            if not df.empty and 'prediction_id' in df.columns:
-                original_count = len(df)
-                df = df.drop_duplicates(subset=['prediction_id'], keep='first')
-                deduplicated_count = len(df)
-                if original_count != deduplicated_count:
-                    print(f"[INFO] 搜尋功能去除重複資料：原始 {original_count} 筆，去重後 {deduplicated_count} 筆")
-
-            # 如果有搜尋條件，過濾資料
-            if selected_customer_id:
-                df = df[df['customer_id'] == selected_customer_id]
-
-            if selected_date:
-                df = df[df['prediction_date'] == selected_date]
-
-            if df.empty:
-                return (html.Div("無符合條件的資料", className="text-center text-muted", style={"padding": "50px"}),
-                       [])
-
-            # 重新命名欄位
-            df = df.rename(columns={
-                'prediction_id': '預測ID',
-                'customer_id': '客戶ID',
-                'customer_name': '客戶名稱',
-                'phone_number': '電話號碼',
-                'product_id': '商品ID',
-                'product_name': '商品名稱',
-                'prediction_date': '預計補貨日期',
-                'estimated_quantity': '預估數量',
-                'confidence_level': '信心度',
-                'unit': '單位'
-            })
-
-            # 將預估數量和單位組合，直接覆蓋預估數量欄位
-            df['預估數量'] = df.apply(lambda row:
-                f"{row['預估數量']}{row['單位']}" if pd.notna(row['單位']) and row['單位'] != ''
-                else str(row['預估數量']), axis=1
-            )
-
-            # 按預計補貨日期和客戶名稱排序
-            df = df.sort_values(['預計補貨日期', '客戶名稱'], ascending=[True, True])
-
-            # 創建表格
-            table, filtered_records = create_restock_table(df, 0)
-
-            # 準備 table-data-store 的資料（與 load_data_and_handle_errors 格式一致）
-            records_for_store = []
-            for _, row in filtered_records.iterrows():
-                record_for_store = {
-                    '預測ID': row.get('預測ID', ''),
-                    '客戶ID': row.get('客戶ID', ''),
-                    '客戶名稱': row.get('客戶名稱', ''),
-                    '商品ID': row.get('商品ID', ''),
-                    '商品名稱': row.get('商品名稱', ''),
-                    '預計補貨日期': row.get('預計補貨日期', ''),
-                    '預估數量': row.get('預估數量', ''),
-                    '信心度': row.get('信心度', ''),
-                    '單位': row.get('單位', '')
-                }
-                records_for_store.append(record_for_store)
-
-            return table, records_for_store
-        else:
-            return (html.Div("無法載入資料"), [])
-    except Exception as e:
-        print(f"[ERROR] 搜尋時載入資料錯誤: {e}")
-        return (html.Div(f"載入錯誤: {str(e)}"), [])
 
 # 打開確認狀態Modal
 @app.callback(
