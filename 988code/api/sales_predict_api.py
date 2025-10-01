@@ -66,8 +66,8 @@ def get_sales_data(request: SalesDataRequest):
         # 根據篩選層級建立不同的SQL查詢
         if request.filter_level == 'category':
             sql = f"""
-            SELECT 
-                DATE_TRUNC('month', ot.transaction_date) as sales_month,
+            SELECT
+                ot.transaction_date as sales_month,
                 pm.category as filter_value,
                 SUM(ot.amount) as total_amount
             FROM order_transactions ot
@@ -77,13 +77,13 @@ def get_sales_data(request: SalesDataRequest):
                 AND ot.transaction_date <= '{request.end_date}'
                 AND ot.is_active = 'active'
                 AND pm.category IN ({filter_values_str})
-            GROUP BY DATE_TRUNC('month', ot.transaction_date), pm.category
+            GROUP BY ot.transaction_date, pm.category
             ORDER BY sales_month, pm.category
             """
         elif request.filter_level == 'subcategory':
             sql = f"""
-            SELECT 
-                DATE_TRUNC('month', ot.transaction_date) as sales_month,
+            SELECT
+                ot.transaction_date as sales_month,
                 pm.subcategory as filter_value,
                 SUM(ot.amount) as total_amount
             FROM order_transactions ot
@@ -93,13 +93,13 @@ def get_sales_data(request: SalesDataRequest):
                 AND ot.transaction_date <= '{request.end_date}'
                 AND ot.is_active = 'active'
                 AND pm.subcategory IN ({filter_values_str})
-            GROUP BY DATE_TRUNC('month', ot.transaction_date), pm.subcategory
+            GROUP BY ot.transaction_date, pm.subcategory
             ORDER BY sales_month, pm.subcategory
             """
         elif request.filter_level == 'name_zh':
             sql = f"""
-            SELECT 
-                DATE_TRUNC('month', ot.transaction_date) as sales_month,
+            SELECT
+                ot.transaction_date as sales_month,
                 pm.name_zh as filter_value,
                 SUM(ot.amount) as total_amount
             FROM order_transactions ot
@@ -109,13 +109,13 @@ def get_sales_data(request: SalesDataRequest):
                 AND ot.transaction_date <= '{request.end_date}'
                 AND ot.is_active = 'active'
                 AND pm.name_zh IN ({filter_values_str})
-            GROUP BY DATE_TRUNC('month', ot.transaction_date), pm.name_zh
+            GROUP BY ot.transaction_date, pm.name_zh
             ORDER BY sales_month, pm.name_zh
             """
         elif request.filter_level == 'city':
             sql = f"""
-            SELECT 
-                DATE_TRUNC('month', ot.transaction_date) as sales_month,
+            SELECT
+                ot.transaction_date as sales_month,
                 c.city as filter_value,
                 SUM(ot.amount) as total_amount
             FROM order_transactions ot
@@ -125,13 +125,13 @@ def get_sales_data(request: SalesDataRequest):
                 AND ot.transaction_date <= '{request.end_date}'
                 AND ot.is_active = 'active'
                 AND c.city IN ({filter_values_str})
-            GROUP BY DATE_TRUNC('month', ot.transaction_date), c.city
+            GROUP BY ot.transaction_date, c.city
             ORDER BY sales_month, c.city
             """
         elif request.filter_level == 'district':
             sql = f"""
-            SELECT 
-                DATE_TRUNC('month', ot.transaction_date) as sales_month,
+            SELECT
+                ot.transaction_date as sales_month,
                 c.district as filter_value,
                 SUM(ot.amount) as total_amount
             FROM order_transactions ot
@@ -141,7 +141,7 @@ def get_sales_data(request: SalesDataRequest):
                 AND ot.transaction_date <= '{request.end_date}'
                 AND ot.is_active = 'active'
                 AND c.district IN ({filter_values_str})
-            GROUP BY DATE_TRUNC('month', ot.transaction_date), c.district
+            GROUP BY ot.transaction_date, c.district
             ORDER BY sales_month, c.district
             """
         else:

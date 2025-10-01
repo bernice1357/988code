@@ -190,52 +190,98 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
             html.H5("沒有找到符合條件的資料", style={"textAlign": "center", "color": "#666", "marginTop": "50px"})
         ])
     
+    # 計算日期範圍，決定使用日或月為單位
+    from datetime import datetime
+    if len(start_date.split('-')) == 3:
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    else:
+        start_dt = datetime.strptime(start_date, '%Y-%m')
+
+    if len(end_date.split('-')) == 3:
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+    else:
+        end_dt = datetime.strptime(end_date, '%Y-%m')
+
+    date_range_days = (end_dt - start_dt).days + 1
+    use_daily = date_range_days <= 31
+
     # 轉換數據為 DataFrame
     df = pd.DataFrame(data) if data else pd.DataFrame()
     if not df.empty:
         df['sales_month'] = pd.to_datetime(df['sales_month'])
-    
+
     # 如果有選中的地區，檢查並填補缺失的數據點
     if all_selected_areas:
-        # 生成日期範圍
-        from datetime import datetime
         import calendar
-        
-        # 解析開始和結束日期
-        start_dt = datetime.strptime(start_date, '%Y-%m')
-        end_dt = datetime.strptime(end_date, '%Y-%m')
-        
-        # 生成月份列表
-        months = []
-        current = start_dt
-        while current <= end_dt:
-            months.append(current.replace(day=1))
-            if current.month == 12:
-                current = current.replace(year=current.year + 1, month=1)
+
+        if use_daily:
+            # 短期範圍：按日生成
+            from datetime import timedelta
+            dates = []
+            current = start_dt
+            while current <= end_dt:
+                dates.append(current)
+                current = current + timedelta(days=1)
+
+            # 為缺失的地區-日期組合添加0值記錄
+            zero_records = []
+
+            # 獲取現有的地區-日期組合
+            if not df.empty:
+                existing_combinations = set((row['filter_value'], row['sales_month'].date())
+                                          for _, row in df.iterrows())
             else:
-                current = current.replace(month=current.month + 1)
-        
-        # 為缺失的地區-月份組合添加0值記錄
-        zero_records = []
-        
-        # 獲取現有的地區-月份組合
-        if not df.empty:
-            existing_combinations = set((row['filter_value'], row['sales_month'].replace(day=1)) 
-                                      for _, row in df.iterrows())
+                existing_combinations = set()
+
+            # 為所有選中的地區檢查每個日期
+            for area_name in all_selected_areas:
+                for date in dates:
+                    combination = (area_name, date.date())
+                    if combination not in existing_combinations:
+                        zero_records.append({
+                            'sales_month': date,
+                            'filter_value': area_name,
+                            'total_amount': 0,
+                            'area_type': area_type_mapping.get(area_name, 'district') if area_type_mapping else 'district'
+                        })
         else:
-            existing_combinations = set()
-        
-        # 為所有選中的地區檢查每個月份
-        for area_name in all_selected_areas:
-            for month in months:
-                combination = (area_name, month)
-                if combination not in existing_combinations:
-                    zero_records.append({
-                        'sales_month': month,
-                        'filter_value': area_name,
-                        'total_amount': 0,
-                        'area_type': area_type_mapping.get(area_name, 'district') if area_type_mapping else 'district'
-                    })
+            # 長期範圍：按月聚合
+            if not df.empty:
+                df['sales_month'] = df['sales_month'].dt.to_period('M').dt.to_timestamp()
+                df = df.groupby(['filter_value', 'sales_month', 'area_type'], as_index=False)['total_amount'].sum()
+
+            # 生成月份列表
+            months = []
+            current = start_dt.replace(day=1)
+            end_month = end_dt.replace(day=1)
+            while current <= end_month:
+                months.append(current)
+                if current.month == 12:
+                    current = current.replace(year=current.year + 1, month=1)
+                else:
+                    current = current.replace(month=current.month + 1)
+
+            # 為缺失的地區-月份組合添加0值記錄
+            zero_records = []
+
+            # 獲取現有的地區-月份組合
+            if not df.empty:
+                existing_combinations = set((row['filter_value'], row['sales_month'])
+                                          for _, row in df.iterrows())
+            else:
+                existing_combinations = set()
+
+            # 為所有選中的地區檢查每個月份
+            for area_name in all_selected_areas:
+                for month in months:
+                    combination = (area_name, month)
+                    if combination not in existing_combinations:
+                        zero_records.append({
+                            'sales_month': month,
+                            'filter_value': area_name,
+                            'total_amount': 0,
+                            'area_type': area_type_mapping.get(area_name, 'district') if area_type_mapping else 'district'
+                        })
         
         # 將0值記錄添加到DataFrame
         if zero_records:
@@ -343,7 +389,7 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
         title=chart_title,
         color_discrete_sequence=colors,  # 明確指定顏色序列
         labels={
-            'sales_month': '銷售月份',
+            'sales_month': '日期' if use_daily else '銷售月份',
             'total_amount': '銷售金額 (元)',
             'display_name': '地區'
         }
@@ -351,7 +397,7 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
     
     # 美化圖表，恢復原生圖例
     fig.update_layout(
-        xaxis_title="銷售月份",
+        xaxis_title="日期" if use_daily else "銷售月份",
         yaxis_title="銷售金額 (元)",
         hovermode='x unified',
         legend=legend_config,
@@ -359,15 +405,11 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
         margin=margin_config,
         xaxis=dict(
             type='date',                # 設定為日期類型
-            tickformat='%Y年%m月',      # 橫軸顯示中文格式：2025年01月
-            dtick='M1',                 # 每個月顯示一個刻度
-            ticklabelmode='instant',    # 瞬時標籤模式，確保標籤對齊到具體時間點
-            tickson='labels',           # 刻度線對齊到標籤
+            tickformat='%Y年%m月%d日' if use_daily else '%Y年%m月',  # 根據範圍決定顯示格式
             showgrid=True,              # 顯示網格線
             gridcolor='lightgray',      # 設定網格線顏色
             gridwidth=1,                # 設定網格線寬度
-            tick0='2025-01-01',         # 設定第一個刻度的起始點
-            tickmode='linear'           # 線性刻度模式
+            range=[start_dt, end_dt]    # 明確設置x軸範圍
         )
     )
     
@@ -386,11 +428,14 @@ def create_area_plotly_chart(data, start_date, end_date, all_selected_areas=None
         area_type = df[df['filter_value'] == original_name]['area_type'].iloc[0]
         line_style = type_line_styles.get(area_type, 'solid')
         
+        date_format = '%Y-%m-%d' if use_daily else '%Y-%m'
+        date_label = '日期' if use_daily else '月份'
+
         trace.update(
             mode='lines+markers',
             line=dict(dash=line_style),
             hovertemplate=f'<b>{original_name}</b><br>' +
-                         '月份: %{x|%Y-%m}<br>' +
+                         f'{date_label}: %{{x|{date_format}}}<br>' +
                          '銷售金額: NT$ %{y:,.0f}<extra></extra>'
         )
     

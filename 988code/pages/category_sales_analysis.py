@@ -25,17 +25,17 @@ tab_content = html.Div([
                 html.H6("日期範圍", style={"marginBottom": "10px", "fontWeight": "bold"}),
                 html.Div([
                     dbc.Input(
-                        type="month",
-                        value="2025-07",
+                        type="date",
+                        value="2025-07-01",
                         id="item-start-date",
-                        style={"width": "115px", "marginRight": "10px"}
+                        style={"width": "150px", "marginRight": "10px"}
                     ),
                     html.Span("→", style={"marginRight": "15px", "marginLeft": "5px", "fontSize": "20px"}),
                     dbc.Input(
-                        type="month",
-                        value="2025-07",
+                        type="date",
+                        value="2025-07-31",
                         id="item-end-date",
-                        style={"width": "115px"}
+                        style={"width": "150px"}
                     )
                 ], style={"display": "flex", "alignItems": "center", "marginBottom": "20px"}),
                 
