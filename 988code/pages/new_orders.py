@@ -1776,3 +1776,16 @@ def auto_check_for_updates(n_intervals, last_check_time, current_hash, all_outli
         import traceback
         traceback.print_exc()
         return dash.no_update, datetime.utcnow().isoformat(), dash.no_update
+
+# 根據用戶角色控制新增訂單按鈕的顯示/隱藏
+@app.callback(
+    Output("add-new-order-btn", "style"),
+    Input("user-role-store", "data"),
+    prevent_initial_call=False
+)
+def toggle_add_order_button_visibility(user_role):
+    """根據用戶角色控制新增訂單按鈕的顯示/隱藏"""
+    if user_role == "viewer":
+        return {"display": "none"}
+    else:
+        return {"fontWeight": "500", "fontSize": "16px", "marginRight": "15px", "display": "inline-block"}
