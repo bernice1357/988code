@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Add predict_product_main to path for database modules
-predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
-if predict_main_path not in sys.path:
-    sys.path.insert(0, predict_main_path)
+# predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
+# if predict_main_path not in sys.path:
+#     sys.path.insert(0, predict_main_path)
 
-from sales_change_db import SalesChangeDB
+# from sales_change_db import SalesChangeDB
 
 class SalesChangeManager:
     def __init__(self, db_config):
@@ -26,7 +26,7 @@ class SalesChangeManager:
         """
         self.db_config = db_config
         self.connection = None
-        self.db = SalesChangeDB(db_config)
+        # self.db = SalesChangeDB(db_config)
         self.logger = logging.getLogger(__name__)
 
     def get_connection(self):
@@ -204,11 +204,12 @@ class SalesChangeManager:
             recommendeed_customer_id_rank3 = pcr.rank3,
             updated_at = CURRENT_TIMESTAMP
         FROM (
-            SELECT 
+            SELECT
                 product_id,
                 SUM(quantity) as current_sales
             FROM order_transactions
             WHERE product_id = %s
+              AND is_active = 'active'
               AND EXTRACT(YEAR FROM transaction_date) = EXTRACT(YEAR FROM CURRENT_DATE)
               AND EXTRACT(MONTH FROM transaction_date) = EXTRACT(MONTH FROM CURRENT_DATE)
             GROUP BY product_id
@@ -243,8 +244,10 @@ class SalesChangeManager:
 
     def initialize_system(self):
         """初始化銷量變化監控系統"""
-        return self.db.create_indexes()
-    
+        # return self.db.create_indexes()
+        return True
+
     def get_sales_statistics(self):
         """獲取銷量變化統計"""
-        return self.db.get_sales_statistics()
+        # return self.db.get_sales_statistics()
+        return None

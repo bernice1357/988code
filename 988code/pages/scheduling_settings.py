@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 import threading
 import sys
 import os
+from dash.exceptions import PreventUpdate
 
 # Scheduler control will be handled via API
 SCHEDULER_AVAILABLE = False
@@ -334,36 +335,29 @@ def show_schedule_times(category):
 
 # === LINE Bot 設定相關 callbacks ===
 
-# 載入 LINE Bot 設定狀態
+# 載入 LINE Bot 設定狀態（僅在頁面初始化時）
 @app.callback(
-    [Output('line-settings-store', 'data'),
-     Output("line-reply-switch", "value")],
+    Output("line-reply-switch", "value"),
     [Input('schedule-refresh-interval', 'n_intervals')],
-    prevent_initial_call=False
+    prevent_initial_call=True  # 改為 True，只在頁面載入時執行一次
 )
-def load_line_settings(n_intervals):
-    """從後端載入 LINE Bot 設定狀態"""
+def load_line_settings_initial(n_intervals):
+    """從後端載入 LINE Bot 設定狀態（僅初始化）"""
+    # 只在第一次載入時執行
+    if n_intervals != 0:
+        raise PreventUpdate
+
     try:
-        # 從 cookie 獲取用戶資訊
-        from flask import request
-        user_info = request.cookies.get('user_info')
-        if not user_info:
-            return {}, False
-
-        user_data = json.loads(user_info)
-
         # 調用 GET API 獲取當前狀態
-        response = requests.get(f'{SCHEDULER_BASE_POST}/line-reply-status')
+        response = requests.get(f'{API_BASE_URL}/line-reply-status')
         if response.status_code == 200:
             data = response.json()
             enabled = data.get('enabled', False)
-            return {'enabled': enabled}, enabled
+            return enabled
         else:
-            print(f"Failed to load LINE settings: HTTP {response.status_code}")
-            return {}, False
+            return False
     except Exception as e:
-        print(f"Error loading LINE settings: {e}")
-        return {}, False
+        return False
 
 # LINE Bot 回覆開關
 @app.callback(
@@ -373,37 +367,68 @@ def load_line_settings(n_intervals):
 )
 def toggle_line_reply(value):
     """切換 LINE Bot 回覆開關"""
+    # 寫入日誌文件
+    import datetime
+    log_file = "/tmp/line_reply_toggle.log"
+    with open(log_file, "a") as f:
+        f.write(f"\n{'='*50}\n")
+        f.write(f"[{datetime.datetime.now()}] toggle_line_reply called with value: {value}\n")
+
     try:
         # 從 cookie 獲取用戶資訊
         from flask import request
         user_info = request.cookies.get('user_info')
+
+        with open(log_file, "a") as f:
+            f.write(f"user_info from cookie: {user_info}\n")
+
         if not user_info:
-            print("No user info found")
+            with open(log_file, "a") as f:
+                f.write("[ERROR] No user info found\n")
             return not value
 
         user_data = json.loads(user_info)
         user_role = user_data.get('role', '')
 
+        with open(log_file, "a") as f:
+            f.write(f"user_role: {user_role}\n")
+
         # 檢查權限
         if user_role != 'editor':
-            print("Permission denied: editor role required")
+            with open(log_file, "a") as f:
+                f.write(f"[ERROR] Permission denied: editor role required, got {user_role}\n")
             return not value
 
         # 調用 PUT API 更新狀態
-        response = requests.put(f'{SCHEDULER_BASE_POST}/line-reply-status',
-                               json={"enabled": value, "user_role": user_role})
+        api_url = f'{API_BASE_URL}/line-reply-status'
+        payload = {"enabled": value, "user_role": user_role}
+
+        with open(log_file, "a") as f:
+            f.write(f"Calling API: {api_url} with payload: {payload}\n")
+
+        response = requests.put(api_url, json=payload)
+
+        with open(log_file, "a") as f:
+            f.write(f"API response status: {response.status_code}\n")
+            f.write(f"API response text: {response.text}\n")
 
         if response.status_code == 200:
             status_text = 'enabled' if value else 'disabled'
-            print(f"LINE Bot reply {status_text}")
+            with open(log_file, "a") as f:
+                f.write(f"[SUCCESS] LINE Bot reply {status_text}\n")
+                f.write(f"Returning value: {value}\n")
             return value
         else:
-            print(f"Toggle LINE reply failed: HTTP {response.status_code}")
-            if response.text:
-                print(f"Error: {response.text}")
+            with open(log_file, "a") as f:
+                f.write(f"[ERROR] Toggle LINE reply failed: HTTP {response.status_code}\n")
+                f.write(f"Returning value: {not value}\n")
             return not value
 
     except Exception as e:
-        print(f"Toggle LINE reply failed: {e}")
+        with open(log_file, "a") as f:
+            f.write(f"[ERROR] Toggle LINE reply exception: {e}\n")
+            import traceback
+            f.write(traceback.format_exc())
+            f.write(f"Returning value: {not value}\n")
         return not value
 

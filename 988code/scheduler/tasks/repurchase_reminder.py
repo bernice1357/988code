@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Add predict_product_main to path for database modules
-predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
-if predict_main_path not in sys.path:
-    sys.path.insert(0, predict_main_path)
+# predict_main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'predict_product_main'))
+# if predict_main_path not in sys.path:
+#     sys.path.insert(0, predict_main_path)
 
-from repurchase_reminder_db import RepurchaseReminderDB
+# from repurchase_reminder_db import RepurchaseReminderDB
 
 class RepurchaseReminder:
     """
@@ -43,7 +43,7 @@ class RepurchaseReminder:
         self.create_reminder_after_days = create_reminder_after_days
         self.tz_utc8 = timezone(timedelta(hours=8))
         self.logger = logging.getLogger(__name__)
-        self.db = RepurchaseReminderDB(db_config)
+        # self.db = RepurchaseReminderDB(db_config)
         
     def get_connection(self):
         return psycopg2.connect(**self.db_config)
